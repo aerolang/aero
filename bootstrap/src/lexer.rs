@@ -18,7 +18,7 @@ pub enum Token {
     CamelCase(String),
     SpecialCase(String),
     Int32(i32),
-    Operator(Symbol),
+    Op(Symbol),
     Space,
     Newline,
     End
@@ -58,10 +58,10 @@ fn next_token(next_char: char, iter: &mut Peekable<Chars>) -> TokenResult {
         ' ' | '\t' | '\n' | '\r' => take_whitespace(iter),
         'a' ... 'z' | 'A' ... 'Z' | '_' => take_ident(iter),
         '0' ... '9' => take_number_lit(iter),
-        '+' => take_token(iter, Token::Operator(Symbol::Plus)),
-        '-' => take_token(iter, Token::Operator(Symbol::Hyph)),
-        '*' => take_token(iter, Token::Operator(Symbol::Star)),
-        '/' => take_token(iter, Token::Operator(Symbol::Slash)),
+        '+' => take_token(iter, Token::Op(Symbol::Plus)),
+        '-' => take_token(iter, Token::Op(Symbol::Hyph)),
+        '*' => take_token(iter, Token::Op(Symbol::Star)),
+        '/' => take_token(iter, Token::Op(Symbol::Slash)),
         _ => Err(format!("unexpected character \"{}\"", next_char))
     }
 }
@@ -164,7 +164,7 @@ fn addition_test() {
     assert_eq!(tokenize(String::from(test_str)).unwrap(), vec![
         Token::Int32(1),
         Token::Space,
-        Token::Operator(Symbol::Plus),
+        Token::Op(Symbol::Plus),
         Token::Space,
         Token::Int32(2),
         Token::End
@@ -200,7 +200,7 @@ fn whitespace_test() {
     assert_eq!(tokenize(String::from(test_str)).unwrap(), vec![
         Token::Newline,
         Token::Int32(12),
-        Token::Operator(Symbol::Slash),
+        Token::Op(Symbol::Slash),
         Token::Space,
         Token::Int32(34),
         Token::Newline,
