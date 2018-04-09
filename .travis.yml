@@ -14,3 +14,5 @@ script:
   - cd bootstrap
   - cargo build
   - cargo test
+notifications:
+  email: false
