@@ -14,6 +14,9 @@ pub enum Symbol {
 
 #[derive(PartialEq, Clone, Debug)]
 pub enum Token {
+    SnakeCase(String),
+    CamelCase(String),
+    SpecialCase(String),
     Int32(i32),
     Operator(Symbol),
     Space,
@@ -53,12 +56,52 @@ type TokenResult = Result<Token, String>;
 fn next_token(next_char: char, iter: &mut Peekable<Chars>) -> TokenResult {
     match next_char {
         ' ' | '\t' | '\n' | '\r' => take_whitespace(iter),
+        'a' ... 'z' | 'A' ... 'Z' | '_' => take_ident(iter),
         '0' ... '9' => take_number_lit(iter),
         '+' => take_token(iter, Token::Operator(Symbol::Plus)),
         '-' => take_token(iter, Token::Operator(Symbol::Hyph)),
         '*' => take_token(iter, Token::Operator(Symbol::Star)),
         '/' => take_token(iter, Token::Operator(Symbol::Slash)),
-        _ => return Err(format!("unexpected character \"{}\"", next_char))
+        _ => Err(format!("unexpected character \"{}\"", next_char))
+    }
+}
+
+// Get the next identifier.
+fn take_ident(iter: &mut Peekable<Chars>) -> TokenResult {
+    let mut ident_vec = vec![];
+
+    let mut has_lower = false;
+    let mut has_upper = false;
+    let mut has_underscore = false;
+
+    let starts_upper = match *iter.peek().unwrap() {
+        'A' ... 'Z' => true,
+        _ => false
+    };
+
+    while let Some(&ch) = iter.peek() {
+        match ch {
+            'a' ... 'z' => has_lower = true,
+            'A' ... 'Z' => has_upper = true,
+            '_' => has_underscore = true,
+            '0' ... '9' => (),
+            _ => break
+        }
+
+        iter.next().unwrap();
+        ident_vec.push(ch);
+    }
+
+    let ident = ident_vec.into_iter().collect();
+
+    if has_upper && has_underscore && !has_lower {
+        Ok(Token::SpecialCase(ident))
+    } else if starts_upper && !has_underscore {
+        Ok(Token::CamelCase(ident))
+    } else if !has_upper {
+        Ok(Token::SnakeCase(ident))
+    } else {
+        Err(format!("invalid identifier \"{}\"", ident))
     }
 }
 
@@ -116,7 +159,9 @@ fn take_while<F>(iter: &mut Peekable<Chars>, cond: F) -> Vec<char>
 
 #[test]
 fn addition_test() {
-    assert_eq!(tokenize(String::from("1 + 2")).unwrap(), vec![
+    let test_str = "1 + 2";
+
+    assert_eq!(tokenize(String::from(test_str)).unwrap(), vec![
         Token::Int32(1),
         Token::Space,
         Token::Operator(Symbol::Plus),
@@ -127,8 +172,32 @@ fn addition_test() {
 }
 
 #[test]
+fn ident_test() {
+    let test_str = "test Test T test1 test_1 _ __TEST__";
+
+    assert_eq!(tokenize(String::from(test_str)).unwrap(), vec![
+        Token::SnakeCase(String::from("test")),
+        Token::Space,
+        Token::CamelCase(String::from("Test")),
+        Token::Space,
+        Token::CamelCase(String::from("T")),
+        Token::Space,
+        Token::SnakeCase(String::from("test1")),
+        Token::Space,
+        Token::SnakeCase(String::from("test_1")),
+        Token::Space,
+        Token::SnakeCase(String::from("_")),
+        Token::Space,
+        Token::SpecialCase(String::from("__TEST__")),
+        Token::End
+    ]);
+}
+
+#[test]
 fn whitespace_test() {
-    assert_eq!(tokenize(String::from("\r\n  12/ 34\n")).unwrap(), vec![
+    let test_str = "\r\n  12/ 34\n";
+
+    assert_eq!(tokenize(String::from(test_str)).unwrap(), vec![
         Token::Newline,
         Token::Int32(12),
         Token::Operator(Symbol::Slash),
