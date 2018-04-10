@@ -17,11 +17,10 @@ pub enum Token {
     SnakeCase(String),
     CamelCase(String),
     SpecialCase(String),
-    Int32(i32),
+    Int32Lit(i32),
     Op(Symbol),
     Space,
-    Newline,
-    End
+    Newline
 }
 
 /// Build a vector of tokens off a string input.
@@ -38,12 +37,8 @@ pub fn tokenize(string: String) -> Result<Vec<Token>, String> {
                 Ok(token) => result.push(token),
                 Err(message) => return Err(message)
             },
-            // Otherwise, we'll finish off the token list with the
-            // end token.
-            None => {
-                result.push(Token::End);
-                break;
-            }
+            // Otherwise, we'll finish off the token list.
+            None => break
         }
     }
 
@@ -131,7 +126,7 @@ fn take_number_lit(iter: &mut Peekable<Chars>) -> TokenResult {
 
     let parsed: i32 = number.parse().unwrap();
 
-    Ok(Token::Int32(parsed))
+    Ok(Token::Int32Lit(parsed))
 }
 
 // Take the next character off the iterator and return the token.
@@ -157,53 +152,55 @@ fn take_while<F>(iter: &mut Peekable<Chars>, cond: F) -> Vec<char>
     result
 }
 
-#[test]
-fn addition_test() {
-    let test_str = "1 + 2";
+#[cfg(test)]
+mod tests {
+    use super::*;
 
-    assert_eq!(tokenize(String::from(test_str)).unwrap(), vec![
-        Token::Int32(1),
-        Token::Space,
-        Token::Op(Symbol::Plus),
-        Token::Space,
-        Token::Int32(2),
-        Token::End
-    ]);
-}
+    #[test]
+    fn addition_test() {
+        let test_str = "1 + 2";
 
-#[test]
-fn ident_test() {
-    let test_str = "test Test T test1 test_1 _ __TEST__";
+        assert_eq!(tokenize(String::from(test_str)).unwrap(), vec![
+            Token::Int32Lit(1),
+            Token::Space,
+            Token::Op(Symbol::Plus),
+            Token::Space,
+            Token::Int32Lit(2)
+        ]);
+    }
 
-    assert_eq!(tokenize(String::from(test_str)).unwrap(), vec![
-        Token::SnakeCase(String::from("test")),
-        Token::Space,
-        Token::CamelCase(String::from("Test")),
-        Token::Space,
-        Token::CamelCase(String::from("T")),
-        Token::Space,
-        Token::SnakeCase(String::from("test1")),
-        Token::Space,
-        Token::SnakeCase(String::from("test_1")),
-        Token::Space,
-        Token::SnakeCase(String::from("_")),
-        Token::Space,
-        Token::SpecialCase(String::from("__TEST__")),
-        Token::End
-    ]);
-}
+    #[test]
+    fn ident_test() {
+        let test_str = "test Test T test1 test_1 _ __TEST__";
 
-#[test]
-fn whitespace_test() {
-    let test_str = "\r\n  12/ 34\n";
+        assert_eq!(tokenize(String::from(test_str)).unwrap(), vec![
+            Token::SnakeCase(String::from("test")),
+            Token::Space,
+            Token::CamelCase(String::from("Test")),
+            Token::Space,
+            Token::CamelCase(String::from("T")),
+            Token::Space,
+            Token::SnakeCase(String::from("test1")),
+            Token::Space,
+            Token::SnakeCase(String::from("test_1")),
+            Token::Space,
+            Token::SnakeCase(String::from("_")),
+            Token::Space,
+            Token::SpecialCase(String::from("__TEST__"))
+        ]);
+    }
 
-    assert_eq!(tokenize(String::from(test_str)).unwrap(), vec![
-        Token::Newline,
-        Token::Int32(12),
-        Token::Op(Symbol::Slash),
-        Token::Space,
-        Token::Int32(34),
-        Token::Newline,
-        Token::End
-    ]);
+    #[test]
+    fn whitespace_test() {
+        let test_str = "\r\n  12/ 34\n";
+
+        assert_eq!(tokenize(String::from(test_str)).unwrap(), vec![
+            Token::Newline,
+            Token::Int32Lit(12),
+            Token::Op(Symbol::Slash),
+            Token::Space,
+            Token::Int32Lit(34),
+            Token::Newline
+        ]);
+    }
 }
