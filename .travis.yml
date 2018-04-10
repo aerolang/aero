@@ -8,8 +8,8 @@ matrix:
     - rust: nightly
   fast_finish: true
 env:
-    global:
-        - RUST_BACKTRACE=1
+  global:
+    - RUST_BACKTRACE=1
 script:
   - cd bootstrap
   - cargo build
