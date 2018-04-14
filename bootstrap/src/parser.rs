@@ -24,22 +24,21 @@ pub fn parse(tokens: Vec<Token>) -> ExprResult {
   let mut expr_vec = vec![];
 
   // Keep parsing while there are still tokens.
-  while let Some(_) = iter.peek() {
+  while let Some(&token) = iter.peek() {
+    // Just pop off the token if it's whitespace.
+    if token == &Token::Newline || token == &Token::Space {
+      iter.next().unwrap();
+      continue;
+    }
+
     let result = parse_expr(&mut iter, 0);
 
     // On success, add the expression to the vector, otherwise return
     // the error.
     if let Ok(expr) = result {
-      expr_vec.push(expr)
+      expr_vec.push(expr);
     } else {
-      return result
-    }
-
-    // Pop off the next newline token if there is one.
-    if let Some(&token) = iter.peek() {
-      if token == &Token::Newline {
-        iter.next().unwrap();
-      }
+      return result;
     }
   }
 
@@ -68,15 +67,18 @@ fn parse_expr<'a, I>(iter: &mut Peekable<I>, precedence: u8) -> ExprResult
 
   // Keep parsing while there are still tokens.
   while let Some(&next_token) = iter.peek() {
-    // We if hit a newline then this expression is over.
-    if next_token == &Token::Newline {
-      break;
-    }
-
     // Getting the preceedence of the next operator.
     let next_precedence =
       match next_token {
         &Token::Op(ref symbol) => get_precedence(symbol),
+        // If this is a space we just drop it and continue the loop.
+        &Token::Space => {
+          iter.next().unwrap();
+          continue;
+        },
+        // On a newline, the expression is over and we'll let the
+        // function return the current expression.
+        &Token::Newline => break,
         _ => return Err(format!("unexpected token \"{:?}\"", next_token))
       };
 
@@ -100,9 +102,15 @@ fn parse_expr<'a, I>(iter: &mut Peekable<I>, precedence: u8) -> ExprResult
 // Parsing expressions which don't require the previous expression.
 fn parse_prefix<'a, I>(iter: &mut Peekable<I>) -> ExprResult
     where I: Iterator<Item=&'a Token> {
-  match iter.next().unwrap() {
-    &Token::Int32Lit(num) => Ok(Expr::Int32LitExpr(num)),
-    token => Err(format!("unexpected token \"{:?}\"", token)),
+  match iter.next() {
+    Some(next_token) => match next_token {
+      &Token::Int32Lit(num) => Ok(Expr::Int32LitExpr(num)),
+      // We just throw out preceding spaces by calling this function
+      // again.
+      &Token::Space => parse_prefix(iter),
+      _ => Err(format!("unexpected token \"{:?}\"", next_token))
+    },
+    None => Err(String::from("unexpected end of tokens"))
   }
 }
 
@@ -150,7 +158,7 @@ mod tests {
 
   #[test]
   fn test_basic_addition() {
-    let tokens = tokenize(String::from("32+64")).unwrap();
+    let tokens = tokenize(String::from("32 + 64")).unwrap();
 
     let ast = Expr::FileExpr(
       vec![
@@ -167,7 +175,7 @@ mod tests {
 
   #[test]
   fn test_multiline() {
-    let tokens = tokenize(String::from("1+2\n3")).unwrap();
+    let tokens = tokenize(String::from("1+ 2\n3 ")).unwrap();
 
     let ast = Expr::FileExpr(
       vec![
