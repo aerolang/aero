@@ -2,7 +2,7 @@ language: elixir
 elixir:
   - '1.6'
 otp_release:
-  - '20'
+  - '20.3.8'
 install:
   - cd bootstrap
   - mix local.rebar --force
