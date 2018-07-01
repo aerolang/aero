@@ -1,18 +1,11 @@
-language: rust
-rust:
-  - stable
-  - beta
-  - nightly
-matrix:
-  allow_failures:
-    - rust: nightly
-  fast_finish: true
-env:
-  global:
-    - RUST_BACKTRACE=1
+language: elixir
+install:
+  - cd bootstrap
+  - mix local.rebar --force
+  - mix local.hex --force
+  - mix deps.get
 script:
   - cd bootstrap
-  - cargo build
-  - cargo test
+  - mix test
 notifications:
   email: false

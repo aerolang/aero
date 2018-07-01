@@ -1,7 +1,0 @@
-[package]
-name = "aero_bootstrap"
-version = "0.1.0"
-authors = ["Bradley Bridges <blbridges96@gmail.com>"]
-publish = false
-
-[dependencies]

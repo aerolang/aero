@@ -1,3 +1,12 @@
-target/
-**/*.rs.bk
-Cargo.lock
+# Elixir defaults.
+/_build
+/cover
+/deps
+/doc
+/.fetch
+erl_crash.dump
+*.ez
+*.beam
+
+# Leex output.
+/src/aero_lexer.erl
