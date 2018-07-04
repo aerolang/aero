@@ -92,4 +92,28 @@ defmodule Aero.LexerTest do
       {:special, 1, :__TEST_1__}
     ]
   end
+
+  test "basic atoms" do
+    source = ":test :test_1"
+
+    {:ok, tokens, 1} = Aero.Lexer.tokenize source
+
+    assert tokens === [
+      {:atom_lit, 1, :test},
+      {:space, 1},
+      {:atom_lit, 1, :test_1}
+    ]
+  end
+
+  test "escaped atoms" do
+    source = ":\"Test\" :\"& ,#\""
+
+    {:ok, tokens, 1} = Aero.Lexer.tokenize source
+
+    assert tokens === [
+      {:atom_lit, 1, :Test},
+      {:space, 1},
+      {:atom_lit, 1, :"& ,#"}
+    ]
+  end
 end

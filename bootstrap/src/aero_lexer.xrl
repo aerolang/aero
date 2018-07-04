@@ -42,11 +42,11 @@ parse_atom([$: | Chars]) ->
 
 % Convert atom literal with name in quotes for special characters.
 parse_atom_quoted([$: | Chars]) ->
-  list_to_atom(string:slice(Chars, 1, string:length(Chars) - 2)).
+  list_to_atom(lists:sublist(Chars, 2, length(Chars) - 2)).
 
 % Convert a charlist to a binary.
 parse_string(Chars) ->
-  list_to_binary(string:slice(Chars, 1, string:length(Chars) - 2)).
+  list_to_binary(lists:sublist(Chars, 2, length(Chars) - 2)).
 
 % Extract the char value from a charlist.
 parse_char(Chars) ->
