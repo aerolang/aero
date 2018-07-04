@@ -6,7 +6,7 @@ TITLE_CASE = [A-Z][a-zA-Z0-9]*
 SPECIAL    = __[A-Z][A-Z0-9_]*[A-Z0-9]__
 STRING     = "[^\"]*"
 CHAR       = '[^\']'
-WHITESPACE = [\s\t\r\n]+
+WHITESPACE = [\s\t\r\n;]+
 
 Rules.
 
@@ -54,7 +54,7 @@ parse_char(Chars) ->
 
 % Classify whitespace as being a normal space or newline.
 whitespace_type(Chars) ->
-  case string:find(Chars, "\n") of
+  case re:run(Chars, "[\n;]") of
     nomatch -> space;
     _       -> newline
   end.

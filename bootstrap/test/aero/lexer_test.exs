@@ -23,6 +23,25 @@ defmodule Aero.LexerTest do
     ]
   end
 
+  test "semicolons act as newlines" do
+    source = "t_1;t_2 ; t_3\n;t_4 t_5;;"
+
+    {:ok, tokens, 2} = Aero.Lexer.tokenize source
+
+    assert tokens === [
+      {:snake_case, 1, :t_1},
+      {:newline, 1},
+      {:snake_case, 1, :t_2},
+      {:newline, 1},
+      {:snake_case, 1, :t_3},
+      {:newline, 1},
+      {:snake_case, 2, :t_4},
+      {:space, 2},
+      {:snake_case, 2, :t_5},
+      {:newline, 2}
+    ]
+  end
+
   test "newlines are tokenized after comments" do
     source = "-- comment\nt_1-- comment "
 
