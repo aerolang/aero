@@ -1,38 +1,34 @@
 Definitions.
 
 COMMENT    = --[^\n]*
-SNAKE_CASE = [a-z_][a-z0-9_]*
-TITLE_CASE = [A-Z][a-zA-Z0-9]*
-SPECIAL    = __[A-Z][A-Z0-9_]*[A-Z0-9]__
+IDENT      = [a-zA-Z_][a-zA-Z0-9_]*
 STRING     = "[^\"]*"
 CHAR       = '[^\']'
 WHITESPACE = [\s\t\r\n;]+
 
 Rules.
 
-{COMMENT}      : skip_token.
-{SNAKE_CASE}   : {token, {snake_case, TokenLine, list_to_atom(TokenChars)}}.
-{TITLE_CASE}   : {token, {title_case, TokenLine, list_to_atom(TokenChars)}}.
-{SPECIAL}      : {token, {special, TokenLine, list_to_atom(TokenChars)}}.
-\:{SNAKE_CASE} : {token, {atom_lit, TokenLine, parse_atom(TokenChars)}}.
-\:{STRING}     : {token, {atom_lit, TokenLine, parse_atom_quoted(TokenChars)}}.
-{STRING}       : {token, {string_lit, TokenLine, parse_string(TokenChars)}}.
-{CHAR}         : {token, {char_lit, TokenLine, parse_char(TokenChars)}}.
-{WHITESPACE}   : {token, {whitespace_type(TokenChars), TokenLine}}.
-{NEWLINE}      : {token, {newline, TokenLine}}.
-{SPACE}        : {token, {space, TokenLine}}.
-\+             : {token, {'+', TokenLine}}.
--              : {token, {'+', TokenLine}}.
-\*\*           : {token, {'**', TokenLine}}.
-\*             : {token, {'*', TokenLine}}.
-/              : {token, {'/', TokenLine}}.
-\(             : {token, {'(', TokenLine}}.
-\)             : {token, {')', TokenLine}}.
-\[             : {token, {'[', TokenLine}}.
-\]             : {token, {']', TokenLine}}.
-\{             : {token, {'{', TokenLine}}.
-\}             : {token, {'}', TokenLine}}.
-,              : {token, {',', TokenLine}}.
+{COMMENT}    : skip_token.
+{IDENT}      : {token, {ident, TokenLine, list_to_atom(TokenChars)}}.
+\:{IDENT}    : {token, {atom_lit, TokenLine, parse_atom(TokenChars)}}.
+\:{STRING}   : {token, {atom_lit, TokenLine, parse_atom_quoted(TokenChars)}}.
+{STRING}     : {token, {string_lit, TokenLine, parse_string(TokenChars)}}.
+{CHAR}       : {token, {char_lit, TokenLine, parse_char(TokenChars)}}.
+{WHITESPACE} : {token, {whitespace_type(TokenChars), TokenLine}}.
+{NEWLINE}    : {token, {newline, TokenLine}}.
+{SPACE}      : {token, {space, TokenLine}}.
+\+           : {token, {'+', TokenLine}}.
+-            : {token, {'+', TokenLine}}.
+\*\*         : {token, {'**', TokenLine}}.
+\*           : {token, {'*', TokenLine}}.
+/            : {token, {'/', TokenLine}}.
+\(           : {token, {'(', TokenLine}}.
+\)           : {token, {')', TokenLine}}.
+\[           : {token, {'[', TokenLine}}.
+\]           : {token, {']', TokenLine}}.
+\{           : {token, {'{', TokenLine}}.
+\}           : {token, {'}', TokenLine}}.
+,            : {token, {',', TokenLine}}.
 
 Erlang code.
 

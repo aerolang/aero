@@ -8,17 +8,17 @@ defmodule Aero.LexerTest do
 
     assert tokens === [
       {:newline, 1},
-      {:snake_case, 2, :t_1},
+      {:ident, 2, :t_1},
       {:space, 2},
-      {:snake_case, 2, :t_2},
+      {:ident, 2, :t_2},
       {:space, 2},
-      {:snake_case, 2, :t_3},
+      {:ident, 2, :t_3},
       {:newline, 2},
-      {:snake_case, 3, :t_4},
+      {:ident, 3, :t_4},
       {:newline, 3},
-      {:snake_case, 4, :t_5},
+      {:ident, 4, :t_5},
       {:newline, 4},
-      {:snake_case, 6, :t_6},
+      {:ident, 6, :t_6},
       {:space, 6}
     ]
   end
@@ -29,15 +29,15 @@ defmodule Aero.LexerTest do
     {:ok, tokens, 2} = Aero.Lexer.tokenize source
 
     assert tokens === [
-      {:snake_case, 1, :t_1},
+      {:ident, 1, :t_1},
       {:newline, 1},
-      {:snake_case, 1, :t_2},
+      {:ident, 1, :t_2},
       {:newline, 1},
-      {:snake_case, 1, :t_3},
+      {:ident, 1, :t_3},
       {:newline, 1},
-      {:snake_case, 2, :t_4},
+      {:ident, 2, :t_4},
       {:space, 2},
-      {:snake_case, 2, :t_5},
+      {:ident, 2, :t_5},
       {:newline, 2}
     ]
   end
@@ -49,7 +49,7 @@ defmodule Aero.LexerTest do
 
     assert tokens === [
       {:newline, 1},
-      {:snake_case, 2, :t_1}
+      {:ident, 2, :t_1}
     ]
   end
 
@@ -73,23 +73,23 @@ defmodule Aero.LexerTest do
     ]
   end
 
-  test "identifiers are separated by their case" do
+  test "identifiers" do
     source = "test Test __TEST__ test_1 Test1 __TEST_1__"
 
     {:ok, tokens, 1} = Aero.Lexer.tokenize source
 
     assert tokens === [
-      {:snake_case, 1, :test},
+      {:ident, 1, :test},
       {:space, 1},
-      {:title_case, 1, :Test},
+      {:ident, 1, :Test},
       {:space, 1},
-      {:special, 1, :__TEST__},
+      {:ident, 1, :__TEST__},
       {:space, 1},
-      {:snake_case, 1, :test_1},
+      {:ident, 1, :test_1},
       {:space, 1},
-      {:title_case, 1, :Test1},
+      {:ident, 1, :Test1},
       {:space, 1},
-      {:special, 1, :__TEST_1__}
+      {:ident, 1, :__TEST_1__}
     ]
   end
 
