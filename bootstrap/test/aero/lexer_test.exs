@@ -1,6 +1,14 @@
 defmodule Aero.LexerTest do
   use ExUnit.Case
 
+  test "empty string" do
+    source = ""
+
+    {:ok, tokens, 1} = Aero.Lexer.tokenize source
+
+    assert tokens === []
+  end
+
   test "whitespace is classified as newlines and spaces" do
     source = "\r\n  t_1 t_2 \r t_3 \nt_4\r\nt_5 \n \n t_6 "
 
