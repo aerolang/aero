@@ -2,13 +2,23 @@ defmodule Aero.Builder.Kernel do
   @kernel (
     quote do
       defmodule :_aero_kernel do
-        defmacro mod(module, block) do
-          Module.create module, block, Macro.Env.location(__ENV__)
+        defmodule :atom_t do
+          @enforce_keys [:value]
+          defstruct [:value]
+        end
+
+        defmodule :string_t do
+          @enforce_keys [:value]
+          defstruct [:value]
+        end
+
+        defmacro mod(module, {:__block__, _, _} = block) do
+          Module.create module.value, block, Macro.Env.location(__ENV__)
         end
 
         defmacro log(content) do
           quote do
-            IO.puts(unquote(content))
+            IO.puts(unquote(content).value)
           end
         end
       end

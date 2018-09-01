@@ -10,10 +10,10 @@ defmodule Aero.Builder.Transform do
 
   def transform({:macro_call, _meta, [name: name, args: args]})
   when is_list(args) do
-    name_t = name |> extract_ident()
-    remote = {:., [], [:_aero_kernel, name_t]}
+    macro = name |> extract_ident() |> elixir_value()
+    remote = {:., [], [:_aero_kernel, macro]}
 
-    {remote, [], transform_macro_args(name_t, args)}
+    {remote, [], transform_macro_args(macro, args)}
   end
 
   def transform({:pos_arg, _meta, arg}) do
@@ -25,7 +25,7 @@ defmodule Aero.Builder.Transform do
   end
 
   def transform({:string_lit, _meta, string}) when is_binary(string) do
-    string
+    string_t(string)
   end
 
   def transform({:block, _meta, expr_list}) when is_list(expr_list) do
@@ -33,7 +33,7 @@ defmodule Aero.Builder.Transform do
   end
 
   defp extract_ident({:ident, _meta, name}) do
-    name
+    atom_t(name)
   end
 
   defp extract_pos_arg({:pos_arg, _meta, arg}) do
@@ -52,4 +52,14 @@ defmodule Aero.Builder.Transform do
       string |> transform()
     ]
   end
+
+  # Functions to convert erlang types to Aero kernel type structs.
+  defp atom_t(value), do: value |> aero_value(:atom_t)
+  defp string_t(value), do: value |> aero_value(:string_t)
+
+  # Convert a value to be a struct for an Aero type, e.g., :atom_t.
+  defp aero_value(value, type), do: {:%, [], [type, {:%{}, [], value: value}]}
+
+  # Get the value from inside an Aero type struct.
+  defp elixir_value({:%, [], [_type, {:%{}, [], value: value}]}), do: value
 end
