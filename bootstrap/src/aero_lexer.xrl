@@ -1,3 +1,5 @@
+%-- Regex Definitions for Rules -----------------------------------------------
+
 Definitions.
 
 COMMENT    = --[^\n]*
@@ -5,6 +7,8 @@ IDENT      = [a-zA-Z_][a-zA-Z0-9_]*
 STRING     = "[^\"]*"
 CHAR       = '[^\']'
 WHITESPACE = [\s\t\r\n;]+
+
+%-- Token Rules ---------------------------------------------------------------
 
 Rules.
 
@@ -15,8 +19,6 @@ Rules.
 {STRING}     : {token, {string_lit, TokenLine, parse_string(TokenChars)}}.
 {CHAR}       : {token, {char_lit, TokenLine, parse_char(TokenChars)}}.
 {WHITESPACE} : {token, {whitespace_type(TokenChars), TokenLine}}.
-{NEWLINE}    : {token, {newline, TokenLine}}.
-{SPACE}      : {token, {space, TokenLine}}.
 \+           : {token, {'+', TokenLine}}.
 -            : {token, {'-', TokenLine}}.
 \*\*         : {token, {'**', TokenLine}}.
@@ -29,6 +31,8 @@ Rules.
 \{           : {token, {'{', TokenLine}}.
 \}           : {token, {'}', TokenLine}}.
 ,            : {token, {',', TokenLine}}.
+
+%-- Helper Functions ----------------------------------------------------------
 
 Erlang code.
 
