@@ -56,13 +56,6 @@ defmodule Aero.LexerTest do
       {:string_lit, 1, "test"}
     ]
 
-  lexer_test "basic char",
-    source: "'a'",
-    lines: 1,
-    tokens: [
-      {:char_lit, 1, ?a}
-    ]
-
   lexer_test "identifiers",
     source: "test Test __TEST__ test_1 Test1 __TEST_1__",
     lines: 1,

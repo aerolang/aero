@@ -73,7 +73,6 @@ secondary -> simple : '$1'.
 simple -> ident : token_to_ast('$1').
 simple -> atom_lit : token_to_ast('$1').
 simple -> string_lit : token_to_ast('$1').
-simple -> char_lit : token_to_ast('$1').
 
 %-- Macro Calls ---------------------------------------------------------------
 
