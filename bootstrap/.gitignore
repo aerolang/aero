@@ -11,3 +11,6 @@ erl_crash.dump
 # Leex and Yecc output.
 /src/aero_lexer.erl
 /src/aero_parser.erl
+
+# Output
+/aero_bootstrap
