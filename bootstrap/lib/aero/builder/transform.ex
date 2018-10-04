@@ -20,8 +20,38 @@ defmodule Aero.Builder.Transform do
     transform(arg)
   end
 
-  def transform({:ident, _meta, name}) when is_atom(name) do
-    {name, [], Elixir}
+  def transform({:ident, meta, name}) when is_atom(name) do
+    # Convert idents that are keywords in Elixir.
+    name =
+      case name do
+        :true -> :true_
+        :false -> :false_
+        :nil -> :nil_
+        :when -> :when_
+        :and -> :and_
+        :or -> :or_
+        :in -> :in_
+        :fn -> :fn_
+        :do -> :do_
+        :end -> :end_
+        :catch -> :catch_
+        :rescue -> :rescue_
+        :after -> :after_
+        :else -> :else_
+        :_ -> :__
+      end
+
+    # If this corresponds to a zero-argument macro, convert it,
+    # otherwise this is just an identifier.
+    if name in [:true_, :false_] do
+        transform({:macro_call, meta, [name: {:ident, meta, name}, args: []]})
+    else
+        {name, [], Elixir}
+    end
+  end
+
+  def transform({:atom_lit, _meta, atom}) when is_atom(atom) do
+    atom_t(atom)
   end
 
   def transform({:string_lit, _meta, string}) when is_binary(string) do
@@ -52,6 +82,16 @@ defmodule Aero.Builder.Transform do
       string |> transform()
     ]
   end
+
+  defp transform_macro_args(:if, [expr, then]) do
+    [
+      expr |> transform(),
+      [then: then |> transform()]
+    ]
+  end
+
+  defp transform_macro_args(:true_, []), do: []
+  defp transform_macro_args(:false_, []), do: []
 
   # Functions to convert erlang types to Aero kernel type structs.
   defp atom_t(value), do: value |> aero_value(:atom_t)

@@ -21,6 +21,27 @@ defmodule Aero.Builder.Kernel do
             IO.puts(unquote(content).value)
           end
         end
+
+        defmacro if(expr, then) do
+          quote do
+            case unquote(expr).value do
+              :true -> {:some, unquote(then)}
+              :false -> :none
+            end
+          end
+        end
+
+        defmacro true_ do
+          quote do
+            %:atom_t{value: :true}
+          end
+        end
+
+        defmacro false_ do
+          quote do
+            %:atom_t{value: :false}
+          end
+        end
       end
     end
   )
