@@ -10,7 +10,6 @@ Nonterminals
   block
   macro_call
   macro_args
-  whitespace
   .
 
 Terminals
@@ -18,7 +17,6 @@ Terminals
   atom_lit
   string_lit
   newline
-  space
   '{'
   '}'
   ','
@@ -32,8 +30,6 @@ Expect 0.
 
 %-- Precedence ----------------------------------------------------------------
 
-Unary 10 newline.
-Left  20 space.
 Left  30 ','.
 
 %-- Source --------------------------------------------------------------------
@@ -53,14 +49,16 @@ source -> group : {source, [], '$1'}.
 
 block -> '{' group '}' : {block, get_meta('$1'), '$2'}.
 
-group -> group_bare : '$1'.
-group -> group_bare whitespace : '$1'.
-group -> whitespace group_bare : '$2'.
-group -> whitespace group_bare whitespace : '$2'.
+group -> '$empty' : [].
+group -> newline : [].
+group -> group_bare : reverse('$1').
+group -> group_bare newline : reverse('$1').
+group -> newline group_bare : reverse('$2').
+group -> newline group_bare newline : reverse('$2').
 
-group_bare -> '$empty' : [].
+% Note that this is in reverse order (fixed above).
 group_bare -> primary : ['$1'].
-group_bare -> primary newline group : ['$1' | '$3'].
+group_bare -> group_bare newline primary : ['$3' | '$1'].
 
 primary -> block : '$1'.
 primary -> macro_call : '$1'.
@@ -75,26 +73,18 @@ simple -> string_lit : token_to_ast('$1').
 
 %-- Macro Calls ---------------------------------------------------------------
 
-macro_call -> ident space macro_args : macro_call('$1', '$3').
+macro_call -> ident macro_args : macro_call('$1', '$2').
 
 macro_args -> secondary : [pos_arg('$1')].
 macro_args -> secondary ',' macro_args : [pos_arg('$1') | '$3'].
-macro_args -> secondary ',' whitespace macro_args : [pos_arg('$1') | '$4'].
-macro_args -> secondary space block : [pos_arg('$1'), pos_arg('$3')].
-
-%-- Whitespace ----------------------------------------------------------------
-
-% Whitespace in Aero is either a newline or a space. Note that a newline is the
-% lexer is an amount of whitespace that contains at least one "\n" character.
-% There cannot be two whitespace (newline or space) in a row. Spaces are needed
-% in the parser so that macro calls can be differentiated from function calls.
-
-whitespace -> newline.
-whitespace -> space.
+macro_args -> secondary ',' newline macro_args : [pos_arg('$1') | '$4'].
+macro_args -> secondary block : [pos_arg('$1'), pos_arg('$2')].
 
 %-- Helper Functions ----------------------------------------------------------
 
 Erlang code.
+
+-import(lists, [reverse/1]).
 
 % Build an AST node for a macro call.
 macro_call(Ident, Args) ->

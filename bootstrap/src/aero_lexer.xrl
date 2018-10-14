@@ -16,7 +16,7 @@ Rules.
 \:{IDENT}    : {token, {atom_lit, TokenLine, parse_atom(TokenChars)}}.
 \:{STRING}   : {token, {atom_lit, TokenLine, parse_atom_quoted(TokenChars)}}.
 {STRING}     : {token, {string_lit, TokenLine, parse_string(TokenChars)}}.
-{WHITESPACE} : {token, {whitespace_type(TokenChars), TokenLine}}.
+{WHITESPACE} : whitespace_token(TokenChars, TokenLine).
 \+           : {token, {'+', TokenLine}}.
 -            : {token, {'-', TokenLine}}.
 \*\*         : {token, {'**', TokenLine}}.
@@ -46,9 +46,9 @@ parse_atom_quoted([$: | Chars]) ->
 parse_string(Chars) ->
   list_to_binary(lists:sublist(Chars, 2, length(Chars) - 2)).
 
-% Classify whitespace as being a normal space or newline.
-whitespace_type(Chars) ->
+% Classify whitespace as being a newline or a space (skipped).
+whitespace_token(Chars, Line) ->
   case re:run(Chars, "[\n;]") of
-    nomatch -> space;
-    _       -> newline
+    nomatch -> skip_token;
+    _       -> {token, {newline, Line}}
   end.

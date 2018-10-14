@@ -5,9 +5,9 @@ defmodule Aero.ParserTest do
     tokens: [],
     ast: {:source, [], []}
 
-  parser_test "whitespace",
+  parser_test "only a newline",
     tokens: [
-      {:space, 1}
+      {:newline, 1}
     ],
     ast: {:source, [], []}
 
@@ -16,7 +16,6 @@ defmodule Aero.ParserTest do
     #   log "Hello, World!"
     tokens: [
       {:ident, 1, :log},
-      {:space, 1},
       {:string_lit, 1, "Hello, World!"},
       {:newline, 1}
     ],
@@ -34,9 +33,7 @@ defmodule Aero.ParserTest do
     #   z { }
     tokens: [
       {:ident, 1, :z},
-      {:space, 1},
       {:"{", 1},
-      {:space, 1},
       {:"}", 1},
       {:newline, 1}
     ],
@@ -80,11 +77,8 @@ defmodule Aero.ParserTest do
     #   mod empty { }
     tokens: [
       {:ident, 1, :mod},
-      {:space, 1},
       {:ident, 1, :empty},
-      {:space, 1},
       {:"{", 1},
-      {:space, 1},
       {:"}", 1},
       {:newline, 1}
     ],
@@ -104,19 +98,13 @@ defmodule Aero.ParserTest do
     #   mod another_empty { }
     tokens: [
       {:ident, 1, :mod},
-      {:space, 1},
       {:ident, 1, :empty},
-      {:space, 1},
       {:"{", 1},
-      {:space, 1},
       {:"}", 1},
       {:newline, 1},
       {:ident, 2, :mod},
-      {:space, 2},
       {:ident, 2, :another_empty},
-      {:space, 2},
       {:"{", 2},
-      {:space, 2},
       {:"}", 2},
       {:newline, 2}
     ],
@@ -142,12 +130,9 @@ defmodule Aero.ParserTest do
     #   mod empty, { }
     tokens: [
       {:ident, 1, :mod},
-      {:space, 1},
       {:ident, 1, :empty},
       {:",", 1},
-      {:space, 1},
       {:"{", 1},
-      {:space, 1},
       {:"}", 1},
       {:newline, 1}
     ],
@@ -166,13 +151,10 @@ defmodule Aero.ParserTest do
     #   a b, c, d
     tokens: [
       {:ident, 1, :a},
-      {:space, 1},
       {:ident, 1, :b},
       {:",", 1},
-      {:space, 1},
       {:ident, 1, :c},
       {:",", 1},
-      {:space, 1},
       {:ident, 1, :d},
       {:newline, 1}
     ],
