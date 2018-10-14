@@ -17,7 +17,6 @@ Terminals
   ident
   atom_lit
   string_lit
-  char_lit
   newline
   space
   '{'
