@@ -2,16 +2,14 @@
 
 Definitions.
 
-COMMENT    = --[^\n]*
 IDENT      = [a-zA-Z_][a-zA-Z0-9_]*
 STRING     = "[^\"]*"
-WHITESPACE = [\s\t\r\n;]+
+WHITESPACE = ([\s\t\r\n;]|(--[^\n]*))+
 
 %-- Token Rules ---------------------------------------------------------------
 
 Rules.
 
-{COMMENT}    : skip_token.
 {IDENT}      : {token, {ident, TokenLine, list_to_atom(TokenChars)}}.
 \:{IDENT}    : {token, {atom_lit, TokenLine, parse_atom(TokenChars)}}.
 \:{STRING}   : {token, {atom_lit, TokenLine, parse_atom_quoted(TokenChars)}}.
