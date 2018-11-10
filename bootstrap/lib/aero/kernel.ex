@@ -31,6 +31,12 @@ defmodule Aero.Kernel do
           end
         end
 
+        defmacro bind(pat, expr) do
+          quote do
+            var!(unquote(pat)) = unquote(expr)
+          end
+        end
+
         defmacro true_ do
           quote do
             %:atom_t{value: :true}
