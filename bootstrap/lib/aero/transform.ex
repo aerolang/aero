@@ -1,4 +1,4 @@
-defmodule Aero.Builder.Transform do
+defmodule Aero.Transform do
   # Convert the Aero AST into Elixir AST at the source level.
   def transform({:source, [], expr_list}) do
     ast = transform({:block, [], expr_list})
@@ -39,6 +39,7 @@ defmodule Aero.Builder.Transform do
         :after -> :after_
         :else -> :else_
         :_ -> :__
+        other -> other
       end
 
     # If this corresponds to a zero-argument macro, convert it,

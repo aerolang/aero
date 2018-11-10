@@ -10,7 +10,12 @@ defmodule Aero do
     {:ok, content} = File.read filename
     {:ok, tokens, _} = Aero.Lexer.tokenize content
     {:ok, ast} = Aero.Parser.parse tokens
-    output = Aero.Builder.build ast
+
+    output =
+      ast
+      |> Aero.Transform.transform()
+      |> Aero.Kernel.add_kernel()
+      |> Macro.to_string()
     {:ok, output}
   end
 end

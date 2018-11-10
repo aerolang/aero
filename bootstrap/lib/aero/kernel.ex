@@ -1,4 +1,4 @@
-defmodule Aero.Builder.Kernel do
+defmodule Aero.Kernel do
   @kernel (
     quote do
       defmodule :_aero_kernel do
