@@ -10,6 +10,9 @@ Nonterminals
   block
   macro_call
   macro_args
+  op_call
+  eq_call
+  pattern
   .
 
 Terminals
@@ -17,6 +20,7 @@ Terminals
   atom_lit
   string_lit
   newline
+  '='
   '{'
   '}'
   ','
@@ -30,7 +34,8 @@ Expect 0.
 
 %-- Precedence ----------------------------------------------------------------
 
-Left  30 ','.
+Left  30  ','.
+Right 100 '='.
 
 %-- Source --------------------------------------------------------------------
 
@@ -62,6 +67,7 @@ group_bare -> group_bare newline primary : ['$3' | '$1'].
 
 primary -> block : '$1'.
 primary -> macro_call : '$1'.
+primary -> op_call : '$1'.
 primary -> simple : '$1'.
 
 secondary -> block : '$1'.
@@ -80,6 +86,16 @@ macro_args -> secondary ',' macro_args : [pos_arg('$1') | '$3'].
 macro_args -> secondary ',' newline macro_args : [pos_arg('$1') | '$4'].
 macro_args -> secondary block : [pos_arg('$1'), pos_arg('$2')].
 
+%-- Operators -----------------------------------------------------------------
+
+op_call -> eq_call : binary_op('$1').
+
+eq_call -> pattern '=' primary : {eq, '$1', '$3'}.
+
+%-- Patterns ------------------------------------------------------------------
+
+pattern -> simple : '$1'.
+
 %-- Helper Functions ----------------------------------------------------------
 
 Erlang code.
@@ -96,6 +112,14 @@ macro_call(Ident, Args) ->
 % Build an AST node for a positional argument.
 pos_arg(Arg) ->
   {pos_arg, get_meta(Arg), Arg}.
+
+% Build an AST node for a binary operator.
+binary_op({Op, Pat, Expr}) ->
+  {op_call, get_meta(Pat), [
+    {op, Op},
+    {left, Pat},
+    {right, Expr}
+  ]}.
 
 % Convert a token containing a value to an AST node.
 token_to_ast({Category, _, Value} = Token) ->

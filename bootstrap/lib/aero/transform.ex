@@ -20,6 +20,10 @@ defmodule Aero.Transform do
     transform(arg)
   end
 
+  def transform({:op_call, _meta, op_call}) do
+    transform_op_call(op_call)
+  end
+
   def transform({:ident, meta, name}) when is_atom(name) do
     # Convert idents that are keywords in Elixir.
     name =
@@ -100,6 +104,17 @@ defmodule Aero.Transform do
 
   defp transform_macro_args(:true_, []), do: []
   defp transform_macro_args(:false_, []), do: []
+
+  defp transform_op_call([op: :eq, left: pat, right: expr]) do
+    {
+      {:., [], [:_aero_kernel, 'bind']},
+      [],
+      [
+        pat |> transform(),
+        expr |> transform()
+      ]
+    }
+  end
 
   # Functions to convert erlang types to Aero kernel type structs.
   defp atom_t(value), do: value |> aero_value(:atom_t)
