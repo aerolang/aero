@@ -90,7 +90,7 @@ macro_args -> secondary block : [pos_arg('$1'), pos_arg('$2')].
 
 op_call -> eq_call : binary_op('$1').
 
-eq_call -> pattern '=' primary : {eq, '$1', '$3'}.
+eq_call -> pattern '=' primary : {bind, '$1', '$3'}.
 
 %-- Patterns ------------------------------------------------------------------
 

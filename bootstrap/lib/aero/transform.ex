@@ -95,19 +95,12 @@ defmodule Aero.Transform do
     ]
   end
 
-  defp transform_macro_args(:bind, [pat, expr]) do
-    [
-      pat |> transform(),
-      expr |> transform()
-    ]
-  end
-
   defp transform_macro_args(:true_, []), do: []
   defp transform_macro_args(:false_, []), do: []
 
-  defp transform_op_call([op: :eq, left: pat, right: expr]) do
+  defp transform_op_call([op: :bind, left: pat, right: expr]) do
     {
-      {:., [], [:_aero_kernel, 'bind']},
+      {:., [], [:_aero_kernel, '=']},
       [],
       [
         pat |> transform(),

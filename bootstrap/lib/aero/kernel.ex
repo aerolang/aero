@@ -31,7 +31,7 @@ defmodule Aero.Kernel do
           end
         end
 
-        defmacro bind(pat, expr) do
+        defmacro unquote(:=)(pat, expr) do
           quote do
             var!(unquote(pat)) = unquote(expr)
           end
