@@ -11,7 +11,9 @@ Nonterminals
   macro_call
   macro_args
   op_call
-  eq_call
+  bind_call
+  comma_nl
+  bind_nl
   pattern
   .
 
@@ -34,8 +36,8 @@ Expect 0.
 
 %-- Precedence ----------------------------------------------------------------
 
-Left  30  ','.
-Right 100 '='.
+Left  30  comma_nl.
+Right 100 bind_nl.
 
 %-- Source --------------------------------------------------------------------
 
@@ -82,15 +84,19 @@ simple -> string_lit : token_to_ast('$1').
 macro_call -> ident macro_args : macro_call('$1', '$2').
 
 macro_args -> secondary : [pos_arg('$1')].
-macro_args -> secondary ',' macro_args : [pos_arg('$1') | '$3'].
-macro_args -> secondary ',' newline macro_args : [pos_arg('$1') | '$4'].
+macro_args -> secondary comma_nl macro_args : [pos_arg('$1') | '$3'].
 macro_args -> secondary block : [pos_arg('$1'), pos_arg('$2')].
 
 %-- Operators -----------------------------------------------------------------
 
-op_call -> eq_call : binary_op('$1').
+op_call -> bind_call : binary_op('$1').
 
-eq_call -> pattern '=' primary : {bind, '$1', '$3'}.
+bind_call -> pattern bind_nl primary : {bind, '$1', '$3'}.
+
+comma_nl -> ',' : '$1'.
+comma_nl -> ',' newline : '$1'.
+bind_nl -> '=' : '$1'.
+bind_nl -> '=' newline : '$1'.
 
 %-- Patterns ------------------------------------------------------------------
 
