@@ -1,0 +1,8 @@
+/erl/_build
+/erl/cover
+/erl/deps
+/erl/doc
+/erl/.fetch
+erl_crash.dump
+*.ez
+*.beam
