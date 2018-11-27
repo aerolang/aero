@@ -1,4 +1,4 @@
-% Part of the Aero programming language. License is MIT.
+% Part of the Aero programming language. License: MIT.
 
 -type aero_i8() :: integer().
 -type aero_i16() :: integer().
