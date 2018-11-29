@@ -30,9 +30,9 @@
 -include("aero_core_types.hrl").
 
 -export(['RADIX'/0, 'MANTISSA_DIGITS'/0, 'DIGITS'/0, 'EPSILON'/0, 'MIN'/0,
-         'MIN_POS'/0, 'MAX'/0, 'MIN_EXP'/0, 'MAX_EXP'/0, 'MIN_10_EXP'/0,
-         'MAX_10_EXP'/0, 'NAN'/0, 'NEG_NAN'/0, 'INF'/0, 'NEG_INF'/0, 'PI'/0,
-         'E'/0]).
+         'MIN_POS'/0, 'MAX'/0, 'MAX_NEG'/0, 'MIN_EXP'/0, 'MAX_EXP'/0,
+         'MIN_10_EXP'/0, 'MAX_10_EXP'/0, 'NAN'/0, 'NEG_NAN'/0, 'INF'/0,
+         'NEG_INF'/0, 'PI'/0, 'E'/0]).
 
 -export([is_nan/1, is_infinite/1, is_finite/1, is_normal/1, classify/1,
          is_sign_pos/1, is_sign_neg/1]).
@@ -66,17 +66,22 @@
 %% Smallest finite `f64` value.
 -spec 'MIN'() -> aero_f64().
 'MIN'() ->
-  -1.7976931348623157e+308.
+  ?AERO_F64_MIN.
 
 %% Smallest positive normal `f64` value.
 -spec 'MIN_POS'() -> aero_f64().
 'MIN_POS'() ->
-  2.2250738585072013e-30.
+  ?AERO_F64_MIN_POS.
 
 %% Largest finite `f64` value.
 -spec 'MAX'() -> aero_f64().
 'MAX'() ->
-  1.7976931348623157e+308.
+  ?AERO_F64_MAX.
+
+%% Largest negative normal `f64` value.
+-spec 'MAX_NEG'() -> aero_f64().
+'MAX_NEG'() ->
+  ?AERO_F64_MAX_NEG.
 
 %% One greater than the minimum possible normal power of 2 exponent.
 -spec 'MIN_EXP'() -> aero_i32().
