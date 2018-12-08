@@ -41,7 +41,21 @@
 
 -export([eq/2, ne/2, lt/2, le/2, gt/2, ge/2, partial_cmp/2, min/2, max/2]).
 
+-export([floor/1, ceil/1, round/1, trunc/1, fract/1, abs/1, signum/1,
+         mul_add/3, powi/2, powf/2, inv/1, sqrt/1, cbrt/1, exp/1, exp2/1,
+         exp_m1/1, ln/1, log/2, log2/1, log10/1, ln_1p/1, hypot/2, sin/1,
+         cos/1, tan/1, asin/1, acos/1, atan/1, atan2/2, sinh/1, cosh/1, tanh/1,
+         asinh/1, acosh/1, atanh/1]).
+
 -compile(inline).
+
+%% Load the `f64` utility NIF.
+-on_load(init/0).
+
+init() ->
+  Priv = code:priv_dir(aero_core),
+  Library = filename:join([Priv, 'native', 'libaero_core_f64']),
+  erlang:load_nif(Library, 0).
 
 %% Radix or base of the internal representation of `f64`.
 -spec 'RADIX'() -> aero_u32().
@@ -707,3 +721,199 @@ max(Left, '-inf') when is_float(Left) ->
   Left;
 max(Left, Right) when is_float(Left), is_float(Right) ->
   erlang:max(Left, Right).
+
+%% Return the largest integer less than or equal to a float.
+-spec floor(aero_f64()) -> aero_f64().
+floor(_X) ->
+  erlang:nif_error(nif_not_loaded).
+
+%% Return the smallest integer greater than or equal to a float.
+-spec ceil(aero_f64()) -> aero_f64().
+ceil(_X) ->
+  erlang:nif_error(nif_not_loaded).
+
+%% Return the nearest integer to a float.
+%%
+%% Half-way cases like `-0.5` and `0.5` round away from `0.0`.
+-spec round(aero_f64()) -> aero_f64().
+round(_X) ->
+  erlang:nif_error(nif_not_loaded).
+
+%% Return the integer part of a float.
+-spec trunc(aero_f64()) -> aero_f64().
+trunc(_X) ->
+  erlang:nif_error(nif_not_loaded).
+
+%% Return the fractional part of a float.
+-spec fract(aero_f64()) -> aero_f64().
+fract(_X) ->
+  erlang:nif_error(nif_not_loaded).
+
+%% Return the absolute value of a float.
+-spec abs(aero_f64()) -> aero_f64().
+abs(_X) ->
+  erlang:nif_error(nif_not_loaded).
+
+%% Return a number that represents the sign of a float.
+%%
+%% - `1.0` if the float is positive, `0.0`, or `inf`.
+%% - `-1.0` if the float is negative or `-inf`.
+%% - `nan` if the float is `nan` or `-nan`.
+-spec signum(aero_f64()) -> aero_f64().
+signum(_X) ->
+  erlang:nif_error(nif_not_loaded).
+
+%% Fused multiply-add.
+%%
+%% This computes `(x * a) + b)` with only one rounding error.
+-spec mul_add(aero_f64(), aero_f64(), aero_f64()) -> aero_f64().
+mul_add(_X, _A, _B) ->
+  erlang:nif_error(nif_not_loaded).
+
+%% Raise a float to an integer power.
+-spec powi(aero_f64(), aero_i32()) -> aero_f64().
+powi(_X, _N) ->
+  erlang:nif_error(nif_not_loaded).
+
+%% Raise a float to a float power.
+-spec powf(aero_f64(), aero_f64()) -> aero_f64().
+powf(_X, _N) ->
+  erlang:nif_error(nif_not_loaded).
+
+%% Take the inverse of a number.
+-spec inv(aero_f64()) -> aero_f64().
+inv(_X) ->
+  erlang:nif_error(nif_not_loaded).
+
+%% Take the square root of a float.
+-spec sqrt(aero_f64()) -> aero_f64().
+sqrt(_X) ->
+  erlang:nif_error(nif_not_loaded).
+
+%% Take the cubic root of a float.
+-spec cbrt(aero_f64()) -> aero_f64().
+cbrt(_X) ->
+  erlang:nif_error(nif_not_loaded).
+
+%% Return the exponential function at a float.
+-spec exp(aero_f64()) -> aero_f64().
+exp(_X) ->
+  erlang:nif_error(nif_not_loaded).
+
+%% Return 2 to the power of a float.
+-spec exp2(aero_f64()) -> aero_f64().
+exp2(_X) ->
+  erlang:nif_error(nif_not_loaded).
+
+%% Return `exp(x) - 1` in a more accurately near zero.
+-spec exp_m1(aero_f64()) -> aero_f64().
+exp_m1(_X) ->
+  erlang:nif_error(nif_not_loaded).
+
+%% Return the natural logarithm of a float.
+-spec ln(aero_f64()) -> aero_f64().
+ln(_X) ->
+  erlang:nif_error(nif_not_loaded).
+
+%% Return the logarithm of a float with respect to any base.
+-spec log(aero_f64(), aero_f64()) -> aero_f64().
+log(_X, _Base) ->
+  erlang:nif_error(nif_not_loaded).
+
+%% Return the base 2 logarithm of a number.
+-spec log2(aero_f64()) -> aero_f64().
+log2(_X) ->
+  erlang:nif_error(nif_not_loaded).
+
+%% Return the base 10 logarithm of a number.
+-spec log10(aero_f64()) -> aero_f64().
+log10(_X) ->
+  erlang:nif_error(nif_not_loaded).
+
+%% Return `ln(1 + float)` in a more accurate way.
+-spec ln_1p(aero_f64()) -> aero_f64().
+ln_1p(_X) ->
+  erlang:nif_error(nif_not_loaded).
+
+%% Return the hypotenuse of a right triangle with legs x and y.
+-spec hypot(aero_f64(), aero_f64()) -> aero_f64().
+hypot(_X, _Y) ->
+  erlang:nif_error(nif_not_loaded).
+
+%% Sine of a float in radians.
+-spec sin(aero_f64()) -> aero_f64().
+sin(_X) ->
+  erlang:nif_error(nif_not_loaded).
+
+%% Cosine of a float in radians.
+-spec cos(aero_f64()) -> aero_f64().
+cos(_X) ->
+  erlang:nif_error(nif_not_loaded).
+
+%% Tangent of a float in radians.
+-spec tan(aero_f64()) -> aero_f64().
+tan(_X) ->
+  erlang:nif_error(nif_not_loaded).
+
+%% Arcsine of a float.
+%%
+%% Return value is in radians and in the range [`-pi/2`, `pi/2`] or
+%% `nan` if the float is outside the range [-1, 1].
+-spec asin(aero_f64()) -> aero_f64().
+asin(_X) ->
+  erlang:nif_error(nif_not_loaded).
+
+%% Arccosine of a float.
+%%
+%% Return value is in radians and in the range [`0.0`, `pi`] or `nan`
+%% if the float is outside the range [-1, 1].
+-spec acos(aero_f64()) -> aero_f64().
+acos(_X) ->
+  erlang:nif_error(nif_not_loaded).
+
+%% Arctangent of a float.
+%%
+%% Return value is in radians and in the range [`-pi/2`, `pi/2`].
+-spec atan(aero_f64()) -> aero_f64().
+atan(_X) ->
+  erlang:nif_error(nif_not_loaded).
+
+%% Four quadrant arctangent of a float y and x.
+%%
+%% - `x == 0.0, y == 0.0 -> 0.0`
+%% - `x >= 0.0 -> atan(y / x)`
+%% - `y >= 0.0 -> atan(y / x) + pi`
+%% - `y < 0.0 -> atan(y / x) - pi`
+-spec atan2(aero_f64(), aero_f64()) -> aero_f64().
+atan2(_Y, _X) ->
+  erlang:nif_error(nif_not_loaded).
+
+%% Hyperbolic sine of a float in radians.
+-spec sinh(aero_f64()) -> aero_f64().
+sinh(_X) ->
+  erlang:nif_error(nif_not_loaded).
+
+%% Hyperbolic cosine of a float in radians.
+-spec cosh(aero_f64()) -> aero_f64().
+cosh(_X) ->
+  erlang:nif_error(nif_not_loaded).
+
+%% Hyperbolic tangent of a float in radians.
+-spec tanh(aero_f64()) -> aero_f64().
+tanh(_X) ->
+  erlang:nif_error(nif_not_loaded).
+
+%% Hyperbolic arcsine of a float.
+-spec asinh(aero_f64()) -> aero_f64().
+asinh(_X) ->
+  erlang:nif_error(nif_not_loaded).
+
+%% Hyperbolic arccosine of a float.
+-spec acosh(aero_f64()) -> aero_f64().
+acosh(_X) ->
+  erlang:nif_error(nif_not_loaded).
+
+%% Hyperbolic arctangent of a float.
+-spec atanh(aero_f64()) -> aero_f64().
+atanh(_X) ->
+  erlang:nif_error(nif_not_loaded).

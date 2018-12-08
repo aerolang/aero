@@ -1,0 +1,5 @@
+[workspace]
+members = [
+  "aero_core",
+  "aero_core_f64"
+]

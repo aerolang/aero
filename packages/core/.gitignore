@@ -2,7 +2,11 @@
 /erl/cover
 /erl/deps
 /erl/doc
+/erl/priv
 /erl/.fetch
 erl_crash.dump
 *.ez
 *.beam
+mix.lock
+Cargo.lock
+**/*.rs.bk
