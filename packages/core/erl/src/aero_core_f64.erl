@@ -47,6 +47,8 @@
          cos/1, tan/1, asin/1, acos/1, atan/1, atan2/2, sinh/1, cosh/1, tanh/1,
          asinh/1, acosh/1, atanh/1]).
 
+-export([to_deg/1, to_rad/1]).
+
 -compile(inline).
 
 %% Load the `f64` utility NIF.
@@ -916,4 +918,14 @@ acosh(_X) ->
 %% Hyperbolic arctangent of a float.
 -spec atanh(aero_f64()) -> aero_f64().
 atanh(_X) ->
+  erlang:nif_error(nif_not_loaded).
+
+%% Convert a float in radians to degrees.
+-spec to_deg(aero_f64()) -> aero_f64().
+to_deg(_X) ->
+  erlang:nif_error(nif_not_loaded).
+
+%% Convert a float in degrees to radians.
+-spec to_rad(aero_f64()) -> aero_f64().
+to_rad(_X) ->
   erlang:nif_error(nif_not_loaded).
