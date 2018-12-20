@@ -21,10 +21,6 @@
 %       '-nan', inf, and '-inf' atoms to mitigate this. This requires
 %       some wrapping around regular mathematic operations on floats.
 
-% FIXME: Will need to check bounds on Erlang arithmetic since it will
-%        error on overflow. It might be good to implement a '-0.0'
-%        atom for floats as well.
-
 -module(aero_core_f64).
 
 -include("aero_core_types.hrl").
@@ -245,172 +241,28 @@ is_sign_neg(Float) when is_float(Float) ->
 
 %% Add two numbers.
 -spec add(aero_f64(), aero_f64()) -> aero_f64().
-add(nan, Right) when ?is_aero_f64(Right) ->
-  nan;
-add('-nan', Right) when ?is_aero_f64(Right) ->
-  '-nan';
-add(Left, nan) when ?is_aero_f64(Left) ->
-  nan;
-add(Left, '-nan') when ?is_aero_f64(Left) ->
-  '-nan';
-add(inf, inf) ->
-  inf;
-add(inf, '-inf') ->
-  nan;
-add(inf, Right) when is_float(Right) ->
-  inf;
-add('-inf', inf) ->
-  nan;
-add('-inf', '-inf') ->
-  '-inf';
-add('-inf', Right) when is_float(Right) ->
-  '-inf';
-add(Left, inf) when is_float(Left) ->
-  inf;
-add(Left, '-inf') when is_float(Left) ->
-  '-inf';
-add(Left, Right) when is_float(Left), is_float(Right) ->
-  Left + Right.
+add(_Left, _Right) ->
+  erlang:nif_error(nif_not_loaded).
 
 %% Subtract a number from another number.
 -spec sub(aero_f64(), aero_f64()) -> aero_f64().
-sub(nan, Right) when ?is_aero_f64(Right) ->
-  nan;
-sub('-nan', Right) when ?is_aero_f64(Right) ->
-  '-nan';
-sub(Left, nan) when ?is_aero_f64(Left) ->
-  '-nan';
-sub(Left, '-nan') when ?is_aero_f64(Left) ->
-  nan;
-sub(inf, inf) ->
-  nan;
-sub(inf, '-inf') ->
-  inf;
-sub(inf, Right) when is_float(Right) ->
-  inf;
-sub('-inf', inf) ->
-  '-inf';
-sub('-inf', '-inf') ->
-  nan;
-sub('-inf', Right) when is_float(Right) ->
-  '-inf';
-sub(Left, inf) when is_float(Left) ->
-  '-inf';
-sub(Left, '-inf') when is_float(Left) ->
-  inf;
-sub(Left, Right) when is_float(Left), is_float(Right) ->
-  Left - Right.
+sub(_Left, _Right) ->
+  erlang:nif_error(nif_not_loaded).
 
 %% Multiply two numbers.
 -spec mul(aero_f64(), aero_f64()) -> aero_f64().
-mul(nan, Right) when ?is_aero_f64(Right) ->
-  nan;
-mul('-nan', Right) when ?is_aero_f64(Right) ->
-  nan;
-mul(Left, nan) when ?is_aero_f64(Left) ->
-  nan;
-mul(Left, '-nan') when ?is_aero_f64(Left) ->
-  nan;
-mul(inf, inf) ->
-  inf;
-mul(inf, '-inf') ->
-  '-inf';
-mul(inf, 0.0) ->
-  nan;
-mul(inf, Right) when is_float(Right), Right > 0.0 ->
-  inf;
-mul(inf, Right) when is_float(Right), Right < 0.0 ->
-  '-inf';
-mul('-inf', inf) ->
-  '-inf';
-mul('-inf', '-inf') ->
-  inf;
-mul('-inf', 0.0) ->
-  nan;
-mul('-inf', Right) when is_float(Right), Right > 0.0 ->
-  '-inf';
-mul('-inf', Right) when is_float(Right), Right < 0.0 ->
-  inf;
-mul(0.0, inf) ->
-  nan;
-mul(0.0, '-inf') ->
-  nan;
-mul(Left, inf) when is_float(Left), Left > 0.0 ->
-  inf;
-mul(Left, '-inf') when is_float(Left), Left < 0.0 ->
-  '-inf';
-mul(Left, Right) when is_float(Left), is_float(Right) ->
-  Left * Right.
+mul(_Left, _Right) ->
+  erlang:nif_error(nif_not_loaded).
 
 %% Divide a number from another number.
 -spec 'div'(aero_f64(), aero_f64()) -> aero_f64().
-'div'(nan, Right) when ?is_aero_f64(Right) ->
-  nan;
-'div'('-nan', Right) when ?is_aero_f64(Right) ->
-  nan;
-'div'(Left, nan) when ?is_aero_f64(Left) ->
-  nan;
-'div'(Left, '-nan') when ?is_aero_f64(Left) ->
-  nan;
-'div'(inf, inf) ->
-  nan;
-'div'(inf, '-inf') ->
-  nan;
-'div'(inf, Right) when is_float(Right), Right >= 0.0 ->
-  inf;
-'div'(inf, Right) when is_float(Right), Right < 0.0 ->
-  '-inf';
-'div'('-inf', inf) ->
-  nan;
-'div'('-inf', '-inf') ->
-  nan;
-'div'('-inf', Right) when is_float(Right), Right >= 0.0 ->
-  '-inf';
-'div'('-inf', Right) when is_float(Right), Right < 0.0 ->
-  inf;
-'div'(Left, inf) when is_float(Left), Left > 0.0 ->
-  0.0;
-'div'(Left, '-inf') when is_float(Left), Left < 0.0 ->
-  0.0;
-'div'(0.0, 0.0) ->
-  nan;
-'div'(Left, 0.0) when is_float(Left), Left > 0 ->
-  inf;
-'div'(Left, 0.0) when is_float(Left), Left < 0 ->
-  '-inf';
-'div'(Left, Right) when is_float(Left), is_float(Right) ->
-  Left / Right.
+'div'(_Left, _Right) ->
+  erlang:nif_error(nif_not_loaded).
 
 %% Get the remainder in division.
 -spec 'rem'(aero_f64(), aero_f64()) -> aero_f64().
-'rem'(nan, Right) when ?is_aero_f64(Right) ->
-  nan;
-'rem'('-nan', Right) when ?is_aero_f64(Right) ->
-  '-nan';
-'rem'(Left, nan) when ?is_aero_f64(Left) ->
-  nan;
-'rem'(Left, '-nan') when ?is_aero_f64(Left) ->
-  nan;
-'rem'(inf, inf) ->
-  nan;
-'rem'(inf, '-inf') ->
-  nan;
-'rem'(inf, Right) when is_float(Right) ->
-  nan;
-'rem'('-inf', inf) ->
-  nan;
-'rem'('-inf', '-inf') ->
-  nan;
-'rem'('-inf', Right) when is_float(Right) ->
-  nan;
-'rem'(Left, inf) when is_float(Left) ->
-  Left;
-'rem'(Left, '-inf') when is_float(Left) ->
-  Left;
-'rem'(Left, 0.0) when is_float(Left) ->
-  nan;
-'rem'(Left, Right) when is_float(Left), is_float(Right) ->
-  math:fmod(Left, Right).
+'rem'(_Left, _Right) ->
+  erlang:nif_error(nif_not_loaded).
 
 %% Returns back a float.
 -spec pos(aero_f64()) -> aero_f64().

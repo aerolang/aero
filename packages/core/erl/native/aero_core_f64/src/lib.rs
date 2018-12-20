@@ -10,6 +10,11 @@ extern crate rustler;
 aero_export! {
   "aero_core_f64",
   [
+    (add,     ::std::ops::Add::add, (f64, f64), f64),
+    (sub,     ::std::ops::Sub::sub, (f64, f64), f64),
+    (mul,     ::std::ops::Mul::mul, (f64, f64), f64),
+    (div,     ::std::ops::Div::div, (f64, f64), f64),
+    (rem,     ::std::ops::Rem::rem, (f64, f64), f64),
     (floor,   f64::floor,      (f64),           f64),
     (ceil,    f64::ceil,       (f64),           f64),
     (round,   f64::round,      (f64),           f64),
@@ -48,6 +53,11 @@ aero_export! {
     (to_rad,  f64::to_radians, (f64),           f64)
   ],
   [
+    ("add",     2, add),
+    ("sub",     2, sub),
+    ("mul",     2, mul),
+    ("div",     2, div),
+    ("rem",     2, rem),
     ("floor",   1, floor),
     ("ceil",    1, ceil),
     ("round",   1, round),
