@@ -23,6 +23,10 @@ defmodule Aero.Core.MixProject do
       aero_core_f64: [
         path: "native/aero_core_f64",
         mode: (if Mix.env == :prod, do: :release, else: :debug),
+      ],
+      aero_core_f32: [
+        path: "native/aero_core_f32",
+        mode: (if Mix.env == :prod, do: :release, else: :debug),
       ]
     ]
   end

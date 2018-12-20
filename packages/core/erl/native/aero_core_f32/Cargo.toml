@@ -1,0 +1,13 @@
+[package]
+name = "aero_core_f32"
+version = "0.1.0"
+
+[lib]
+name = "aero_core_f32"
+path = "src/lib.rs"
+crate-type = ["cdylib"]
+
+[dependencies]
+aero_core = { path = "../aero_core" }
+rustler = "0.18.0"
+lazy_static = "1.0"
