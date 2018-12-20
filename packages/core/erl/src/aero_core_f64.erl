@@ -25,29 +25,35 @@
 
 -include("aero_core_types.hrl").
 
+% Constants.
 -export(['RADIX'/0, 'MANTISSA_DIGITS'/0, 'DIGITS'/0, 'EPSILON'/0, 'MIN'/0,
          'MIN_POS'/0, 'MAX'/0, 'MAX_NEG'/0, 'MIN_EXP'/0, 'MAX_EXP'/0,
          'MIN_10_EXP'/0, 'MAX_10_EXP'/0, 'NAN'/0, 'NEG_NAN'/0, 'INF'/0,
          'NEG_INF'/0, 'PI'/0, 'E'/0]).
 
+% Utiliies for the `f64` representation.
 -export([is_nan/1, is_infinite/1, is_finite/1, is_normal/1, classify/1,
          is_sign_pos/1, is_sign_neg/1]).
 
+% Basic arithmetic.
 -export([add/2, sub/2, mul/2, 'div'/2, 'rem'/2, pos/1, neg/1]).
 
+% Comparisons.
 -export([eq/2, ne/2, lt/2, le/2, gt/2, ge/2, partial_cmp/2, min/2, max/2]).
 
+% Various mathematical functions.
 -export([floor/1, ceil/1, round/1, trunc/1, fract/1, abs/1, signum/1,
          mul_add/3, powi/2, powf/2, inv/1, sqrt/1, cbrt/1, exp/1, exp2/1,
          exp_m1/1, ln/1, log/2, log2/1, log10/1, ln_1p/1, hypot/2, sin/1,
          cos/1, tan/1, asin/1, acos/1, atan/1, atan2/2, sinh/1, cosh/1, tanh/1,
          asinh/1, acosh/1, atanh/1]).
 
+% Convenient angle conversions.
 -export([to_deg/1, to_rad/1]).
 
 -compile(inline).
 
-%% Load the `f64` utility NIF.
+% Load the `f64` utility NIF.
 -on_load(init/0).
 
 init() ->
