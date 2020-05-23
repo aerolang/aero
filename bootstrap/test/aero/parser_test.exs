@@ -24,11 +24,8 @@ defmodule Aero.ParserTest do
       {:eof, 0}
     ],
     ast: {:source, [], [
-      {:macro_call, [line: 1], [
-        name: {:ident, [line: 1], :log},
-        args: [
-          {:pos_arg, [line: 1], {:string_lit, [line: 1], "Hello, World!"}}
-        ]
+      {:expand, [line: 1], {:ident, [line: 1], :log}, [
+        {:string_lit, [line: 1], "Hello, World!"}
       ]}
     ]}
 
@@ -43,11 +40,8 @@ defmodule Aero.ParserTest do
       {:eof, 0}
     ],
     ast: {:source, [], [
-      {:macro_call, [line: 1], [
-        name: {:ident, [line: 1], :z},
-        args: [
-          {:pos_arg, [line: 1], {:block, [line: 1], []}}
-        ]
+      {:expand, [line: 1], {:ident, [line: 1], :z}, [
+        {:block, [line: 1], []}
       ]}
     ]}
 
@@ -90,12 +84,9 @@ defmodule Aero.ParserTest do
       {:eof, 0}
     ],
     ast: {:source, [], [
-      {:macro_call, [line: 1], [
-        name: {:ident, [line: 1], :mod},
-        args: [
-          {:pos_arg, [line: 1], {:ident, [line: 1], :empty}},
-          {:pos_arg, [line: 1], {:block, [line: 1], []}}
-        ]
+      {:expand, [line: 1], {:ident, [line: 1], :mod}, [
+        {:ident, [line: 1], :empty},
+        {:block, [line: 1], []}
       ]}
     ]}
 
@@ -117,19 +108,13 @@ defmodule Aero.ParserTest do
       {:eof, 0}
     ],
     ast: {:source, [], [
-      {:macro_call, [line: 1], [
-        name: {:ident, [line: 1], :mod},
-        args: [
-          {:pos_arg, [line: 1], {:ident, [line: 1], :empty}},
-          {:pos_arg, [line: 1], {:block, [line: 1], []}}
-        ]
+      {:expand, [line: 1], {:ident, [line: 1], :mod}, [
+        {:ident, [line: 1], :empty},
+        {:block, [line: 1], []}
       ]},
-      {:macro_call, [line: 2], [
-        name: {:ident, [line: 2], :mod},
-        args: [
-          {:pos_arg, [line: 2], {:ident, [line: 2], :another_empty}},
-          {:pos_arg, [line: 2], {:block, [line: 2], []}}
-        ]
+      {:expand, [line: 2], {:ident, [line: 2], :mod}, [
+        {:ident, [line: 2], :another_empty},
+        {:block, [line: 2], []}
       ]}
     ]}
 
@@ -146,12 +131,9 @@ defmodule Aero.ParserTest do
       {:eof, 0}
     ],
     ast: {:source, [], [
-      {:macro_call, [line: 1], [
-        name: {:ident, [line: 1], :mod},
-        args: [
-          {:pos_arg, [line: 1], {:ident, [line: 1], :empty}},
-          {:pos_arg, [line: 1], {:block, [line: 1], []}}
-        ]
+      {:expand, [line: 1], {:ident, [line: 1], :mod}, [
+        {:ident, [line: 1], :empty},
+        {:block, [line: 1], []}
       ]}
     ]}
 
@@ -169,13 +151,10 @@ defmodule Aero.ParserTest do
       {:eof, 0}
     ],
     ast: {:source, [], [
-      {:macro_call, [line: 1], [
-        name: {:ident, [line: 1], :a},
-        args: [
-          {:pos_arg, [line: 1], {:ident, [line: 1], :b}},
-          {:pos_arg, [line: 1], {:ident, [line: 1], :c}},
-          {:pos_arg, [line: 1], {:ident, [line: 1], :d}}
-        ]
+      {:expand, [line: 1], {:ident, [line: 1], :a}, [
+        {:ident, [line: 1], :b},
+        {:ident, [line: 1], :c},
+        {:ident, [line: 1], :d}
       ]}
     ]}
 end

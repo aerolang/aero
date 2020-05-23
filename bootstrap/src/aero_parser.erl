@@ -113,12 +113,9 @@ expr_postfix(_Tokens, _Op, _LeftExpr) ->
   throw(unimplemented).
 
 %% Parse expressions that need both the previous and next expressions.
-expr_infix(Tokens, {'=', _}, LeftExpr, RightExpr, _RightBP) ->
-  Expr = {op_call, get_meta(LeftExpr), [
-    {op, bind},
-    {left, LeftExpr},
-    {right, RightExpr}
-  ]},
+expr_infix(Tokens, {Op, _} = Token, LeftExpr, RightExpr, _RightBP) ->
+  Args = [LeftExpr, RightExpr],
+  Expr = {expand, get_meta(LeftExpr), {op, get_meta(Token), Op}, Args},
   {Tokens, Expr}.
 
 %% Expressions found inside general expressions.
@@ -134,10 +131,7 @@ subexpr([{Next, _} | _]) ->
 %% Parse macro calls.
 macro_call(Tokens, Ident) ->
   {Tokens2, Args} = macro_args(Tokens),
-  Expr = {macro_call, get_meta(Ident), [
-    {name, token_to_ast(Ident)},
-    {args, Args}
-  ]},
+  Expr = {expand, get_meta(Ident), token_to_ast(Ident), Args},
   {Tokens2, Expr}.
 
 %% Macro arguments are comma-separated subexpressions, though commas are
@@ -146,7 +140,7 @@ macro_args(Tokens) -> macro_args(Tokens, []).
 
 macro_args(Tokens, Args) ->
   {Tokens2, Arg} = subexpr(Tokens),
-  Args2 = [{pos_arg, get_meta(Arg), Arg} | Args],
+  Args2 = [Arg | Args],
   case Tokens2 of
     [{',', _} | Tail] -> macro_args(allow(Tail, newline), Args2);
     [T | _] when ?BLOCK(T) -> macro_args(Tokens2, Args2);
@@ -183,12 +177,10 @@ token_to_ast({Category, _, Value} = Token) ->
   {Category, get_meta(Token), Value}.
 
 %% Get a token's line number and put it in metadata.
-get_meta({_, Line}) when is_integer(Line) ->
-  [{line, Line}];
-
 get_meta({_, Line, _}) when is_integer(Line) ->
   [{line, Line}];
-
+get_meta({_, Line}) when is_integer(Line) ->
+  [{line, Line}];
 get_meta({_, Meta, _}) when is_list(Meta) ->
   Meta.
 
