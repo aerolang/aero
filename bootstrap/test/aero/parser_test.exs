@@ -1,13 +1,16 @@
 defmodule Aero.ParserTest do
   use Aero.ParserCase
 
-  parser_test "no tokens",
-    tokens: [],
+  parser_test "empty source",
+    tokens: [
+      {:eof, 0}
+    ],
     ast: {:source, [], []}
 
   parser_test "only a newline",
     tokens: [
-      {:newline, 1}
+      {:newline, 1},
+      {:eof, 0}
     ],
     ast: {:source, [], []}
 
@@ -17,7 +20,8 @@ defmodule Aero.ParserTest do
     tokens: [
       {:ident, 1, :log},
       {:string_lit, 1, "Hello, World!"},
-      {:newline, 1}
+      {:newline, 1},
+      {:eof, 0}
     ],
     ast: {:source, [], [
       {:macro_call, [line: 1], [
@@ -35,7 +39,8 @@ defmodule Aero.ParserTest do
       {:ident, 1, :z},
       {:"{", 1},
       {:"}", 1},
-      {:newline, 1}
+      {:newline, 1},
+      {:eof, 0}
     ],
     ast: {:source, [], [
       {:macro_call, [line: 1], [
@@ -62,7 +67,8 @@ defmodule Aero.ParserTest do
       {:ident, 3, :three},
       {:newline, 3},
       {:"}", 4},
-      {:newline, 4}
+      {:newline, 4},
+      {:eof, 0}
     ],
     ast: {:source, [], [
       {:block, [line: 1], [
@@ -80,7 +86,8 @@ defmodule Aero.ParserTest do
       {:ident, 1, :empty},
       {:"{", 1},
       {:"}", 1},
-      {:newline, 1}
+      {:newline, 1},
+      {:eof, 0}
     ],
     ast: {:source, [], [
       {:macro_call, [line: 1], [
@@ -106,7 +113,8 @@ defmodule Aero.ParserTest do
       {:ident, 2, :another_empty},
       {:"{", 2},
       {:"}", 2},
-      {:newline, 2}
+      {:newline, 2},
+      {:eof, 0}
     ],
     ast: {:source, [], [
       {:macro_call, [line: 1], [
@@ -134,7 +142,8 @@ defmodule Aero.ParserTest do
       {:",", 1},
       {:"{", 1},
       {:"}", 1},
-      {:newline, 1}
+      {:newline, 1},
+      {:eof, 0}
     ],
     ast: {:source, [], [
       {:macro_call, [line: 1], [
@@ -156,7 +165,8 @@ defmodule Aero.ParserTest do
       {:ident, 1, :c},
       {:",", 1},
       {:ident, 1, :d},
-      {:newline, 1}
+      {:newline, 1},
+      {:eof, 0}
     ],
     ast: {:source, [], [
       {:macro_call, [line: 1], [

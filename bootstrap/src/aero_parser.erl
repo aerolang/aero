@@ -13,9 +13,11 @@
 %% -----------------------------------------------------------------------------
 
 %% Parse tokens into the Aero AST.
+parse([]) ->
+  {error, no_tokens};
 parse(Tokens) ->
   try source(Tokens) of
-    {[], Expr} -> {ok, Expr}
+    {[{eof, _}], Expr} -> {ok, Expr}
   catch
     throw:{parse_error, Reason} -> {error, Reason}
   end.
@@ -36,9 +38,9 @@ format_parse_error(Reason) -> format_error(Reason).
 %% Continuously parse expressions in the source.
 source(Tokens) -> source(Tokens, []).
 
-source([], Exprs) ->
+source([{eof, _}] = Eof, Exprs) ->
   Source = {source, [], lists:reverse(Exprs)},
-  {[], Source};
+  {Eof, Source};
 source([{newline, _} | Tail], Exprs) ->
   source(Tail, Exprs);
 source(Tokens, Exprs) ->
@@ -78,15 +80,20 @@ expr_prefix([T | Tail]) when ?SIMPLE(T) ->
     [Next | _] when ?SUBEXPR(Next) -> macro_call(Tail, Expr);
     _ -> {Tail, Expr}
   end;
-expr_prefix([{Next, _} | _]) ->
+expr_prefix([{Next, _, _} | _]) ->
   throw({parse_error, {unexpected_token, Next}});
-expr_prefix([Next | _]) ->
+expr_prefix([{Next, _} | _]) ->
   throw({parse_error, {unexpected_token, Next}}).
 
 %% Parse postfix and infix expressions as long as there remain tokens to parse
 %% and the operators meet the required binding power.
+expr_postfix_infix([{eof, _}] = Eof, LeftExpr, _MinBP) ->
+  % End of parsing. Bubbling up the EOF to break recursion.
+  {Eof, LeftExpr};
 expr_postfix_infix([{Op, _} = T | Tail] = Tokens, LeftExpr, MinBP) ->
   case {postfix_binding_power(Op), infix_binding_power(Op)} of
+    {0, 0} ->
+      throw({parse_error, {unexpected_token, Op}});
     {LeftBP, _} when LeftBP >= MinBP ->
       {Tokens2, Expr} = expr_postfix(Tail, T, LeftExpr),
       expr_postfix_infix(Tokens2, Expr, MinBP);
@@ -98,10 +105,7 @@ expr_postfix_infix([{Op, _} = T | Tail] = Tokens, LeftExpr, MinBP) ->
       % No operators with high enough binding power.
       {Tokens, LeftExpr}
   end;
-expr_postfix_infix([], LeftExpr, _MinBP) ->
-  % End of parsing.
-  {[], LeftExpr};
-expr_postfix_infix([Next | _], _LeftExpr, _MinBP) ->
+expr_postfix_infix([{Next, _, _} | _], _LeftExpr, _MinBP) ->
   throw({parse_error, {unexpected_token, Next}}).
 
 %% Parse expressions that need the previous expression.
@@ -122,9 +126,9 @@ subexpr([T | _] = Tokens) when ?BLOCK(T) ->
   block(Tokens);
 subexpr([T | Tail]) when ?SIMPLE(T) ->
   {Tail, token_to_ast(T)};
-subexpr([{Next, _} | _]) ->
+subexpr([{Next, _, _} | _]) ->
   throw({parse_error, {unexpected_token, Next}});
-subexpr([Next | _]) ->
+subexpr([{Next, _} | _]) ->
   throw({parse_error, {unexpected_token, Next}}).
 
 %% Parse macro calls.
@@ -167,16 +171,11 @@ expect([{Found, _, _} | _], Expected) ->
 expect([{Expected, _} | Tail], Expected) ->
   Tail;
 expect([{Found, _} | _], Expected) ->
-  throw({parse_error, {unexpected_token, Found, Expected}});
-expect([Expected | Tail], Expected) ->
-  Tail;
-expect([Found | _], Expected) ->
   throw({parse_error, {unexpected_token, Found, Expected}}).
 
 %% Pop the token off if it's there, but don't throw an error if it isn't.
 allow([{Allowed, _, _} | Tail], Allowed) -> Tail;
 allow([{Allowed, _} | Tail], Allowed) -> Tail;
-allow([Allowed | Tail], Allowed) -> Tail;
 allow(Tokens, _Allowed) -> Tokens.
 
 %% Convert a token containing a value to an AST node.
@@ -197,6 +196,8 @@ get_meta({_, Meta, _}) when is_list(Meta) ->
 %% Error Formatting
 %% -----------------------------------------------------------------------------
 
+format_error(no_tokens) ->
+  <<"no tokens provided to parser, at least EOF is required">>;
 format_error({unexpected_token, Found}) ->
   format_message("unexpected token '~s'", [Found]);
 format_error({unexpected_token, Found, Expected}) ->

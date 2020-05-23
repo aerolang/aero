@@ -92,6 +92,15 @@ Rules.
 
 Erlang code.
 
+-export([tokenize/1]).
+
+%% Wrapped tokenize function for adding an EOF, exposed publicly.
+tokenize(Input) ->
+  case string(binary_to_list(Input)) of
+    {ok, Tokens, EndLine} -> {ok, Tokens ++ [{eof, 0}], EndLine};
+    {error, _, _} = Error -> Error
+  end.
+
 numeric_token(Chars, Line) ->
   % TODO: Will need to handle floats as well.
   case parse_integer(Chars) of

@@ -4,7 +4,9 @@ defmodule Aero.LexerTest do
   lexer_test "empty string",
     source: "",
     lines: 1,
-    tokens: []
+    tokens: [
+      {:eof, 0}
+    ]
 
   lexer_test "whitespace is classified as newlines without spaces",
     source: "\r\n  t_1 t_2 \r t_3 \nt_4\r\nt_5 \n \n t_6 ",
@@ -20,6 +22,7 @@ defmodule Aero.LexerTest do
       {:ident, 4, :t_5},
       {:newline, 4},
       {:ident, 6, :t_6},
+      {:eof, 0}
     ]
 
   lexer_test "semicolons act as newlines",
@@ -34,7 +37,8 @@ defmodule Aero.LexerTest do
       {:newline, 1},
       {:ident, 2, :t_4},
       {:ident, 2, :t_5},
-      {:newline, 2}
+      {:newline, 2},
+      {:eof, 0}
     ]
 
   lexer_test "newlines are tokenized after comments",
@@ -42,14 +46,16 @@ defmodule Aero.LexerTest do
     lines: 2,
     tokens: [
       {:newline, 1},
-      {:ident, 2, :t_1}
+      {:ident, 2, :t_1},
+      {:eof, 0}
     ]
 
   lexer_test "basic string",
     source: "\"test\"",
     lines: 1,
     tokens: [
-      {:string_lit, 1, "test"}
+      {:string_lit, 1, "test"},
+      {:eof, 0}
     ]
 
   lexer_test "identifiers",
@@ -61,7 +67,8 @@ defmodule Aero.LexerTest do
       {:ident, 1, :__TEST__},
       {:ident, 1, :test_1},
       {:ident, 1, :Test1},
-      {:ident, 1, :__TEST_1__}
+      {:ident, 1, :__TEST_1__},
+      {:eof, 0}
     ]
 
   lexer_test "basic atoms",
@@ -69,7 +76,8 @@ defmodule Aero.LexerTest do
     lines: 1,
     tokens: [
       {:atom_lit, 1, :test},
-      {:atom_lit, 1, :test_1}
+      {:atom_lit, 1, :test_1},
+      {:eof, 0}
     ]
 
   lexer_test "escaped atoms",
@@ -77,6 +85,7 @@ defmodule Aero.LexerTest do
     lines: 1,
     tokens: [
       {:atom_lit, 1, :Test},
-      {:atom_lit, 1, :"& ,#"}
+      {:atom_lit, 1, :"& ,#"},
+      {:eof, 0}
     ]
 end
