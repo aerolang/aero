@@ -1,94 +1,118 @@
-%-- Regex Definitions for Rules -----------------------------------------------
+%%% Converts Aero source code into tokens.
+%%%
+%%% This uses leex to do the tokenizing and is converted to an .erl file.
+%%% `aero_lexer:tokenize/1` is an exposed convenience function around the API
+%%% that leex automatically generates.
+
+%% -----------------------------------------------------------------------------
+%% Regex Definitions
+%% -----------------------------------------------------------------------------
 
 Definitions.
 
-NUMERIC    = \.?[0-9][a-zA-Z0-9_]*
+NUMERIC    = [0-9][a-zA-Z0-9_\.\+\-]*
 STRING     = "[^\"]*"
 IDENT      = [a-zA-Z_][a-zA-Z0-9_]*
 WHITESPACE = ([\s\t\r\n;]|(--[^\n]*))+
 
-%-- Token Rules ---------------------------------------------------------------
+%% -----------------------------------------------------------------------------
+%% Token Rules
+%% -----------------------------------------------------------------------------
 
 Rules.
 
-% Literals.
+%% Literals.
 {NUMERIC}    : numeric_token(TokenChars, TokenLine).
 \:{IDENT}    : atom_token(TokenChars, TokenLine).
 \:{STRING}   : quoted_atom_token(TokenChars, TokenLine).
 {STRING}     : string_token(TokenChars, TokenLine).
 
-% Identifiers.
+%% Identifiers.
 {IDENT}      : ident_token(TokenChars, TokenLine).
-{IDENT}\:    : tag_token(TokenChars, TokenLine).
-{STRING}\:   : quoted_tag_token(TokenChars, TokenLine).
 {IDENT}\(    : ident_paren_token(TokenChars, TokenLine).
-{STRING}\(   : quoted_ident_paren_token(TokenChars, TokenLine).
-{IDENT}\[    : ident_indx_token(TokenChars, TokenLine).
-{STRING}\[   : quoted_ident_indx_token(TokenChars, TokenLine).
+{IDENT}\[    : ident_brack_token(TokenChars, TokenLine).
+'{IDENT}     : quote_ident_token(TokenChars, TokenLine).
 
-% Whitespace.
+%% Whitespace.
 {WHITESPACE} : whitespace_token(TokenChars, TokenLine).
 
-% Brackets.
-\(           : {token, {'(', TokenLine}}.
-\)           : {token, {')', TokenLine}}.
-\[           : {token, {'[', TokenLine}}.
-\]           : {token, {']', TokenLine}}.
-\{           : {token, {'{', TokenLine}}.
-\}           : {token, {'}', TokenLine}}.
-#\(          : {token, {'#(', TokenLine}}.
-#\[          : {token, {'#[', TokenLine}}.
-#\{          : {token, {'#{', TokenLine}}.
-<<           : {token, {'<<', TokenLine}}.
->>           : {token, {'>>', TokenLine}}.
+%% Containers.
+\(           : {token, {op, TokenLine, '('}}.
+\)           : {token, {op, TokenLine, ')'}}.
+\{           : {token, {op, TokenLine, '{'}}.
+\}           : {token, {op, TokenLine, '}'}}.
+\[           : {token, {op, TokenLine, '['}}.
+\]           : {token, {op, TokenLine, ']'}}.
+#\(          : {token, {op, TokenLine, '#('}}.
+#\{          : {token, {op, TokenLine, '#{'}}.
+\.\{         : {token, {op, TokenLine, '.{'}}.
+#\[          : {token, {op, TokenLine, '#['}}.
+#!\[         : {token, {op, TokenLine, '#!['}}.
+<<           : {token, {op, TokenLine, '<<'}}.
+>>           : {token, {op, TokenLine, '>>'}}.
 
-% Arithmetic operators.
-\+           : {token, {'+', TokenLine}}.
--            : {token, {'-', TokenLine}}.
-\*           : {token, {'*', TokenLine}}.
-/            : {token, {'/', TokenLine}}.
-\%           : {token, {'%', TokenLine}}.
-\^           : {token, {'^', TokenLine}}.
+%% Arithmetic operators.
+\+           : {token, {op, TokenLine, '+'}}.
+-            : {token, {op, TokenLine, '-'}}.
+\*           : {token, {op, TokenLine, '*'}}.
+/            : {token, {op, TokenLine, '/'}}.
+\%           : {token, {op, TokenLine, '%'}}.
 
-% Comparison operators.
-==           : {token, {'==', TokenLine}}.
-!=           : {token, {'!=', TokenLine}}.
-<            : {token, {'<', TokenLine}}.
->            : {token, {'>', TokenLine}}.
-<=           : {token, {'<=', TokenLine}}.
->=           : {token, {'>=', TokenLine}}.
+%% Comparison and logical operators.
+==           : {token, {op, TokenLine, '=='}}.
+!=           : {token, {op, TokenLine, '!='}}.
+<            : {token, {op, TokenLine, '<'}}.
+>            : {token, {op, TokenLine, '>'}}.
+<=           : {token, {op, TokenLine, '<='}}.
+>=           : {token, {op, TokenLine, '>='}}.
+<=>          : {token, {op, TokenLine, '<=>'}}.
+&&           : {token, {op, TokenLine, '&&'}}.
+\|\|         : {token, {op, TokenLine, '||'}}.
 
-% Bitwise operators.
-&&&          : {token, {'&&&', TokenLine}}.
-|||          : {token, {'|||', TokenLine}}.
-\^\^\^       : {token, {'^^^', TokenLine}}.
-<<<          : {token, {'<<<', TokenLine}}.
->>>          : {token, {'>>>', TokenLine}}.
-~~~          : {token, {'~~~', TokenLine}}.
+%% Bitwise operators.
+&&&          : {token, {op, TokenLine, '&&&'}}.
+\|\|\|       : {token, {op, TokenLine, '|||'}}.
+\^\^\^       : {token, {op, TokenLine, '^^^'}}.
+<<<          : {token, {op, TokenLine, '<<<'}}.
+>>>          : {token, {op, TokenLine, '>>>'}}.
+~~~          : {token, {op, TokenLine, '~~~'}}.
 
-% Misc. operators.
-,            : {token, {',', TokenLine}}.
-\:\:         : {token, {'::', TokenLine}}.
-=            : {token, {'=', TokenLine}}.
-->           : {token, {'->', TokenLine}}.
-=>           : {token, {'=>', TokenLine}}.
-\*\*         : {token, {'**', TokenLine}}.
-&            : {token, {'&', TokenLine}}.
-|            : {token, {'|', TokenLine}}.
-@            : {token, {'@', TokenLine}}.
-@!           : {token, {'@!', TokenLine}}.
-!            : {token, {'!', TokenLine}}.
-\?           : {token, {'?', TokenLine}}.
-!!           : {token, {'!!', TokenLine}}.
-\?\?         : {token, {'??', TokenLine}}.
-\?\.         : {token, {'?.', TokenLine}}.
+%% Misc. operators.
+,            : {token, {op, TokenLine, ','}}.
+\$           : {token, {op, TokenLine, '$'}}.
+\:           : {token, {op, TokenLine, ':'}}.
+\:\:         : {token, {op, TokenLine, '::'}}.
+=            : {token, {op, TokenLine, '='}}.
+->           : {token, {op, TokenLine, '->'}}.
+<-           : {token, {op, TokenLine, '<-'}}.
+=>           : {token, {op, TokenLine, '=>'}}.
+\^           : {token, {op, TokenLine, '^'}}.
+\*\*         : {token, {op, TokenLine, '**'}}.
+\+\+         : {token, {op, TokenLine, '++'}}.
+&            : {token, {op, TokenLine, '&'}}.
+\|           : {token, {op, TokenLine, '|'}}.
+\?           : {token, {op, TokenLine, '?'}}.
+!            : {token, {op, TokenLine, '!'}}.
+\?!          : {token, {op, TokenLine, '?!'}}.
+\\\\         : {token, {op, TokenLine, '\\\\'}}.
+\?\?         : {token, {op, TokenLine, '??'}}.
+!!           : {token, {op, TokenLine, '!!'}}.
+\?\.         : {token, {op, TokenLine, '?.'}}.
+!\.          : {token, {op, TokenLine, '!.'}}.
+in           : {token, {op, TokenLine, 'in'}}.
+!in          : {token, {op, TokenLine, '!in'}}.
+as           : {token, {op, TokenLine, 'as'}}.
 
-% Periods.
-\.           : {token, {'.', TokenLine}}.
-\.\.         : {token, {'..', TokenLine}}.
-\.\.\.       : {token, {'...', TokenLine}}.
+%% Periods.
+\.           : {token, {op, TokenLine, '.'}}.
+\.\.         : {token, {op, TokenLine, '..'}}.
+\.\.<        : {token, {op, TokenLine, '..<'}}.
+\.\.\.       : {token, {op, TokenLine, '...'}}.
+\.\.\.<      : {token, {op, TokenLine, '...<'}}.
 
-%-- Helper Functions ----------------------------------------------------------
+%% -----------------------------------------------------------------------------
+%% Helper Functions
+%% -----------------------------------------------------------------------------
 
 Erlang code.
 
@@ -105,7 +129,7 @@ numeric_token(Chars, Line) ->
   % TODO: Will need to handle floats as well.
   case parse_integer(Chars) of
     {ok, {Type, Integer}} -> {token, {Type, Line, Integer}};
-    {error, Msg}          -> {error, Msg}
+    {error, Msg} -> {error, Msg}
   end.
 
 atom_token(Chars, Line) ->
@@ -116,88 +140,48 @@ quoted_atom_token(Chars, Line) ->
   Atom = to_atom(Chars, 2, 1),
   {token, {atom_lit, Line, Atom}}.
 
-tag_token(Chars, Line) ->
-  Tag = to_atom(Chars, 0, 1),
-  {token, {tag, Line, Tag}}.
-
-quoted_tag_token(Chars, Line) ->
-  Tag = to_atom(Chars, 1, 2),
-  {token, {tag, Line, Tag}}.
-
-ident_paren_token(Chars, Line) ->
-  Ident = to_atom(Chars, 0, 1),
-  {token, {ident_call, Line, Ident}, "("}.
-
-quoted_ident_paren_token(Chars, Line) ->
-  Ident = to_atom(Chars, 1, 2),
-  {token, {ident_call, Line, Ident}, "("}.
-
-ident_indx_token(Chars, Line) ->
-  Ident = to_atom(Chars, 0, 1),
-  {token, {ident_indx, Line, Ident}, "["}.
-
-quoted_ident_indx_token(Chars, Line) ->
-  Ident = to_atom(Chars, 1, 2),
-  {token, {ident_indx, Line, Ident}, "["}.
-
 ident_token(Chars, Line) ->
   Ident = to_atom(Chars),
   {token, {ident, Line, Ident}}.
+
+ident_paren_token(Chars, Line) ->
+  Ident = to_atom(Chars, 0, 1),
+  {token, {ident_paren, Line, Ident}, "("}.
+
+ident_brack_token(Chars, Line) ->
+  Ident = to_atom(Chars, 0, 1),
+  {token, {ident_brack, Line, Ident}, "["}.
+
+quote_ident_token(Chars, Line) ->
+  Ident = to_atom(Chars, 1, 0),
+  {token, {quote_ident, Line, Ident}}.
 
 string_token(Chars, Line) ->
   String = list_to_binary(lists:sublist(Chars, 2, length(Chars) - 2)),
   {token, {string_lit, Line, String}}.
 
-% Classify whitespace as being a newline or a space (skipped).
+%% Classify whitespace as being a newline or a space (skipped).
 whitespace_token(Chars, Line) ->
   case re:run(Chars, "[\n;]") of
     nomatch -> skip_token;
-    _       -> {token, {newline, Line}}
+    _ -> {token, {newline, Line}}
   end.
 
 parse_integer(Chars) ->
-  case match_integer(Chars) of
-    {ok, NumberLen, TypeLen} ->
-      Number = parse_integer_number(lists:sublist(Chars, 1, NumberLen)),
-      Type = lists:sublist(Chars, length(Chars) - TypeLen, TypeLen),
-
-      % TODO: Need to check if the numbers are in valid ranges.
-      Token = case Type of
-        "i8"    -> {i8_lit, Number};
-        "i16"   -> {i16_lit, Number};
-        "i32"   -> {i32_lit, Number};
-        "i64"   -> {i64_lit, Number};
-        "isize" -> {isize_lit, Number};
-        "u8"    -> {u8_lit, Number};
-        "u16"   -> {u16_lit, Number};
-        "u32"   -> {u32_lit, Number};
-        "u64"   -> {u64_lit, Number};
-        "usize" -> {usize_lit, Number};
-        ""      -> {integer_lit, Number}
-      end,
-
-      {ok, Token};
-    {error, Msg} ->
-      {error, Msg}
+  case re:run(Chars, "^([0-9][0-9_]*)$") of
+    {match, _} ->
+      % Remove underscores.
+      CharsCleaned = lists:filter(fun (Char) -> Char /= $_ end, Chars),
+      {ok, {integer_lit, list_to_integer(CharsCleaned)}};
+    nomatch ->
+      {error, "invalid integer literal syntax in \"" ++ Chars ++ "\""}
   end.
 
-match_integer(Chars) ->
-  case re:run(Chars, "^([0-9][0-9_]*)([iu](?:8|16|32|64|size))?$") of
-    {match, [_, {_, NumberLen}, {_, TypeLen}]} -> {ok, NumberLen, TypeLen};
-    {match, [_, {_, NumberLen}]}               -> {ok, NumberLen, 0};
-    nomatch -> {error, "invalid integer literal syntax in \"" ++ Chars ++ "\""}
-  end.
-
-% Remove underscores from a charlist and make it a number.
-parse_integer_number(Chars) ->
-  Filtered = lists:filter(fun (Char) -> Char /= $_ end, Chars),
-  list_to_integer(Filtered).
-
-% Convert a charlist to an atom.
+%% Convert a charlist to an atom.
 to_atom(Chars) ->
   list_to_atom(Chars).
 
-% Convert a charlist to an atom and trim off characters.
+%% Convert a charlist to an atom and trim off characters.
 to_atom(Chars, PadLeft, PadRight) ->
   LeftIndex = 1 + PadLeft,
   RightIndex = length(Chars) - PadLeft - PadRight,

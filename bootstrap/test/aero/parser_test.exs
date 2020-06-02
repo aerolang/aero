@@ -34,8 +34,8 @@ defmodule Aero.ParserTest do
     #   z { }
     tokens: [
       {:ident, 1, :z},
-      {:"{", 1},
-      {:"}", 1},
+      {:op, 1, :"{"},
+      {:op, 1, :"}"},
       {:newline, 1},
       {:eof, 0}
     ],
@@ -52,7 +52,7 @@ defmodule Aero.ParserTest do
     #     two; three
     #   }
     tokens: [
-      {:"{", 1},
+      {:op, 1, :"{"},
       {:newline, 1},
       {:ident, 2, :one},
       {:newline, 2},
@@ -60,7 +60,7 @@ defmodule Aero.ParserTest do
       {:newline, 3},
       {:ident, 3, :three},
       {:newline, 3},
-      {:"}", 4},
+      {:op, 4, :"}"},
       {:newline, 4},
       {:eof, 0}
     ],
@@ -78,8 +78,8 @@ defmodule Aero.ParserTest do
     tokens: [
       {:ident, 1, :mod},
       {:ident, 1, :empty},
-      {:"{", 1},
-      {:"}", 1},
+      {:op, 1, :"{"},
+      {:op, 1, :"}"},
       {:newline, 1},
       {:eof, 0}
     ],
@@ -97,13 +97,13 @@ defmodule Aero.ParserTest do
     tokens: [
       {:ident, 1, :mod},
       {:ident, 1, :empty},
-      {:"{", 1},
-      {:"}", 1},
+      {:op, 1, :"{"},
+      {:op, 1, :"}"},
       {:newline, 1},
       {:ident, 2, :mod},
       {:ident, 2, :another_empty},
-      {:"{", 2},
-      {:"}", 2},
+      {:op, 2, :"{"},
+      {:op, 2, :"}"},
       {:newline, 2},
       {:eof, 0}
     ],
@@ -124,9 +124,9 @@ defmodule Aero.ParserTest do
     tokens: [
       {:ident, 1, :mod},
       {:ident, 1, :empty},
-      {:",", 1},
-      {:"{", 1},
-      {:"}", 1},
+      {:op, 1, :","},
+      {:op, 1, :"{"},
+      {:op, 1, :"}"},
       {:newline, 1},
       {:eof, 0}
     ],
@@ -143,9 +143,9 @@ defmodule Aero.ParserTest do
     tokens: [
       {:ident, 1, :a},
       {:ident, 1, :b},
-      {:",", 1},
+      {:op, 1, :","},
       {:ident, 1, :c},
-      {:",", 1},
+      {:op, 1, :","},
       {:ident, 1, :d},
       {:newline, 1},
       {:eof, 0}
