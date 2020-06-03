@@ -2,29 +2,19 @@ defmodule Aero.Kernel do
   @kernel (
     quote do
       defmodule :_aero_kernel do
-        defmodule :atom_t do
-          @enforce_keys [:value]
-          defstruct [:value]
-        end
-
-        defmodule :string_t do
-          @enforce_keys [:value]
-          defstruct [:value]
-        end
-
         defmacro mod(module, {:__block__, _, _} = block) do
-          Module.create module.value, block, Macro.Env.location(__ENV__)
+          Module.create module, block, Macro.Env.location(__ENV__)
         end
 
         defmacro log(content) do
           quote do
-            IO.puts(unquote(content).value)
+            IO.puts(unquote(content))
           end
         end
 
         defmacro if(expr, then) do
           quote do
-            case unquote(expr).value do
+            case unquote(expr) do
               :true -> {:some, unquote(then)}
               :false -> :none
             end
@@ -39,13 +29,13 @@ defmodule Aero.Kernel do
 
         defmacro true_ do
           quote do
-            %:atom_t{value: :true}
+            :true
           end
         end
 
         defmacro false_ do
           quote do
-            %:atom_t{value: :false}
+            :false
           end
         end
       end

@@ -8,114 +8,60 @@ defmodule Aero.Transform do
     {:defmodule, [context: Elixir, import: Kernel], [:_source, [do: ast]]}
   end
 
-  def transform({:macro_call, _meta, [name: name, args: args]})
-  when is_list(args) do
-    macro = name |> extract_ident() |> elixir_value()
-    remote = {:., [], [:_aero_kernel, macro]}
-
-    {remote, [], transform_macro_args(macro, args)}
-  end
-
-  def transform({:pos_arg, _meta, arg}) do
-    transform(arg)
-  end
-
-  def transform({:op_call, _meta, op_call}) do
-    transform_op_call(op_call)
-  end
-
-  def transform({:ident, meta, name}) when is_atom(name) do
-    # Convert idents that are keywords in Elixir.
-    name =
-      case name do
-        :true -> :true_
-        :false -> :false_
-        :nil -> :nil_
-        :when -> :when_
-        :and -> :and_
-        :or -> :or_
-        :in -> :in_
-        :fn -> :fn_
-        :do -> :do_
-        :end -> :end_
-        :catch -> :catch_
-        :rescue -> :rescue_
-        :after -> :after_
-        :else -> :else_
-        :_ -> :__
-        other -> other
+  def transform({:expand, _meta, macro, args}) do
+    callee =
+      case macro do
+        {:ident, _, _} = ident -> transform(ident)
+        {:op, _, op_name} -> op_name |> to_string()
       end
 
-    # If this corresponds to a zero-argument macro, convert it,
-    # otherwise this is just an identifier.
-    if name in [:true_, :false_] do
-        transform({:macro_call, meta, [name: {:ident, meta, name}, args: []]})
-    else
-        {name, [], Elixir}
-    end
-  end
-
-  def transform({:atom_lit, _meta, atom}) when is_atom(atom) do
-    atom_t(atom)
-  end
-
-  def transform({:string_lit, _meta, string}) when is_binary(string) do
-    string_t(string)
-  end
-
-  def transform({:block, _meta, expr_list}) when is_list(expr_list) do
-    {:__block__, [], expr_list |> Enum.map(&transform/1)}
-  end
-
-  defp extract_ident({:ident, _meta, name}) do
-    atom_t(name)
-  end
-
-  defp extract_pos_arg({:pos_arg, _meta, arg}) do
-    arg
-  end
-
-  defp transform_macro_args(:mod, [module, block]) do
-    [
-      module |> extract_pos_arg() |> extract_ident(),
-      [do: block |> transform()]
-    ]
-  end
-
-  defp transform_macro_args(:log, [string]) do
-    [
-      string |> transform()
-    ]
-  end
-
-  defp transform_macro_args(:if, [expr, then]) do
-    [
-      expr |> transform(),
-      [then: then |> transform()]
-    ]
-  end
-
-  defp transform_macro_args(:true_, []), do: []
-  defp transform_macro_args(:false_, []), do: []
-
-  defp transform_op_call([op: :bind, left: pat, right: expr]) do
     {
-      {:., [], [:_aero_kernel, '=']},
+      {:., [], [:_aero_kernel, callee]},
       [],
-      [
-        pat |> transform(),
-        expr |> transform()
-      ]
+      args |> Enum.map(&transform/1)
     }
   end
 
-  # Functions to convert erlang types to Aero kernel type structs.
-  defp atom_t(value), do: value |> aero_value(:atom_t)
-  defp string_t(value), do: value |> aero_value(:string_t)
+  # Zero-argument macros.
+  def transform({:ident, _meta, ident}) when ident in [:true, :false] do
+    {
+      {:., [], [:_aero_kernel, safe_ident(ident)]},
+      [],
+      []
+    }
+  end
 
-  # Convert a value to be a struct for an Aero type, e.g., :atom_t.
-  defp aero_value(value, type), do: {:%, [], [type, {:%{}, [], value: value}]}
+  def transform({:ident, _meta, ident}) do
+    {safe_ident(ident), [], Elixir}
+  end
 
-  # Get the value from inside an Aero type struct.
-  defp elixir_value({:%, [], [_type, {:%{}, [], value: value}]}), do: value
+  def transform({:atom_lit, _meta, atom}) do
+    atom
+  end
+
+  def transform({:string_lit, _meta, string}) do
+    string
+  end
+
+  def transform({:block, _meta, exprs}) do
+    {:__block__, [], exprs |> Enum.map(&transform/1)}
+  end
+
+  # Convert idents that are keywords in Elixir.
+  defp safe_ident(:true), do: :true_
+  defp safe_ident(:false), do: :false_
+  defp safe_ident(:nil), do: :nil_
+  defp safe_ident(:when), do: :when_
+  defp safe_ident(:and), do: :and_
+  defp safe_ident(:or), do: :or_
+  defp safe_ident(:in), do: :in_
+  defp safe_ident(:fn), do: :fn_
+  defp safe_ident(:do), do: :do_
+  defp safe_ident(:end), do: :end_
+  defp safe_ident(:catch), do: :catch_
+  defp safe_ident(:rescue), do: :rescue_
+  defp safe_ident(:after), do: :after_
+  defp safe_ident(:else), do: :else_
+  defp safe_ident(:_), do: :__
+  defp safe_ident(other), do: other
 end
