@@ -1,6 +1,0 @@
-[workspace]
-members = [
-  "aero_core",
-  "aero_core_f64",
-  "aero_core_f32"
-]
