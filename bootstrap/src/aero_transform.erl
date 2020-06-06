@@ -10,26 +10,40 @@
 
 %% Convert the Aero AST into the Elixir AST.
 transform({source, _Meta, Exprs}) ->
-  % Source of an Aero file calls Elixir's defmodule.
-  Block = {'__block__', [], lists:map(fun transform/1, Exprs)},
-  ExMeta = [{context, 'Elixir'}, {import, 'Elixir.Kernel'}],
-  Source = {defmodule, ExMeta, ['_source', [{do, Block}]]},
-  % Add on the Aero kernel and return.
-  'Elixir.Aero.Kernel':add_kernel(Source);
+  % Source of an Aero file calls Elixir's defmodule. A require call to the Aero
+  % kernel implemented in Elixir is inserted.
+  KernelReq = {
+    require,
+    [{context, 'Elixir'}],
+    [{'__aliases__', [{alias, false}], ['Aero', 'Kernel']}]
+  },
+  Block = {'__block__', [], [KernelReq | lists:map(fun transform/1, Exprs)]},
+  ExMeta = [{context, 'Elixir'}],
+  {defmodule, ExMeta, ['_source', [{do, Block}]]};
 transform({expand, _Meta, Macro, Args}) ->
   MacroName =
     case Macro of
       {ident, _, _} = Ident -> transform(Ident);
       {op, _, OpName} -> atom_to_binary(OpName, utf8)
     end,
-  Callee = {'.', [], ['_aero_kernel', MacroName]},
+  Callee = {
+    '.',
+    [],
+    [{'__aliases__', [{alias, false}], ['Aero', 'Kernel']}, MacroName]
+  },
   {Callee, [], lists:map(fun transform/1, Args)};
 transform({ident, _Meta, Ident}) ->
-  case Ident of
-    true -> true;
-    false -> false;
-    nil -> [];
-    Other -> {safe_ident(Other), [], 'Elixir'}
+  Safe = safe_ident(Ident),
+  case zero_arg_macro(Safe) of
+    true ->
+      % Zero arg macros names are converted to macro calls of no arguments.
+      {{
+        '.',
+        [],
+        [{'__aliases__', [{alias, false}], ['Aero', 'Kernel']}, Safe]
+      }, [], []};
+    false ->
+      {safe_ident(Ident), [], 'Elixir'}
   end;
 transform({atom_lit, _Meta, Atom}) ->
   Atom;
@@ -59,3 +73,9 @@ safe_ident('after') -> after_;
 safe_ident(else) -> else_;
 safe_ident('_') -> '__';
 safe_ident(Other) -> Other.
+
+%% Identifers which are converted to macros calls.
+zero_arg_macro(true_) -> true;
+zero_arg_macro(false_) -> true;
+zero_arg_macro(nil_) -> true;
+zero_arg_macro(_) -> false.
