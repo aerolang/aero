@@ -16,7 +16,7 @@ defmodule Aero.LexerCase do
         input = unquote(source)
         output = unquote(tokens)
         count = unquote(lines)
-        {:ok, ^output, ^count} = Aero.Lexer.tokenize input
+        {:ok, ^output, ^count} = :aero_lexer.tokenize input
       end
     end
   end

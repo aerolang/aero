@@ -7,7 +7,7 @@ defmodule Aero.MixProject do
       version: "0.1.0",
       elixir: "~> 1.6",
       elixirc_paths: elixirc_paths(Mix.env),
-      escript: [main_module: Aero.CLI],
+      escript: [main_module: :aero_cli],
       start_permanent: Mix.env() == :prod,
       deps: deps()
     ]
@@ -23,6 +23,8 @@ defmodule Aero.MixProject do
   defp elixirc_paths(_),     do: ["lib"]
 
   defp deps do
-    []
+    [
+      {:getopt, "~> 1.0.1"}
+    ]
   end
 end

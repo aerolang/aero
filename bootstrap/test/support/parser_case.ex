@@ -12,7 +12,7 @@ defmodule Aero.ParserCase do
       test message do
         input = unquote(tokens)
         output = unquote(ast)
-        {:ok, ^output} = Aero.Parser.parse input
+        {:ok, ^output} = :aero_parser.parse input
       end
     end
   end

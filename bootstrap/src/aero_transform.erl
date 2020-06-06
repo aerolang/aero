@@ -13,7 +13,9 @@ transform({source, _Meta, Exprs}) ->
   % Source of an Aero file calls Elixir's defmodule.
   Block = {'__block__', [], lists:map(fun transform/1, Exprs)},
   ExMeta = [{context, 'Elixir'}, {import, 'Elixir.Kernel'}],
-  {defmodule, ExMeta, ['_source', [{do, Block}]]};
+  Source = {defmodule, ExMeta, ['_source', [{do, Block}]]},
+  % Add on the Aero kernel and return.
+  'Elixir.Aero.Kernel':add_kernel(Source);
 transform({expand, _Meta, Macro, Args}) ->
   MacroName =
     case Macro of
