@@ -1,6 +1,17 @@
 defmodule Aero.Kernel do
-  defmacro mod(module, {:__block__, _, _} = block) do
-    Module.create module, block, Macro.Env.location(__ENV__)
+  defmacro mod(name, body) do
+    name =
+      Kernel.if name === :__source__ do
+        __CALLER__.file |> Path.basename(".ex") |> String.to_atom()
+      else
+        name
+      end
+
+    quote do
+      defmodule unquote(name) do
+        unquote(body)
+      end
+    end
   end
 
   defmacro log(content) do
