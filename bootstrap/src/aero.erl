@@ -35,5 +35,8 @@ parse({error, _} = Error) -> Error.
 transform({ok, Ast}) -> {ok, aero_transform:transform(Ast)};
 transform({error, _} = Error) -> Error.
 
-output({ok, Transformed}) -> {ok, 'Elixir.Macro':to_string(Transformed)};
-output({error, _} = Error) -> Error.
+output({ok, Transformed}) ->
+  ExSource = 'Elixir.Macro':to_string(Transformed),
+  {ok, 'Elixir.Code':'format_string!'(ExSource)};
+output({error, _} = Error) ->
+  Error.
