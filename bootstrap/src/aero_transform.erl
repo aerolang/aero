@@ -40,7 +40,9 @@ transform({ident, _Meta, Ident}) ->
 transform({atom_lit, _Meta, Atom}) ->
   Atom;
 transform({string_lit, _Meta, String}) ->
-  String.
+  String;
+transform({integer_lit, _Meta, Integer}) ->
+  Integer.
 
 %% -----------------------------------------------------------------------------
 %% Helper Functions
