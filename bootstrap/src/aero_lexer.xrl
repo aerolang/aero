@@ -10,7 +10,9 @@
 
 Definitions.
 
-NUMERIC    = [0-9][a-zA-Z0-9_\.\+\-]*
+INTEGER    = [0-9][0-9_]*
+EXPONENT   = e[\+\-]?[0-9_]*[0-9][0-9_]*
+FLOAT      = [0-9][0-9_]*(({EXPONENT})|(\.[0-9][0-9_]*({EXPONENT})?))
 STRING     = "[^\"]*"
 IDENT      = [a-zA-Z_][a-zA-Z0-9_]*
 WHITESPACE = ([\s\t\r\n;]|(--[^\n]*))+
@@ -22,7 +24,8 @@ WHITESPACE = ([\s\t\r\n;]|(--[^\n]*))+
 Rules.
 
 %% Literals.
-{NUMERIC}    : numeric_token(TokenChars, TokenLine).
+{INTEGER}    : integer_token(TokenChars, TokenLine).
+{FLOAT}      : float_token(TokenChars, TokenLine).
 \:{IDENT}    : atom_token(TokenChars, TokenLine).
 \:{STRING}   : quoted_atom_token(TokenChars, TokenLine).
 {STRING}     : string_token(TokenChars, TokenLine).
@@ -125,12 +128,13 @@ tokenize(Input) ->
     {error, _, _} = Error -> Error
   end.
 
-numeric_token(Chars, Line) ->
-  % TODO: Will need to handle floats as well.
-  case parse_integer(Chars) of
-    {ok, {Type, Integer}} -> {token, {Type, Line, Integer}};
-    {error, Msg} -> {error, Msg}
-  end.
+integer_token(Chars, Line) ->
+  CharsCleaned = lists:filter(fun (Char) -> Char /= $_ end, Chars),
+  {token, {integer_lit, Line, list_to_integer(CharsCleaned)}}.
+
+float_token(Chars, Line) ->
+  CharsCleaned = lists:filter(fun (Char) -> Char /= $_ end, Chars), 
+  {token, {float_lit, Line, list_to_float(CharsCleaned)}}.
 
 atom_token(Chars, Line) ->
   Atom = to_atom(Chars, 1, 0),
@@ -165,16 +169,6 @@ whitespace_token(Chars, Line) ->
   case re:run(Chars, "[\n;]") of
     nomatch -> skip_token;
     _ -> {token, {newline, Line}}
-  end.
-
-parse_integer(Chars) ->
-  case re:run(Chars, "^([0-9][0-9_]*)$") of
-    {match, _} ->
-      % Remove underscores.
-      CharsCleaned = lists:filter(fun (Char) -> Char /= $_ end, Chars),
-      {ok, {integer_lit, list_to_integer(CharsCleaned)}};
-    nomatch ->
-      {error, "invalid integer literal syntax in \"" ++ Chars ++ "\""}
   end.
 
 %% Convert a charlist to an atom.

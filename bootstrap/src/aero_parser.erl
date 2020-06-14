@@ -230,7 +230,9 @@ expr_single({atom_lit, _, Atom} = T, _Mode) ->
 expr_single({string_lit, _, String} = T, _Mode) ->
   {string_lit, get_meta(T), String};
 expr_single({integer_lit, _, Integer} = T, _Mode) ->
-  {integer_lit, get_meta(T), Integer}.
+  {integer_lit, get_meta(T), Integer};
+expr_single({float_lit, _, Float} = T, _Mode) ->
+  {float_lit, get_meta(T), Float}.
 
 %% Build operator expressions that don't require the previous expression.
 expr_prefix({op, _, '('} = T, [], _Mode) ->

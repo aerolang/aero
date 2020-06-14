@@ -42,7 +42,9 @@ transform({atom_lit, _Meta, Atom}) ->
 transform({string_lit, _Meta, String}) ->
   String;
 transform({integer_lit, _Meta, Integer}) ->
-  Integer.
+  Integer;
+transform({float_lit, _Meta, Float}) ->
+  Float.
 
 %% -----------------------------------------------------------------------------
 %% Helper Functions
