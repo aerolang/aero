@@ -28,6 +28,13 @@ transform({expand, _Meta, Macro, Args}) ->
       {op, _, OpName} -> OpName
     end,
   ex_macro_call(MacroName, lists:map(fun transform/1, Args));
+transform({unit, _Meta}) ->
+  nil;
+transform({tuple_lit, _Meta, Exprs}) ->
+  case {length(Exprs), lists:map(fun transform/1, Exprs)} of
+    {2, [LeftExExpr, RightExExpr]} -> {LeftExExpr, RightExExpr};
+    {_, ExExprs} -> {'{}', [], ExExprs}
+  end;
 transform({ident, _Meta, Ident}) ->
   Safe = safe_ident(Ident),
   case zero_arg_macro(Safe) of

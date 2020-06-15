@@ -71,7 +71,7 @@ group(Tokens, EndToken, Mode, Exprs) ->
 %%
 %% - `group`: Read expressions inside container separated by newlines.
 %% - `expr`: Read a single expression inside container.
-%% - `opt_expr`: Read an expression inside or let it be empty.
+%% - `exprs`: Read comma-separated expressions inside or let it be empty.
 %% - `infix`: Read an expression inside and to the right of the container.
 container(Tokens, EndToken, _BP, InnerMode, _OuterMode, group) ->
   {Tokens2, Exprs} = group(Tokens, EndToken, InnerMode),
@@ -79,19 +79,25 @@ container(Tokens, EndToken, _BP, InnerMode, _OuterMode, group) ->
 container(Tokens, EndToken, _BP, InnerMode, _OuterMode, expr) ->
   {Tokens2, Expr} = expr(allow(Tokens, newline), InnerMode),
   {expect(allow(Tokens2, newline), EndToken), [Expr]};
-container(Tokens, EndToken, BP, InnerMode, OuterMode, opt_expr) ->
+container(Tokens, EndToken, BP, InnerMode, OuterMode, exprs) ->
   case {allow(Tokens, newline), EndToken} of
     {[{Type, _, End} | _] = Tokens2, {Type, End}} ->
       {expect(Tokens2, EndToken), []};
     {[{End, _} | _] = Tokens2, End} ->
       {expect(Tokens2, EndToken), []};
     {Tokens2, _} ->
-      container(Tokens2, EndToken, BP, InnerMode, OuterMode, expr)
+      {Tokens3, Exprs} = container(Tokens2, EndToken, BP, InnerMode, OuterMode, expr),
+      % Unwrapping inner tuples.
+      case Exprs of
+        [{tuple_lit, _, InnerExprs}] -> {Tokens3, InnerExprs};
+        _ -> {Tokens3, Exprs}
+      end
   end;
 container(Tokens, EndToken, BP, InnerMode, OuterMode, infix) ->
   {Tokens2, InnerExpr} = container(Tokens, EndToken, BP, InnerMode, OuterMode, expr),
   {Tokens3, RightExpr} = expr(allow(Tokens2, newline), BP, OuterMode),
-  {allow(Tokens3, newline), [InnerExpr, RightExpr]}.
+  % Right goes first since the container applies to it like a prefix operator.
+  {allow(Tokens3, newline), [RightExpr | InnerExpr]}.
 
 %% Parse an expression with precedence (binding power).
 %%
@@ -163,7 +169,7 @@ expr_postfix_infix([{op, _, Op} = T | Tail] = Tokens, LeftExpr, MinBP, Mode) ->
             {NextBP, _} = op(NextMode, prefix, Op),
             {Tokens3, InnerExprs} =
               container(Tail, {op, EndOp}, NextBP, InnerMode, NextMode, ContainerType),
-            {Tokens3, expr_postfix(T, [LeftExpr, InnerExprs], Mode)}
+            {Tokens3, expr_postfix(T, [LeftExpr | InnerExprs], Mode)}
         end,
       % Postfix has insertions as well for macro calls.
       Inserted = expr_insert(LeftExpr, T, hd(Tail), Mode),
@@ -239,36 +245,34 @@ expr_prefix({op, _, '('} = T, [], _Mode) ->
   {unit, get_meta(T)};
 expr_prefix({op, _, '('}, [InnerExpr], _Mode) ->
   InnerExpr;
-expr_prefix({op, _, '#('} = T, InnerExpr, _Mode) ->
-  {record_lit, get_meta(T), plain_tuple(InnerExpr)};
+expr_prefix({op, _, '('} = T, InnerExprs, _Mode) ->
+  {tuple_lit, get_meta(T), InnerExprs};
+expr_prefix({op, _, '#('} = T, InnerExprs, _Mode) ->
+  {record_lit, get_meta(T), InnerExprs};
 expr_prefix({op, _, '{'} = T, InnerExprs, _Mode) ->
   {block, get_meta(T), InnerExprs};
-expr_prefix({op, _, '#{'} = T, InnerExpr, _Mode) ->
-  {map_lit, get_meta(T), plain_tuple(InnerExpr)};
-expr_prefix({op, _, '['} = T, InnerExpr, _Mode) ->
-  {array_lit, get_meta(T), plain_tuple(InnerExpr)};
-expr_prefix({op, _, '#['} = T, [InnerExpr, RightExpr], _Mode) ->
-  {attribute, get_meta(T), plain_tuple(InnerExpr), RightExpr};
-expr_prefix({op, _, '#!['} = T, InnerExpr, _Mode) ->
-  {inner_attribute, get_meta(T), plain_tuple(InnerExpr)};
-expr_prefix({op, _, '<<'} = T, InnerExpr, _Mode) ->
-  {bits_lit, get_meta(T), plain_tuple(InnerExpr)};
+expr_prefix({op, _, '#{'} = T, InnerExprs, _Mode) ->
+  {map_lit, get_meta(T), InnerExprs};
+expr_prefix({op, _, '['} = T, InnerExprs, _Mode) ->
+  {array_lit, get_meta(T), InnerExprs};
+expr_prefix({op, _, '#['} = T, [RightExpr | InnerExprs], _Mode) ->
+  {attribute, get_meta(T), InnerExprs, RightExpr};
+expr_prefix({op, _, '#!['} = T, InnerExprs, _Mode) ->
+  {inner_attribute, get_meta(T), InnerExprs};
+expr_prefix({op, _, '<<'} = T, InnerExprs, _Mode) ->
+  {bits_lit, get_meta(T), InnerExprs};
 expr_prefix({op, _, Op} = T, Exprs, _Mode) ->
   % Normal prefix operator case.
   % To distinguish a prefix operator, an underscore is appended.
   OpBinary = atom_to_binary(Op, utf8),
   PrefixOp = binary_to_atom(<<OpBinary/binary, "_">>, utf8),
-  {expand, get_meta(T), {prefix, get_meta(T), PrefixOp}, Exprs}.
+  {expand, get_meta(T), {op, get_meta(T), PrefixOp}, Exprs}.
 
 %% Build operator expressions that need the previous expression.
-expr_postfix({op, _, '('} = T, [LeftExpr, []], Mode) ->
-  expr_postfix({op, get_meta(T), '()'}, [LeftExpr], Mode);
-expr_postfix({op, _, '('} = T, [LeftExpr, [InnerExpr]], Mode) ->
-  expr_postfix({op, get_meta(T), '()'}, [LeftExpr, InnerExpr], Mode);
-expr_postfix({op, _, '['} = T, [LeftExpr], Mode) ->
-  expr_postfix({op, get_meta(T), '[]'}, [LeftExpr], Mode);
-expr_postfix({op, _, '['} = T, [LeftExpr, [InnerExpr]], Mode) ->
-  expr_postfix({op, get_meta(T), '[]'}, [LeftExpr, InnerExpr], Mode);
+expr_postfix({op, _, '('} = T, Exprs, Mode) ->
+  expr_postfix({op, get_meta(T), '()'}, Exprs, Mode);
+expr_postfix({op, _, '['} = T, Exprs, Mode) ->
+  expr_postfix({op, get_meta(T), '[]'}, Exprs, Mode);
 expr_postfix({op, _, '.{'} = T, [LeftExpr, InnerExpr], Mode) ->
   expr_postfix({op, get_meta(T), '.{}'}, [LeftExpr, {block, get_meta(T), InnerExpr}], Mode);
 expr_postfix({op, _, Op} = T, Exprs, _Mode) ->
@@ -457,17 +461,17 @@ next_mode(Prev, _, _) -> Prev.
 %%
 %% Gives the closing operator and it's parsing behavior. The use in infix
 %% expressions isn't allowed.
-container_op(prefix,  '(')   -> {')',  opt_expr, sub};  % ()
-container_op(postfix, '(')   -> {')',  opt_expr, sub};  % ()
-container_op(prefix,  '{')   -> {'}',  group,    top};  % {}
-container_op(prefix,  '[')   -> {']',  opt_expr, sub};  % []
-container_op(postfix, '[')   -> {']',  opt_expr, sub};  % []
-container_op(prefix,  '#(')  -> {')',  opt_expr, sub};  % #()
-container_op(prefix,  '#{')  -> {'}',  opt_expr, sub};  % #{}
-container_op(postfix, '.{')  -> {'}',  group,    sub};  % .{}
-container_op(prefix,  '#[')  -> {']',  infix,    sub};  % #[]
-container_op(prefix,  '#![') -> {']',  expr,     sub};  % #![]
-container_op(prefix,  '<<')  -> {'>>', opt_expr, sub};  % <<>>
+container_op(prefix,  '(')   -> {')',  exprs, sub};  % ()
+container_op(postfix, '(')   -> {')',  exprs, sub};  % ()
+container_op(prefix,  '{')   -> {'}',  group, top};  % {}
+container_op(prefix,  '[')   -> {']',  exprs, sub};  % []
+container_op(postfix, '[')   -> {']',  exprs, sub};  % []
+container_op(prefix,  '#(')  -> {')',  exprs, sub};  % #()
+container_op(prefix,  '#{')  -> {'}',  exprs, sub};  % #{}
+container_op(postfix, '.{')  -> {'}',  group, sub};  % .{}
+container_op(prefix,  '#[')  -> {']',  infix, sub};  % #[]
+container_op(prefix,  '#![') -> {']',  expr,  sub};  % #![]
+container_op(prefix,  '<<')  -> {'>>', exprs, sub};  % <<>>
 container_op(prefix,  _)     -> nil;
 container_op(postfix, _)     -> nil.
 
