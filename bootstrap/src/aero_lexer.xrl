@@ -15,7 +15,9 @@ EXPONENT   = e[\+\-]?[0-9_]*[0-9][0-9_]*
 FLOAT      = [0-9][0-9_]*(({EXPONENT})|(\.[0-9][0-9_]*({EXPONENT})?))
 STRING     = "[^\"]*"
 IDENT      = [a-zA-Z_][a-zA-Z0-9_]*
-WHITESPACE = ([\s\t\r\n;]|(--[^\n]*))+
+SPACE      = (([\s\t\r]*)|(--[^\n]*)|(\\\n))
+SPACE_CONT = [\n]([\s\t\r\n]|(--[^\n]*))*[\|]
+NEWLINE    = [\n;]([\s\t\r\n;]|(--[^\n]*))*
 
 %% -----------------------------------------------------------------------------
 %% Token Rules
@@ -37,7 +39,9 @@ Rules.
 '{IDENT}     : quote_ident_token(TokenChars, TokenLine).
 
 %% Whitespace.
-{WHITESPACE} : whitespace_token(TokenChars, TokenLine).
+{SPACE}      : skip_token.
+{SPACE_CONT} : {skip_token, [lists:last(TokenChars)]}.
+{NEWLINE}    : {token, {newline, TokenLine}}.
 
 %% Containers.
 \(           : {token, {op, TokenLine, '('}}.
@@ -163,13 +167,6 @@ quote_ident_token(Chars, Line) ->
 string_token(Chars, Line) ->
   String = list_to_binary(lists:sublist(Chars, 2, length(Chars) - 2)),
   {token, {string_lit, Line, String}}.
-
-%% Classify whitespace as being a newline or a space (skipped).
-whitespace_token(Chars, Line) ->
-  case re:run(Chars, "[\n;]") of
-    nomatch -> skip_token;
-    _ -> {token, {newline, Line}}
-  end.
 
 %% Convert a charlist to an atom.
 to_atom(Chars) ->
