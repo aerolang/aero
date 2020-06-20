@@ -32,7 +32,7 @@ format_parse_error(Reason) -> format_error(Reason).
 %% Continuously parse expressions in the source until EOF.
 source(Tokens) ->
   {[{eof, _}], Exprs} = group(Tokens, eof, top),
-  {source, [], Exprs}.
+  replace_explicit_tuples({source, [], Exprs}).
 
 %% Parse newline-separated expressions until an end token.
 group(Tokens, EndToken, Mode) ->
@@ -228,6 +228,10 @@ expr_prefix({op, _, '('} = T, [], _Mode) ->
   {unit, get_meta(T)};
 expr_prefix({op, _, '('}, [InnerExpr], _Mode) ->
   InnerExpr;
+expr_prefix({op, _, '('} = T, InnerExprs, con) ->
+  % Tuple created inside a container is made explicit to prevent it from being
+  % unwrapped.
+  {explicit_tuple_lit, get_meta(T), InnerExprs};
 expr_prefix({op, _, '('} = T, InnerExprs, _Mode) ->
   {tuple_lit, get_meta(T), InnerExprs};
 expr_prefix({op, _, '#('} = T, InnerExprs, _Mode) ->
@@ -266,6 +270,8 @@ expr_postfix({op, _, Op} = T, Exprs, _Mode) ->
   {expand, get_meta(hd(Exprs)), {op, get_meta(T), PostfixOp}, Exprs}.
 
 %% Parse expressions that need both the previous and next expressions.
+expr_infix({op, _, '->'} = T, [{tuple_lit, _, LeftExprs}, RightExpr], Mode) ->
+  expr_infix(T, LeftExprs ++ [RightExpr], Mode);
 expr_infix({op, _, ':'}, [LeftExpr, RightExpr], _Mode) ->
   {tag, get_meta(LeftExpr), LeftExpr, RightExpr};
 expr_infix({op, _, ','}, [LeftExpr, RightExpr], arg) ->
@@ -320,6 +326,20 @@ plain_tuple([{tuple_lit, _, Exprs}]) -> Exprs;
 plain_tuple([]) -> [];
 plain_tuple([Expr]) -> [Expr];
 plain_tuple(Expr) -> [Expr].
+
+%% Replace explicit tuples with regular tuples.
+replace_explicit_tuples({explicit_tuple_lit, Meta, Exprs}) ->
+  {tuple_lit, Meta, lists:map(fun replace_explicit_tuples/1, Exprs)};
+replace_explicit_tuples({Type, Meta, Arg, Exprs}) when is_list(Exprs) ->
+  {Type, Meta, Arg, lists:map(fun replace_explicit_tuples/1, Exprs)};
+replace_explicit_tuples({Type, Meta, Arg, Expr}) ->
+  {Type, Meta, Arg, Expr};
+replace_explicit_tuples({Type, Meta, Exprs}) when is_list(Exprs) ->
+  {Type, Meta, lists:map(fun replace_explicit_tuples/1, Exprs)};
+replace_explicit_tuples({Type, Meta, Expr}) ->
+  {Type, Meta, Expr};
+replace_explicit_tuples({Type, Meta}) ->
+  {Type, Meta}.
 
 %% Configure operators with binding power and associativity.
 %%
