@@ -226,14 +226,14 @@ expr_single({float_lit, _, Float} = T, _Mode) ->
 %% Build operator expressions that don't require the previous expression.
 expr_prefix({op, _, '('} = T, [], _Mode) ->
   {unit, get_meta(T)};
+expr_prefix({op, _, '('} = T, [{expl_tuple_1, _, InnerExprs}], _Mode) ->
+  % Extra wrapping of explicit tuples for arrows not in `top` mode.
+  {expl_tuple_2, get_meta(T), InnerExprs};
 expr_prefix({op, _, '('}, [InnerExpr], _Mode) ->
   InnerExpr;
-expr_prefix({op, _, '('} = T, InnerExprs, con) ->
-  % Tuple created inside a container is made explicit to prevent it from being
-  % unwrapped.
-  {explicit_tuple_lit, get_meta(T), InnerExprs};
 expr_prefix({op, _, '('} = T, InnerExprs, _Mode) ->
-  {tuple_lit, get_meta(T), InnerExprs};
+  % Tuples in parens are prevented from being unwrapped.
+  {expl_tuple_1, get_meta(T), InnerExprs};
 expr_prefix({op, _, '#('} = T, InnerExprs, _Mode) ->
   {record_lit, get_meta(T), InnerExprs};
 expr_prefix({op, _, '{'} = T, InnerExprs, _Mode) ->
@@ -270,7 +270,16 @@ expr_postfix({op, _, Op} = T, Exprs, _Mode) ->
   {expand, get_meta(hd(Exprs)), {op, get_meta(T), PostfixOp}, Exprs}.
 
 %% Parse expressions that need both the previous and next expressions.
-expr_infix({op, _, '->'} = T, [{tuple_lit, _, LeftExprs}, RightExpr], Mode) ->
+expr_infix({op, _, '='} = T, [{tuple_lit, _, LeftExprs}, RightExpr], Mode) ->
+  % `=` and arrows unwrap tuples to the left.
+  expr_infix(T, LeftExprs ++ [RightExpr], Mode);
+expr_infix({op, _, '<-'} = T, [{tuple_lit, _, LeftExprs}, RightExpr], Mode) ->
+  expr_infix(T, LeftExprs ++ [RightExpr], Mode);
+expr_infix({op, _, '->'} = T, [{tuple_lit, _, LeftExprs}, RightExpr], top) ->
+  expr_infix(T, LeftExprs ++ [RightExpr], top);
+expr_infix({op, _, '->'} = T, [{expl_tuple_1, _, LeftExprs}, RightExpr], Mode) ->
+  expr_infix(T, LeftExprs ++ [RightExpr], Mode);
+expr_infix({op, _, '=>'} = T, [{tuple_lit, _, LeftExprs}, RightExpr], Mode) ->
   expr_infix(T, LeftExprs ++ [RightExpr], Mode);
 expr_infix({op, _, ':'}, [LeftExpr, RightExpr], _Mode) ->
   {tag, get_meta(LeftExpr), LeftExpr, RightExpr};
@@ -328,14 +337,20 @@ plain_tuple([Expr]) -> [Expr];
 plain_tuple(Expr) -> [Expr].
 
 %% Replace explicit tuples with regular tuples.
-replace_explicit_tuples({explicit_tuple_lit, Meta, Exprs}) ->
+replace_explicit_tuples({expl_tuple_1, Meta, Exprs}) ->
+  {tuple_lit, Meta, lists:map(fun replace_explicit_tuples/1, Exprs)};
+replace_explicit_tuples({expl_tuple_2, Meta, Exprs}) ->
   {tuple_lit, Meta, lists:map(fun replace_explicit_tuples/1, Exprs)};
 replace_explicit_tuples({Type, Meta, Arg, Exprs}) when is_list(Exprs) ->
   {Type, Meta, Arg, lists:map(fun replace_explicit_tuples/1, Exprs)};
+replace_explicit_tuples({Type, Meta, Arg, Expr}) when is_tuple(Expr) ->
+  {Type, Meta, Arg, replace_explicit_tuples(Expr)};
 replace_explicit_tuples({Type, Meta, Arg, Expr}) ->
   {Type, Meta, Arg, Expr};
 replace_explicit_tuples({Type, Meta, Exprs}) when is_list(Exprs) ->
   {Type, Meta, lists:map(fun replace_explicit_tuples/1, Exprs)};
+replace_explicit_tuples({Type, Meta, Expr}) when is_tuple(Expr) ->
+  {Type, Meta, replace_explicit_tuples(Expr)};
 replace_explicit_tuples({Type, Meta, Expr}) ->
   {Type, Meta, Expr};
 replace_explicit_tuples({Type, Meta}) ->
