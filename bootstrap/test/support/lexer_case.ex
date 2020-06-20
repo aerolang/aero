@@ -4,19 +4,13 @@ defmodule Aero.LexerCase do
   @doc """
   Create an Aero lexer test case with source transforming to tokens.
   """
-  defmacro lexer_test(message, [source: source, lines: lines,
-      tokens: tokens]) do
-    source = Macro.escape source
-    lines = Macro.escape lines
-    tokens = Macro.escape tokens
-
-    quote bind_quoted: [message: message, source: source, lines: lines,
-        tokens: tokens] do
-      test message do
-        input = unquote(source)
-        output = unquote(tokens)
-        count = unquote(lines)
-        {:ok, ^output, ^count} = :aero_lexer.tokenize input
+  defmacro lexer_test(message, [source: source, lines: lines, tokens: tokens]) do
+    quote do
+      test unquote(message) do
+        expected = unquote(tokens)
+        assert {:ok, output, count} = :aero_lexer.tokenize(unquote(source))
+        assert output == expected
+        assert count == unquote(lines)
       end
     end
   end

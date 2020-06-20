@@ -44,6 +44,8 @@ group([{End, _} | _] = Tokens, End, _Mode, Exprs) ->
   {Tokens, lists:reverse(Exprs)};
 group([{newline, _} | Tail], EndToken, Mode, Exprs) ->
   group(Tail, EndToken, Mode, Exprs);
+group([{space, _} | Tail], EndToken, Mode, Exprs) ->
+  group(Tail, EndToken, Mode, Exprs);
 group(Tokens, EndToken, Mode, Exprs) ->
   {Tokens2, Expr} = expr(Tokens, Mode),
   % Expressions that end on anything except a newline or the end token are
@@ -77,10 +79,10 @@ container(Tokens, EndToken, _BP, InnerMode, _OuterMode, group) ->
   {Tokens2, Exprs} = group(Tokens, EndToken, InnerMode),
   {expect(Tokens2, EndToken), Exprs};
 container(Tokens, EndToken, _BP, InnerMode, _OuterMode, expr) ->
-  {Tokens2, Expr} = expr(allow(Tokens, newline), InnerMode),
-  {expect(allow(Tokens2, newline), EndToken), [Expr]};
+  {Tokens2, Expr} = expr(trim_whitespace(Tokens), InnerMode),
+  {expect(trim_whitespace(Tokens2), EndToken), [Expr]};
 container(Tokens, EndToken, BP, InnerMode, OuterMode, exprs) ->
-  case {allow(Tokens, newline), EndToken} of
+  case {trim_whitespace(Tokens), EndToken} of
     {[{Type, _, End} | _] = Tokens2, {Type, End}} ->
       {expect(Tokens2, EndToken), []};
     {[{End, _} | _] = Tokens2, End} ->
@@ -95,9 +97,9 @@ container(Tokens, EndToken, BP, InnerMode, OuterMode, exprs) ->
   end;
 container(Tokens, EndToken, BP, InnerMode, OuterMode, infix) ->
   {Tokens2, InnerExpr} = container(Tokens, EndToken, BP, InnerMode, OuterMode, expr),
-  {Tokens3, RightExpr} = expr(allow(Tokens2, newline), BP, OuterMode),
+  {Tokens3, RightExpr} = expr(trim_whitespace(Tokens2), BP, OuterMode),
   % Right goes first since the container applies to it like a prefix operator.
-  {allow(Tokens3, newline), [RightExpr | InnerExpr]}.
+  {trim_whitespace(Tokens3), [RightExpr | InnerExpr]}.
 
 %% Parse an expression with precedence (binding power).
 %%
@@ -106,13 +108,13 @@ container(Tokens, EndToken, BP, InnerMode, OuterMode, infix) ->
 %%
 %% There are 5 expression modes:
 %%
-%% - `top`: Expressions as parsed from source and blocks.
-%% - `sub`: Subexpressions inside parens and brackets.
-%% - `arg`: Macro arguments.
-%% - `tup`: Continuations of top-level expressions after a comma.
-%% - `lit`: Continuations of subexpressions after a comma.
+%% - `top`: Expressions at the top level of source and blocks.
+%% - `con`: Expressions at the top level of containers.
+%% - `arg`: Subexpressions inside macro arguments.
+%% - `tup`: Subexpressions inside tuples at the top level.
+%% - `sub`: Subexpressions inside other expressions.
 %%
-%% Macros cannot start inside `tup` or `lit` expressions. Commas have higher
+%% Macros cannot start inside `tup` or `sub` expressions. Commas have higher
 %% binding power in top-level expressions for implicit tuple literals.
 expr(Tokens, Mode) -> expr(Tokens, 1, Mode).
 
@@ -136,16 +138,21 @@ expr([{op, _, Op} = T | Tail], MinBP, Mode) ->
         Expr = expr_prefix(T, InnerExprs, Mode),
         {Tokens2, Expr};
       _ ->
-        throw({parse_error, {unexpected_token, T}, ?LINE})
+        % Some operators like `if` can be used in a prefix way. They are sent
+        % back to try again.
+        case op_to_tokens(T) of
+          nil -> throw({parse_error, {unexpected_token, T}, ?LINE});
+          OpTokens -> expr(OpTokens ++ Tail, MinBP, Mode)
+        end
     end,
-  % The token insertions are for custom logic to implement macro calls.
-  Inserted = expr_insert(LeftExpr, T, hd(Tokens), Mode),
-  expr_postfix_infix(Inserted ++ Tokens, LeftExpr, MinBP, Mode);
+  expr_postfix_infix(Tokens, LeftExpr, MinBP, Mode);
+expr([{space, _} | Tail], MinBP, Mode) ->
+  % Getting rid of space at the beginning of an expression.
+  expr(Tail, MinBP, Mode);
 expr([T | Tail], MinBP, Mode) ->
   % If not a prefix operator, parse a single token.
   LeftExpr = expr_single(T, Mode),
-  Inserted = expr_insert(LeftExpr, T, hd(Tail), Mode),
-  expr_postfix_infix(Inserted ++ Tail, LeftExpr, MinBP, Mode).
+  expr_postfix_infix(Tail, LeftExpr, MinBP, Mode).
 
 %% Parse postfix and infix expressions as long as there remain tokens to parse
 %% and the operators meet the required binding power.
@@ -171,9 +178,7 @@ expr_postfix_infix([{op, _, Op} = T | Tail] = Tokens, LeftExpr, MinBP, Mode) ->
               container(Tail, {op, EndOp}, NextBP, InnerMode, NextMode, ContainerType),
             {Tokens3, expr_postfix(T, [LeftExpr | InnerExprs], Mode)}
         end,
-      % Postfix has insertions as well for macro calls.
-      Inserted = expr_insert(LeftExpr, T, hd(Tail), Mode),
-      expr_postfix_infix(Inserted ++ Tokens2, Expr, MinBP, Mode);
+      expr_postfix_infix(Tokens2, Expr, MinBP, Mode);
     {_, {BP, Assoc}, _} when Assoc =/= right, BP > MinBP; Assoc =:= right, BP >= MinBP ->
       % Right associative operators can also equal the minimum binding power,
       % this lets the right expression to keep being evalulated. For infix, the
@@ -181,7 +186,7 @@ expr_postfix_infix([{op, _, Op} = T | Tail] = Tokens, LeftExpr, MinBP, Mode) ->
       % loop is continued.
       NextMode = next_mode(Mode, infix, Op),
       {NextBP, _} = op(NextMode, infix, Op),
-      {Tokens2, RightExpr} = expr(allow(Tail, newline), NextBP, NextMode),
+      {Tokens2, RightExpr} = expr(trim_whitespace(Tail), NextBP, NextMode),
       Expr = expr_infix(T, [LeftExpr, RightExpr], Mode),
       expr_postfix_infix(Tokens2, Expr, MinBP, Mode);
     _ ->
@@ -192,42 +197,20 @@ expr_postfix_infix([{eof, _}] = Tokens, LeftExpr, _MinBP, _Mode) ->
   {Tokens, LeftExpr};
 expr_postfix_infix([{newline, _} | _] = Tokens, LeftExpr, _MinBP, _Mode) ->
   {Tokens, LeftExpr};
+expr_postfix_infix([{space, Meta} | Tail] = Tokens, LeftExpr, MinBP, Mode) ->
+  % When a space falls after an expression, check if we should convert this to
+  % a space operator, or cause the expression to return. These space operator
+  % insertions make macro calls work.
+  case space_action(Mode, LeftExpr, hd(Tail)) of
+    space_op -> expr_postfix_infix([{op, Meta, ' '} | Tail], LeftExpr, MinBP, Mode);
+    continue -> expr_postfix_infix(Tail, LeftExpr, MinBP, Mode);
+    break -> {Tokens, LeftExpr}
+  end;
 expr_postfix_infix([T | _], _LeftExpr, _MinBP, _Mode) ->
   throw({parse_error, {unexpected_token, T}, ?LINE}).
 
-%% Magic for inserting tokens after prefix and postfix expressions.
-%%
-%% The previous expression can be used and token that started it can be used,
-%% along with the next token and mode. Infix doesn't use this because and infix
-%% expression isn't ever finished while in `expr_postfix_infix/4`.
-%%
-%% This allows for macros to work using inserted operators.
-expr_insert(_LeftExpr, _T, {eof, _}, _Mode) ->
-  [];
-expr_insert(_LeftExpr, _T, {newline, _}, _Mode) ->
-  [];
-expr_insert({ident, _, _}, {ident, _, _} = T, {op, _, Op}, Mode) when Op =/= '(', Op =/= '[' ->
-  %% Checking for both the expression and token to be `ident` to prevent
-  %% `ident_paren` and `ident_brack` from using this rule.
-  case {op(Mode, postfix, Op), op(Mode, infix, Op)} of
-    {{0, _}, {0, _}} -> [{op, get_meta(T), ' '}];
-    _ -> []
-  end;
-expr_insert({ident, _, _}, {ident, _, _} = T, _Next, _Mode) ->
-  [{op, get_meta(T), ' '}];
-expr_insert({block, _, _}, _T, {op, _, '{'}, arg) ->
-  [];
-expr_insert(_LeftExpr, _T, {op, _, '{'} = Next, arg) ->
-  [{op, get_meta(Next), ' '}];
-expr_insert(_LeftExpr, _T, _Next, _Mode) ->
-  [].
-
 %% Simple, one token expressions.
 expr_single({ident, _, Ident} = T, _Mode) ->
-  {ident, get_meta(T), Ident};
-expr_single({ident_paren, _, Ident} = T, _Mode) ->
-  {ident, get_meta(T), Ident};
-expr_single({ident_brack, _, Ident} = T, _Mode) ->
   {ident, get_meta(T), Ident};
 expr_single({quote_ident, _, Ident} = T, _Mode) ->
   {quote_ident, get_meta(T), Ident};
@@ -291,38 +274,26 @@ expr_infix({op, _, ','}, [LeftExpr, RightExpr], arg) ->
 expr_infix({op, _, ','}, [LeftExpr, RightExpr], _Mode) ->
   % `,` anywhere else is a tuple separator.
   tuple(LeftExpr, RightExpr);
-expr_infix({op, _, '$'} = T, [{tuple_lit, _, _} = _LeftExpr, _RightExpr], top) ->
-  throw({parse_error, {expected_token, {op, ','}, T}, ?LINE});
-expr_infix({op, _, '$'}, [LeftExpr, RightExpr], top) ->
-  % `$` allows a macro to start anywhere in `top` as long as it's not
-  % directly after a tuple in a top-level expression.
+expr_infix({op, _, '$'}, [LeftExpr, RightExpr], _Mode) ->
   macro_call(LeftExpr, RightExpr);
-expr_infix({op, _, '$'}, [LeftExpr, RightExpr], sub) ->
-  % `$` will work when a subexpression starts.
-  macro_call(LeftExpr, RightExpr);
-expr_infix({op, _, '$'}, [LeftExpr, RightExpr], arg) ->
-  % `$` will work anywhere in macro args.
-  macro_call(LeftExpr, RightExpr);
-expr_infix({op, _, '$'} = T, [_LeftExpr, _RightExpr], _Mode) ->
-  throw({parse_error, {expected_token, {op, ','}, T}, ?LINE});
-expr_infix({op, _, ' '}, [{tuple_lit, _, _} = _LeftExpr, _RightExpr], top) ->
-  throw({parse_error, {expected_token, {op, ','}}, ?LINE});
 expr_infix({op, _, ' '}, [LeftExpr, RightExpr], top) ->
-  % The synthetic ` ` operator acts as a `$` to start macros.
+  % When ` ` appears at the top, it starts a macro.
   macro_call(LeftExpr, RightExpr);
-expr_infix({op, _, ' '}, [LeftExpr, RightExpr], sub) ->
+expr_infix({op, _, ' '}, [LeftExpr, RightExpr], con) ->
+  % ` ` also starts a macro in containers.
   macro_call(LeftExpr, RightExpr);
+expr_infix({op, _, ' '}, [{expand, _, _, _} = LeftExpr, RightExpr], arg) ->
+  % The left expression can be a nested expand as an argument before a block.
+  macro_args(LeftExpr, RightExpr);
 expr_infix({op, _, ' '}, [LeftExpr, {block, _, _} = RightExpr], arg) ->
-  % A block to the right inside args makes a ` ` behave as a `,`.
+  % ` ` before a block in macro args acts as a `,`.
   macro_args(LeftExpr, RightExpr);
 expr_infix({op, _, ' '}, [LeftExpr, {expand_args, _, [{block, _, _} | _]} = RightExpr], arg) ->
   % Also behave as a `,` when the block to the right is inside args already.
   macro_args(LeftExpr, RightExpr);
 expr_infix({op, _, ' '}, [LeftExpr, RightExpr], arg) ->
-  % Otherwise, a ` ` in macro args acts as a `$`.
+  % Otherwise, in `arg` mode, a ` ` will start a new macro.
   macro_call(LeftExpr, RightExpr);
-expr_infix({op, _, ' '}, [_LeftExpr, _RightExpr], _Mode) ->
-  throw({parse_error, {expected_token, {op, ','}}, ?LINE});
 expr_infix({op, _, _} = T, Exprs, _Mode) ->
   % Normal infix operator case.
   {expand, get_meta(hd(Exprs)), T, Exprs}.
@@ -359,8 +330,8 @@ plain_tuple(Expr) -> [Expr].
 %% as an expand node. `$` is also not a true operator, as it forces the term to
 %% the left to be a macro and is turned into an expand node with the expression
 %% to the left as the operator. ` ` is a synthetic operator which is also for
-%% for use in macro calls, and not included in the final AST. The op of
-%% containers is used to easily have expressions end on them.
+%% for use in macro calls, and not included in the final AST. The op at the end
+%% of containers is used to easily have expressions end on them.
 op(_,   prefix,  '(')    -> {250, right};  % 250  prefix   right  ()
 op(_,   prefix,  '#(')   -> {250, right};  %                      #()
 op(_,   prefix,  '{')    -> {250, right};  %                      {}
@@ -378,6 +349,7 @@ op(_,   postfix, '?!')   -> {230, left};   %                      ?!
 op(_,   postfix, '(')    -> {230, left};   %                      ()
 op(_,   postfix, '[')    -> {230, left};   %                      []
 op(_,   postfix, '.{')   -> {230, left};   %                      .{}
+op(_,   postfix, '...')  -> {230, left};   %                      ...
 op(_,   prefix,  '+')    -> {220, right};  % 220  prefix   right  +
 op(_,   prefix,  '-')    -> {220, right};  %                      -
 op(_,   prefix,  '!')    -> {220, right};  %                      !
@@ -385,11 +357,11 @@ op(_,   prefix,  '~~~')  -> {220, right};  %                      ~~~
 op(_,   prefix,  '&')    -> {220, right};  %                      &
 op(_,   prefix,  '^')    -> {220, right};  %                      ^
 op(_,   prefix,  '*')    -> {220, right};  %                      *
-op(_,   prefix,  '**')   -> {220, right};  %                      **
+op(_,   prefix,  '..')   -> {220, right};  %                      ..
+op(_,   prefix,  '...')  -> {220, right};  %                      ...
+op(_,   prefix,  '...<') -> {220, right};  %                      ...<
 op(_,   infix,   '..')   -> {210, none};   % 210  prefix   none   ..
 op(_,   infix,   '..<')  -> {210, none};   %                      ..<
-op(_,   infix,   '...')  -> {210, none};   %                      ...
-op(_,   infix,   '...<') -> {210, none};   %                      ...<
 op(_,   infix,   as)     -> {200, left};   % 200  infix    left   as
 op(_,   infix,   '*')    -> {190, left};   % 190  infix    left   *
 op(_,   infix,   '/')    -> {190, left};   %                      /
@@ -408,33 +380,32 @@ op(_,   infix,   '!!')   -> {130, left};   %                      !!
 op(_,   infix,   '++')   -> {120, left};   % 120  infix    left   ++
 op(_,   infix,   in)     -> {110, none};   % 110  infix    none   in
 op(_,   infix,   '!in')  -> {110, none};   %                      !in
-op(_,   infix,   '==')   -> {100,  left};  % 100  infix    none   ==
-op(_,   infix,   '!=')   -> {100,  left};  %                      !=
-op(_,   infix,   '<')    -> {100,  left};  %                      <
-op(_,   infix,   '>')    -> {100,  left};  %                      >
-op(_,   infix,   '<=')   -> {100,  left};  %                      <=
-op(_,   infix,   '>=')   -> {100,  left};  %                      >=
-op(_,   infix,   '<=>')  -> {100,  left};  %                      <=>
+op(_,   infix,   '==')   -> {100, left};   % 100  infix    left   ==
+op(_,   infix,   '!=')   -> {100, left};   %                      !=
+op(_,   infix,   '<')    -> {100, left};   %                      <
+op(_,   infix,   '>')    -> {100, left};   %                      >
+op(_,   infix,   '<=')   -> {100, left};   %                      <=
+op(_,   infix,   '>=')   -> {100, left};   %                      >=
+op(_,   infix,   '<=>')  -> {100, left};   %                      <=>
 op(_,   infix,   '&&')   -> {90,  left};   %  90  infix    left   &&
 op(_,   infix,   '||')   -> {80,  left};   %  80  infix    left   ||
-op(top, infix,   ':')    -> {75,  none};   %  75  infix    none   top-level :
-op(tup, infix,   ':')    -> {75,  none};   %                      tuple :
-op(top, infix,   ',')    -> {70,  right};  %  70  infix    right  top-level ,
+op(top, infix,   ':')    -> {75,  right};  %  75  infix    right  top :
+op(tup, infix,   ':')    -> {75,  right};  %                      tuple :
+op(top, infix,   ',')    -> {70,  right};  %  70  infix    right  top ,
 op(tup, infix,   ',')    -> {70,  right};  %                      tuple ,
-op(top, infix,   '$')    -> {70,  right};  %                      top-level $
+op(top, infix,   '$')    -> {70,  right};  %                      top $
 op(tup, infix,   '$')    -> {70,  right};  %                      tuple $
-op(top, infix,   ' ')    -> {70,  right};  %                      (synthetic)
-op(tup, infix,   ' ')    -> {70,  right};  %                      (synthetic)
+op(top, infix,   ' ')    -> {70,  right};  %                      top (space)
 op(_,   infix,   '&')    -> {60,  left};   %  60  infix    left   &
 op(_,   infix,   '|')    -> {50,  left};   %  50  infix    left   |
-op(_,   infix,   '=>')   -> {40,  right};  %  40  infix    right  =>
-op(_,   infix,   '=')    -> {30,  right};  %  30  infix    right  =
-op(_,   infix,   '<-')   -> {30,  right};  %                      <-
-op(_,   infix,   '->')   -> {20,  right};  %  20  infix    right  ->
-op(_,   infix,   ':')    -> {15,  none};   %  15  infix    none   :
+op(_,   infix,   '=')    -> {40,  right};  %  40  infix    right  =
+op(_,   infix,   '<-')   -> {40,  right};  %                      <-
+op(_,   infix,   '->')   -> {30,  right};  %  30  infix    right  ->
+op(_,   infix,   '=>')   -> {25,  right};  %  25  infix    right  =>
+op(_,   infix,   ':')    -> {20,  right};  %  20  infix    right  :
 op(_,   infix,   ',')    -> {10,  right};  %  10  infix    right  ,
 op(_,   infix,   '$')    -> {10,  right};  %                      $
-op(_,   infix,   ' ')    -> {10,  right};  %                      (synthetic)
+op(_,   infix,   ' ')    -> {10,  right};  %                      (space)
 op(_,   postfix, ')')    -> {-1,  right};  %  -1  End of containers
 op(_,   postfix, '}')    -> {-1,  right};  %      (can't stand alone)
 op(_,   postfix, ']')    -> {-1,  right};  %
@@ -448,30 +419,72 @@ op(_,   infix,   _)      -> {0,   none}.
 %% Macro call separators `$` and ` ` cause the expression to go into a macro arg
 %% parsing mode until the expression ends. This drops the binding power of a
 %% comma in the middle of an expression. If a tuple starts, then we set the mode
-%% to not allows macros to start for the rest of the expression.
-next_mode(top, infix, ',') -> tup;
-next_mode(top, infix, '$') -> arg;
-next_mode(top, infix, ' ') -> arg;
-next_mode(sub, infix, ',') -> lit;
-next_mode(sub, infix, '$') -> arg;
-next_mode(sub, infix, ' ') -> arg;
-next_mode(Prev, _, _) -> Prev. 
+%% to not allows macros to start for the rest of the expression. Anything else,
+%% and the next thing well be a subexpression. `=` and arrows at the top level
+%% stay at the top level on the right side.
+next_mode(top, infix,  ',')  -> tup;  % ,
+next_mode(tup, infix,  ',')  -> tup;  %
+next_mode(arg, infix,  ',')  -> arg;  %
+next_mode(_,   infix,  '$')  -> arg;  % $
+next_mode(top, infix,  ' ')  -> arg;  % (space)
+next_mode(con, infix,  ' ')  -> arg;  %
+next_mode(arg, infix,  ' ')  -> arg;  %
+next_mode(top, infix,  '=')  -> top;  % =
+next_mode(top, infix,  '<-') -> top;  % <-
+next_mode(top, infix,  '->') -> top;  % ->
+next_mode(top, infix,  '=>') -> top;  % =>
+next_mode(_,   prefix, _)    -> sub;
+next_mode(_,   infix,  _)    -> sub.
+
+%% Action to take place when a space is found in postfix/infix mode.
+%%
+%% The `space_op` action causes a space token to be translated into a space
+%% operator, which is used for macro calls and macro args. Also enforces that
+%% function calls and subscripts cannot have a space between, e.g. f() and x[].
+space_action(top, {ident, _, _}, {op, _, '('}) -> space_op;  % x ()
+space_action(con, {ident, _, _}, {op, _, '('}) -> space_op;  % (x ())
+space_action(arg, {ident, _, _}, {op, _, '('}) -> space_op;  % x y ()
+space_action(_,   _,             {op, _, '('}) -> break;     %
+space_action(top, {ident, _, _}, {op, _, '['}) -> space_op;  % x []
+space_action(con, {ident, _, _}, {op, _, '['}) -> space_op;  % (x [])
+space_action(arg, {ident, _, _}, {op, _, '['}) -> space_op;  % x y []
+space_action(_,   _,             {op, _, '['}) -> break;     %
+space_action(top, {ident, _, _}, {op, _, '{'}) -> space_op;  % x { }
+space_action(con, {ident, _, _}, {op, _, '{'}) -> space_op;  % (x { })
+space_action(arg, {ident, _, _}, {op, _, '{'}) -> space_op;  % x y { }
+space_action(arg, {block, _, _}, {op, _, '{'}) -> continue;  % x { } { }  (bad)
+space_action(arg, _,             {op, _, '{'}) -> space_op;  % x 1 { }
+space_action(sub, _,             {op, _, '{'}) -> break;     % x y == 1 { }
+space_action(_,   _,             {op, _, '{'}) -> continue;  %
+space_action(top, {ident, _, _}, {op, _, Op})  -> space_action_op(Op);
+space_action(con, {ident, _, _}, {op, _, Op})  -> space_action_op(Op);
+space_action(arg, {ident, _, _}, {op, _, Op})  -> space_action_op(Op);
+space_action(top, {ident, _, _}, _)            -> space_op;  % x y
+space_action(con, {ident, _, _}, _)            -> space_op;  % (x y)
+space_action(arg, {ident, _, _}, _)            -> space_op;  % x y z
+space_action(_,   _,             _)            -> continue.
+
+space_action_op(Op) ->
+  case {op(arg, postfix, Op), op(arg, infix, Op)} of
+    {0, 0} -> space_op;
+    _ -> continue
+  end.
 
 %% Map operators to containers.
 %%
 %% Gives the closing operator and it's parsing behavior. The use in infix
 %% expressions isn't allowed.
-container_op(prefix,  '(')   -> {')',  exprs, sub};  % ()
-container_op(postfix, '(')   -> {')',  exprs, sub};  % ()
+container_op(prefix,  '(')   -> {')',  exprs, con};  % ()
+container_op(postfix, '(')   -> {')',  exprs, con};  % ()
 container_op(prefix,  '{')   -> {'}',  group, top};  % {}
-container_op(prefix,  '[')   -> {']',  exprs, sub};  % []
-container_op(postfix, '[')   -> {']',  exprs, sub};  % []
-container_op(prefix,  '#(')  -> {')',  exprs, sub};  % #()
-container_op(prefix,  '#{')  -> {'}',  exprs, sub};  % #{}
-container_op(postfix, '.{')  -> {'}',  group, sub};  % .{}
-container_op(prefix,  '#[')  -> {']',  infix, sub};  % #[]
-container_op(prefix,  '#![') -> {']',  expr,  sub};  % #![]
-container_op(prefix,  '<<')  -> {'>>', exprs, sub};  % <<>>
+container_op(prefix,  '[')   -> {']',  exprs, con};  % []
+container_op(postfix, '[')   -> {']',  exprs, con};  % []
+container_op(prefix,  '#(')  -> {')',  exprs, con};  % #()
+container_op(prefix,  '#{')  -> {'}',  exprs, con};  % #{}
+container_op(postfix, '.{')  -> {'}',  group, con};  % .{}
+container_op(prefix,  '#[')  -> {']',  infix, con};  % #[]
+container_op(prefix,  '#![') -> {']',  expr,  con};  % #![]
+container_op(prefix,  '<<')  -> {'>>', exprs, con};  % <<>>
 container_op(prefix,  _)     -> nil;
 container_op(postfix, _)     -> nil.
 
@@ -485,11 +498,10 @@ expect([{Expected, _, _} | Tail], Expected) -> Tail;
 expect([{Expected, _} | Tail], Expected) -> Tail;
 expect([Found | _], Expected) -> throw({parse_error, {expected_token, Expected, Found}, ?LINE}).
 
-%% Pop the token off if it's there, but don't throw an error if it isn't.
-allow([{Type, _, Allowed} | Tail], {Type, Allowed}) -> Tail;
-allow([{Allowed, _, _} | Tail], Allowed) -> Tail;
-allow([{Allowed, _} | Tail], Allowed) -> Tail;
-allow(Tokens, _Allowed) -> Tokens.
+%% Pop off whitespace tokens if they come up.
+trim_whitespace([{newline, _} | Tail]) -> trim_whitespace(Tail);
+trim_whitespace([{space, _} | Tail]) -> trim_whitespace(Tail);
+trim_whitespace(Tokens) -> Tokens.
 
 %% Get a token's or expression's line number and put it in metadata.
 get_meta({_, Line, _}) when is_integer(Line) -> [{line, Line}];
@@ -497,6 +509,16 @@ get_meta({_, Line}) when is_integer(Line) -> [{line, Line}];
 get_meta({_, Meta, _, _}) when is_list(Meta) -> Meta;
 get_meta({_, Meta, _}) when is_list(Meta) -> Meta;
 get_meta({_, Meta}) when is_list(Meta) -> Meta.
+
+%% Convert operators to tokens if possible.
+op_to_tokens({op, Meta, Op}) when Op =:= in; Op =:= as ->
+  % These infix operators are converted to idents when used in a prefix way.
+  [{ident, Meta, Op}];
+op_to_tokens({op, Meta, '!in'}) ->
+  % `!in` is special since it looks like a negated `in`.
+  [{op, Meta, '!'}, {ident, Meta, in}];
+op_to_tokens(_T) ->
+  nil.
 
 %% -----------------------------------------------------------------------------
 %% Error Formatting

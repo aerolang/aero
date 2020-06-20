@@ -2,17 +2,15 @@ defmodule Aero.ParserCase do
   use ExUnit.CaseTemplate
 
   @doc """
-  Create an Aero parser test case with tokens transforming to an ast.
+  Create an Aero parser test case with source transforming to an ast.
   """
-  defmacro parser_test(message, [tokens: tokens, ast: ast]) do
-    tokens = Macro.escape tokens
-    ast = Macro.escape ast
-
-    quote bind_quoted: [message: message, tokens: tokens, ast: ast] do
-      test message do
-        input = unquote(tokens)
-        output = unquote(ast)
-        {:ok, ^output} = :aero_parser.parse input
+  defmacro parser_test(message, [source: source, ast: ast]) do
+    quote do
+      test unquote(message) do
+        expected = unquote(ast)
+        {:ok, tokens, _} = :aero_lexer.tokenize(unquote(source))
+        assert {:ok, output} = :aero_parser.parse(tokens)
+        assert output == expected
       end
     end
   end

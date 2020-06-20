@@ -15,9 +15,9 @@ EXPONENT   = e[\+\-]?[0-9_]*[0-9][0-9_]*
 FLOAT      = [0-9][0-9_]*(({EXPONENT})|(\.[0-9][0-9_]*({EXPONENT})?))
 STRING     = "[^\"]*"
 IDENT      = [a-zA-Z_][a-zA-Z0-9_]*
-SPACE      = (([\s\t\r]*)|(--[^\n]*)|(\\\n))
+SPACE      = (([\s\t\r]*)|(--[^\n]*)|(\\\n))+
 SPACE_CONT = [\n]([\s\t\r\n]|(--[^\n]*))*[\|]
-NEWLINE    = [\n;]([\s\t\r\n;]|(--[^\n]*))*
+NEWLINE    = ({SPACE})[\n;]([\s\t\r\n;]|(--[^\n]*))*
 
 %% -----------------------------------------------------------------------------
 %% Token Rules
@@ -32,14 +32,17 @@ Rules.
 \:{STRING}   : quoted_atom_token(TokenChars, TokenLine).
 {STRING}     : string_token(TokenChars, TokenLine).
 
+%% Identifier-like operators.
+in           : {token, {op, TokenLine, in}}.
+!in          : {token, {op, TokenLine, '!in'}}.
+as           : {token, {op, TokenLine, as}}.
+
 %% Identifiers.
 {IDENT}      : ident_token(TokenChars, TokenLine).
-{IDENT}\(    : ident_paren_token(TokenChars, TokenLine).
-{IDENT}\[    : ident_brack_token(TokenChars, TokenLine).
 '{IDENT}     : quote_ident_token(TokenChars, TokenLine).
 
 %% Whitespace.
-{SPACE}      : skip_token.
+{SPACE}      : {token, {space, TokenLine}}.
 {SPACE_CONT} : {skip_token, [lists:last(TokenChars)]}.
 {NEWLINE}    : {token, {newline, TokenLine}}.
 
@@ -94,7 +97,6 @@ Rules.
 <-           : {token, {op, TokenLine, '<-'}}.
 =>           : {token, {op, TokenLine, '=>'}}.
 \^           : {token, {op, TokenLine, '^'}}.
-\*\*         : {token, {op, TokenLine, '**'}}.
 \+\+         : {token, {op, TokenLine, '++'}}.
 &            : {token, {op, TokenLine, '&'}}.
 \|           : {token, {op, TokenLine, '|'}}.
@@ -106,9 +108,6 @@ Rules.
 !!           : {token, {op, TokenLine, '!!'}}.
 \?\.         : {token, {op, TokenLine, '?.'}}.
 !\.          : {token, {op, TokenLine, '!.'}}.
-in           : {token, {op, TokenLine, 'in'}}.
-!in          : {token, {op, TokenLine, '!in'}}.
-as           : {token, {op, TokenLine, 'as'}}.
 
 %% Periods.
 \.           : {token, {op, TokenLine, '.'}}.
@@ -151,14 +150,6 @@ quoted_atom_token(Chars, Line) ->
 ident_token(Chars, Line) ->
   Ident = to_atom(Chars),
   {token, {ident, Line, Ident}}.
-
-ident_paren_token(Chars, Line) ->
-  Ident = to_atom(Chars, 0, 1),
-  {token, {ident_paren, Line, Ident}, "("}.
-
-ident_brack_token(Chars, Line) ->
-  Ident = to_atom(Chars, 0, 1),
-  {token, {ident_brack, Line, Ident}, "["}.
 
 quote_ident_token(Chars, Line) ->
   Ident = to_atom(Chars, 1, 0),

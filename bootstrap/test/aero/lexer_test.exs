@@ -8,13 +8,15 @@ defmodule Aero.LexerTest do
       {:eof, 0}
     ]
 
-  lexer_test "whitespace is classified as newlines without spaces",
+  lexer_test "whitespace is classified as newlines and spaces",
     source: "\r\n  t_1 t_2 \r t_3 \nt_4\r\nt_5 \n \n t_6 ",
     lines: 6,
     tokens: [
       {:newline, 1},
       {:ident, 2, :t_1},
+      {:space, 2},
       {:ident, 2, :t_2},
+      {:space, 2},
       {:ident, 2, :t_3},
       {:newline, 2},
       {:ident, 3, :t_4},
@@ -22,6 +24,7 @@ defmodule Aero.LexerTest do
       {:ident, 4, :t_5},
       {:newline, 4},
       {:ident, 6, :t_6},
+      {:space, 6},
       {:eof, 0}
     ]
 
@@ -36,6 +39,7 @@ defmodule Aero.LexerTest do
       {:ident, 1, :t_3},
       {:newline, 1},
       {:ident, 2, :t_4},
+      {:space, 2},
       {:ident, 2, :t_5},
       {:newline, 2},
       {:eof, 0}
@@ -47,6 +51,7 @@ defmodule Aero.LexerTest do
     tokens: [
       {:newline, 1},
       {:ident, 2, :t_1},
+      {:space, 2},
       {:eof, 0}
     ]
 
@@ -63,10 +68,15 @@ defmodule Aero.LexerTest do
     lines: 1,
     tokens: [
       {:ident, 1, :test},
+      {:space, 1},
       {:ident, 1, :Test},
+      {:space, 1},
       {:ident, 1, :__TEST__},
+      {:space, 1},
       {:ident, 1, :test_1},
+      {:space, 1},
       {:ident, 1, :Test1},
+      {:space, 1},
       {:ident, 1, :__TEST_1__},
       {:eof, 0}
     ]
@@ -76,6 +86,7 @@ defmodule Aero.LexerTest do
     lines: 1,
     tokens: [
       {:atom_lit, 1, :test},
+      {:space, 1},
       {:atom_lit, 1, :test_1},
       {:eof, 0}
     ]
@@ -85,6 +96,7 @@ defmodule Aero.LexerTest do
     lines: 1,
     tokens: [
       {:atom_lit, 1, :Test},
+      {:space, 1},
       {:atom_lit, 1, :"& ,#"},
       {:eof, 0}
     ]
