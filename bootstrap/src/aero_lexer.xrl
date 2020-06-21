@@ -39,7 +39,8 @@ as           : {token, {op, TokenLine, as}}.
 
 %% Identifiers.
 {IDENT}      : ident_token(TokenChars, TokenLine).
-'{IDENT}     : quote_ident_token(TokenChars, TokenLine).
+'{IDENT}     : ident_token(TokenChars, TokenLine).
+{IDENT}'     : ident_token(TokenChars, TokenLine).
 
 %% Whitespace.
 {SPACE}      : {token, {space, TokenLine}}.
@@ -116,6 +117,9 @@ as           : {token, {op, TokenLine, as}}.
 \.\.\.       : {token, {op, TokenLine, '...'}}.
 \.\.\.<      : {token, {op, TokenLine, '...<'}}.
 
+%% Errors.
+.            : {error, list_to_binary(io_lib:format("unexpected character '~s'", [TokenChars]))}.
+
 %% -----------------------------------------------------------------------------
 %% Helper Functions
 %% -----------------------------------------------------------------------------
@@ -150,10 +154,6 @@ quoted_atom_token(Chars, Line) ->
 ident_token(Chars, Line) ->
   Ident = to_atom(Chars),
   {token, {ident, Line, Ident}}.
-
-quote_ident_token(Chars, Line) ->
-  Ident = to_atom(Chars, 1, 0),
-  {token, {quote_ident, Line, Ident}}.
 
 string_token(Chars, Line) ->
   String = list_to_binary(lists:sublist(Chars, 2, length(Chars) - 2)),

@@ -211,8 +211,6 @@ expr_postfix_infix([T | _], _LeftExpr, _MinBP, _Mode) ->
 %% Simple, one token expressions.
 expr_single({ident, _, Ident} = T, _Mode) ->
   {ident, get_meta(T), Ident};
-expr_single({quote_ident, _, Ident} = T, _Mode) ->
-  {quote_ident, get_meta(T), Ident};
 expr_single({atom_lit, _, Atom} = T, _Mode) ->
   {atom_lit, get_meta(T), Atom};
 expr_single({string_lit, _, String} = T, _Mode) ->
