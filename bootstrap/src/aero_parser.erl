@@ -258,8 +258,6 @@ expr_postfix({op, _, '('} = T, [LeftExpr | InnerExprs], Mode) ->
   expr_postfix({op, get_meta(T), '()'}, [LeftExpr, {args, get_meta(T), InnerExprs}], Mode);
 expr_postfix({op, _, '['} = T, [LeftExpr | InnerExprs], Mode) ->
   expr_postfix({op, get_meta(T), '[]'}, [LeftExpr, {args, get_meta(T), InnerExprs}], Mode);
-expr_postfix({op, _, '.{'} = T, [LeftExpr, InnerExpr], Mode) ->
-  expr_postfix({op, get_meta(T), '.{}'}, [LeftExpr, {block, get_meta(T), InnerExpr}], Mode);
 expr_postfix({op, _, Op} = T, Exprs, _Mode) ->
   % Normal postfix operator case.
   % To distinguish a postfix operator, an underscore is prepended.
@@ -387,7 +385,6 @@ op(_,   postfix, '!')    -> {230, left};   %                      !
 op(_,   postfix, '?!')   -> {230, left};   %                      ?!
 op(_,   postfix, '(')    -> {230, left};   %                      ()
 op(_,   postfix, '[')    -> {230, left};   %                      []
-op(_,   postfix, '.{')   -> {230, left};   %                      .{}
 op(_,   postfix, '...')  -> {230, left};   %                      ...
 op(_,   prefix,  '+')    -> {220, right};  % 220  prefix   right  +
 op(_,   prefix,  '-')    -> {220, right};  %                      -
@@ -526,7 +523,6 @@ container_op(prefix,  '[')   -> {']',  exprs, con};  % []
 container_op(postfix, '[')   -> {']',  exprs, con};  % []
 container_op(prefix,  '#(')  -> {')',  exprs, con};  % #()
 container_op(prefix,  '#{')  -> {'}',  exprs, con};  % #{}
-container_op(postfix, '.{')  -> {'}',  group, con};  % .{}
 container_op(prefix,  '#[')  -> {']',  infix, con};  % #[]
 container_op(prefix,  '#![') -> {']',  expr,  con};  % #![]
 container_op(prefix,  '<<')  -> {'>>', exprs, con};  % <<>>
