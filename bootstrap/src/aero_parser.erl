@@ -77,28 +77,32 @@ group(Tokens, EndToken, Mode, Exprs) ->
 %% - `infix`: Read an expression inside and to the right of the container.
 container(Tokens, EndToken, _BP, InnerMode, _OuterMode, group) ->
   {Tokens2, Exprs} = group(Tokens, EndToken, InnerMode),
-  {expect(Tokens2, EndToken), Exprs};
+  {Tokens3, T} = expect(Tokens2, EndToken),
+  {Tokens3, Exprs, T};
 container(Tokens, EndToken, _BP, InnerMode, _OuterMode, expr) ->
   {Tokens2, Expr} = expr(trim_whitespace(Tokens), InnerMode),
-  {expect(trim_whitespace(Tokens2), EndToken), [Expr]};
+  {Tokens3, T} = expect(trim_whitespace(Tokens2), EndToken),
+  {Tokens3, [Expr], T};
 container(Tokens, EndToken, BP, InnerMode, OuterMode, exprs) ->
   case {trim_whitespace(Tokens), EndToken} of
     {[{Type, _, End} | _] = Tokens2, {Type, End}} ->
-      {expect(Tokens2, EndToken), []};
+      {Tokens3, T} = expect(Tokens2, EndToken),
+      {Tokens3, [], T};
     {[{End, _} | _] = Tokens2, End} ->
-      {expect(Tokens2, EndToken), []};
+      {Tokens3, T} = expect(Tokens2, EndToken),
+      {Tokens3, [], T};
     {Tokens2, _} ->
-      {Tokens3, Exprs} = container(Tokens2, EndToken, BP, InnerMode, OuterMode, expr),
+      {Tokens3, Exprs, T} = container(Tokens2, EndToken, BP, InnerMode, OuterMode, expr),
       case Exprs of
-        [{op_args, _, InnerExprs}] -> {Tokens3, InnerExprs};
-        _ -> {Tokens3, Exprs}
+        [{op_args, _, InnerExprs}] -> {Tokens3, InnerExprs, T};
+        _ -> {Tokens3, Exprs, T}
       end
   end;
 container(Tokens, EndToken, BP, InnerMode, OuterMode, infix) ->
-  {Tokens2, InnerExpr} = container(Tokens, EndToken, BP, InnerMode, OuterMode, expr),
+  {Tokens2, InnerExpr, T} = container(Tokens, EndToken, BP, InnerMode, OuterMode, expr),
   {Tokens3, RightExpr} = expr(trim_whitespace(Tokens2), BP, OuterMode),
   % Right goes first since the container applies to it like a prefix operator.
-  {trim_whitespace(Tokens3), [RightExpr | InnerExpr]}.
+  {trim_whitespace(Tokens3), [RightExpr | InnerExpr], T}.
 
 %% Parse an expression with precedence (binding power).
 %%
@@ -132,9 +136,9 @@ expr([{op, _, Op} = T | Tail], MinBP, Mode) ->
         {Tokens2, Expr};
       {{BP, right}, {EndOp, ContainerType, InnerMode}} when BP >= MinBP ->
         % Here, we handle containers.
-        {Tokens2, InnerExprs} =
+        {Tokens2, InnerExprs, EndT} =
           container(Tail, {op, EndOp}, NextBP, InnerMode, NextMode, ContainerType),
-        Expr = expr_prefix(T, InnerExprs, Mode),
+        Expr = expr_prefix(T, EndT, InnerExprs, Mode),
         {Tokens2, Expr};
       _ ->
         % Some operators like `if` can be used in a prefix way. They are sent
@@ -173,9 +177,9 @@ expr_postfix_infix([{op, _, Op} = T | Tail] = Tokens, LeftExpr, MinBP, Mode) ->
           {EndOp, ContainerType, InnerMode} ->
             NextMode = next_mode(Mode, prefix, Op),
             {NextBP, _} = op(NextMode, prefix, Op),
-            {Tokens3, InnerExprs} =
+            {Tokens3, InnerExprs, EndT} =
               container(Tail, {op, EndOp}, NextBP, InnerMode, NextMode, ContainerType),
-            {Tokens3, expr_postfix(T, [LeftExpr | InnerExprs], Mode)}
+            {Tokens3, expr_postfix(T, EndT, [LeftExpr | InnerExprs], Mode)}
         end,
       expr_postfix_infix(Tokens2, Expr, MinBP, Mode);
     {_, {BP, Assoc}, _} when Assoc =/= right, BP > MinBP; Assoc =:= right, BP >= MinBP ->
@@ -221,29 +225,6 @@ expr_single({float_lit, _, Float} = T, _Mode) ->
   {float_lit, get_meta(T), Float}.
 
 %% Build operator expressions that don't require the previous expression.
-expr_prefix({op, _, '('} = T, [], _Mode) ->
-  {unit, get_meta(T)};
-expr_prefix({op, _, '('} = T, [{tuple_lit, _, InnerExprs}], _Mode) ->
-  % Prevents unwrapping on the left side of `->`.
-  {explicit_tuple_lit, get_meta(T), InnerExprs};
-expr_prefix({op, _, '('}, [InnerExpr], _Mode) ->
-  InnerExpr;
-expr_prefix({op, _, '('} = T, InnerExprs, _Mode) ->
-  {tuple_lit, get_meta(T), InnerExprs};
-expr_prefix({op, _, '#('} = T, InnerExprs, _Mode) ->
-  {record_lit, get_meta(T), InnerExprs};
-expr_prefix({op, _, '{'} = T, InnerExprs, _Mode) ->
-  {block, get_meta(T), InnerExprs};
-expr_prefix({op, _, '#{'} = T, InnerExprs, _Mode) ->
-  {map_lit, get_meta(T), InnerExprs};
-expr_prefix({op, _, '['} = T, InnerExprs, _Mode) ->
-  {array_lit, get_meta(T), InnerExprs};
-expr_prefix({op, _, '#['} = T, [RightExpr, InnerExprs], _Mode) ->
-  {attribute, get_meta(T), {args, get_meta(T), InnerExprs}, RightExpr};
-expr_prefix({op, _, '#!['} = T, InnerExprs, _Mode) ->
-  {inner_attribute, get_meta(T), {args, get_meta(T), InnerExprs}};
-expr_prefix({op, _, '<<'} = T, InnerExprs, _Mode) ->
-  {bits_lit, get_meta(T), InnerExprs};
 expr_prefix({op, _, Op} = T, Exprs, _Mode) ->
   % Normal prefix operator case.
   % To distinguish a prefix operator, an underscore is appended.
@@ -251,11 +232,29 @@ expr_prefix({op, _, Op} = T, Exprs, _Mode) ->
   PrefixOp = binary_to_atom(<<OpBinary/binary, "_">>, utf8),
   {expand, get_meta(T), {op, get_meta(T), PrefixOp}, Exprs}.
 
+expr_prefix({op, _, '('} = T, {op, _, ')'}, [{expand, _, {op, _, '()'}, InnerExprs}], _Mode) ->
+  % Prevents unwrapping on the left side of `->`.
+  {explicit_tuple, get_meta(T), InnerExprs};
+expr_prefix({op, _, '('}, {op, _, ')'}, [InnerExpr], _Mode) ->
+  % One item in parens gives back the inside without wrapping.
+  InnerExpr;
+expr_prefix({op, _, '{'} = T, {op, _, '}'}, InnerExprs, _Mode) ->
+  {block, get_meta(T), InnerExprs};
+expr_prefix({op, _, '#['} = T, {op, _, ']'}, [RightExpr, {op_args, _, InnerExprs}], _Mode) ->
+  {attribute, get_meta(T), {args, get_meta(T), InnerExprs}, RightExpr};
+expr_prefix({op, _, '#['} = T, {op, _, ']'}, [RightExpr, InnerExprs], _Mode) ->
+  {attribute, get_meta(T), {args, get_meta(T), InnerExprs}, RightExpr};
+expr_prefix({op, _, '#!['} = T, {op, _, ']'}, [{op_args, _, InnerExprs}], _Mode) ->
+  {inner_attribute, get_meta(T), {args, get_meta(T), InnerExprs}};
+expr_prefix({op, _, '#!['} = T, {op, _, ']'}, InnerExprs, _Mode) ->
+  {inner_attribute, get_meta(T), {args, get_meta(T), InnerExprs}};
+expr_prefix({op, _, LeftOp} = T, {op, _, RightOp}, Exprs, _Mode) ->
+  LeftOpBinary = atom_to_binary(LeftOp, utf8),
+  RightOpBinary = atom_to_binary(RightOp, utf8),
+  ContainerOp = binary_to_atom(<<LeftOpBinary/binary, RightOpBinary/binary>>, utf8),
+  {expand, get_meta(T), {op, get_meta(T), ContainerOp}, Exprs}.
+
 %% Build operator expressions that need the previous expression.
-expr_postfix({op, _, '('} = T, [LeftExpr | InnerExprs], Mode) ->
-  expr_postfix({op, get_meta(T), '()'}, [LeftExpr, {args, get_meta(T), InnerExprs}], Mode);
-expr_postfix({op, _, '['} = T, [LeftExpr | InnerExprs], Mode) ->
-  expr_postfix({op, get_meta(T), '[]'}, [LeftExpr, {args, get_meta(T), InnerExprs}], Mode);
 expr_postfix({op, _, Op} = T, Exprs, _Mode) ->
   % Normal postfix operator case.
   % To distinguish a postfix operator, an underscore is prepended.
@@ -263,8 +262,13 @@ expr_postfix({op, _, Op} = T, Exprs, _Mode) ->
   PostfixOp = binary_to_atom(<<"_", OpBinary/binary>>, utf8),
   {expand, get_meta(hd(Exprs)), {op, get_meta(T), PostfixOp}, Exprs}.
 
+expr_postfix({op, _, '('} = T, {op, _, ')'}, [LeftExpr | InnerExprs], Mode) ->
+  expr_postfix({op, get_meta(T), '()'}, [LeftExpr, {args, get_meta(T), InnerExprs}], Mode);
+expr_postfix({op, _, '['} = T, {op, _, ']'}, [LeftExpr | InnerExprs], Mode) ->
+  expr_postfix({op, get_meta(T), '[]'}, [LeftExpr, {args, get_meta(T), InnerExprs}], Mode).
+
 %% Parse expressions that need both the previous and next expressions.
-expr_infix({op, _, '->'} = T, [{tuple_lit, Meta, LeftExprs}, RightExpr], Mode)
+expr_infix({op, _, '->'} = T, [{expand, Meta, {op, _, '()'}, LeftExprs}, RightExpr], Mode)
     when Mode =/= top ->
   % `->`, except at the top level, unwraps regular tuples and turns them back
   % to `op_args`. This is transformed again in the general `->` case.
@@ -341,10 +345,10 @@ plain_op_args([Expr]) -> [Expr];
 plain_op_args(Expr) -> [Expr].
 
 %% Replace explicit tuples with regular tuples and create implicit tuples.
-process_tuples({explicit_tuple_lit, Meta, Exprs}) ->
-  {tuple_lit, Meta, lists:map(fun process_tuples/1, Exprs)};
+process_tuples({explicit_tuple, Meta, Exprs}) ->
+  {expand, Meta, {op, Meta, '()'}, lists:map(fun process_tuples/1, Exprs)};
 process_tuples({op_args, Meta, Exprs}) ->
-  {tuple_lit, Meta, lists:map(fun process_tuples/1, Exprs)};
+  {expand, Meta, {op, Meta, '()'}, lists:map(fun process_tuples/1, Exprs)};
 process_tuples({Type, Meta, Expr1, Exprs}) when is_list(Exprs) ->
   {Type, Meta, process_tuples(Expr1), lists:map(fun process_tuples/1, Exprs)};
 process_tuples({Type, Meta, Expr1, Expr2}) ->
@@ -532,9 +536,9 @@ container_op(postfix, _)     -> nil.
 %% -----------------------------------------------------------------------------
 
 %% Throw an error if a token is not found, otherwise, pop the token off.
-expect([{Type, _, Expected} | Tail], {Type, Expected}) -> Tail;
-expect([{Expected, _, _} | Tail], Expected) -> Tail;
-expect([{Expected, _} | Tail], Expected) -> Tail;
+expect([{Type, _, Expected} = T | Tail], {Type, Expected}) -> {Tail, T};
+expect([{Expected, _, _} = T | Tail], Expected) -> {Tail, T};
+expect([{Expected, _} = T | Tail], Expected) -> {Tail, T};
 expect([Found | _], Expected) -> throw({parse_error, {expected_token, Expected, Found}, ?LINE}).
 
 %% Pop off whitespace tokens if they come up.
