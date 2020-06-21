@@ -32,7 +32,7 @@ format_parse_error(Reason) -> format_error(Reason).
 %% Continuously parse expressions in the source until EOF.
 source(Tokens) ->
   {[{eof, _}], Exprs} = group(Tokens, eof, top),
-  replace_explicit_tuples({source, [], Exprs}).
+  process_tuples({source, [], Exprs}).
 
 %% Parse newline-separated expressions until an end token.
 group(Tokens, EndToken, Mode) ->
@@ -89,9 +89,8 @@ container(Tokens, EndToken, BP, InnerMode, OuterMode, exprs) ->
       {expect(Tokens2, EndToken), []};
     {Tokens2, _} ->
       {Tokens3, Exprs} = container(Tokens2, EndToken, BP, InnerMode, OuterMode, expr),
-      % Unwrapping inner tuples.
       case Exprs of
-        [{tuple_lit, _, InnerExprs}] -> {Tokens3, InnerExprs};
+        [{op_args, _, InnerExprs}] -> {Tokens3, InnerExprs};
         _ -> {Tokens3, Exprs}
       end
   end;
@@ -226,14 +225,13 @@ expr_single({float_lit, _, Float} = T, _Mode) ->
 %% Build operator expressions that don't require the previous expression.
 expr_prefix({op, _, '('} = T, [], _Mode) ->
   {unit, get_meta(T)};
-expr_prefix({op, _, '('} = T, [{expl_tuple_1, _, InnerExprs}], _Mode) ->
-  % Extra wrapping of explicit tuples for arrows not in `top` mode.
-  {expl_tuple_2, get_meta(T), InnerExprs};
+expr_prefix({op, _, '('} = T, [{tuple_lit, _, InnerExprs}], _Mode) ->
+  % Prevents unwrapping on the left side of `->`.
+  {explicit_tuple_lit, get_meta(T), InnerExprs};
 expr_prefix({op, _, '('}, [InnerExpr], _Mode) ->
   InnerExpr;
 expr_prefix({op, _, '('} = T, InnerExprs, _Mode) ->
-  % Tuples in parens are prevented from being unwrapped.
-  {expl_tuple_1, get_meta(T), InnerExprs};
+  {tuple_lit, get_meta(T), InnerExprs};
 expr_prefix({op, _, '#('} = T, InnerExprs, _Mode) ->
   {record_lit, get_meta(T), InnerExprs};
 expr_prefix({op, _, '{'} = T, InnerExprs, _Mode) ->
@@ -242,10 +240,10 @@ expr_prefix({op, _, '#{'} = T, InnerExprs, _Mode) ->
   {map_lit, get_meta(T), InnerExprs};
 expr_prefix({op, _, '['} = T, InnerExprs, _Mode) ->
   {array_lit, get_meta(T), InnerExprs};
-expr_prefix({op, _, '#['} = T, [RightExpr | InnerExprs], _Mode) ->
-  {attribute, get_meta(T), InnerExprs, RightExpr};
+expr_prefix({op, _, '#['} = T, [RightExpr, InnerExprs], _Mode) ->
+  {attribute, get_meta(T), {args, get_meta(T), InnerExprs}, RightExpr};
 expr_prefix({op, _, '#!['} = T, InnerExprs, _Mode) ->
-  {inner_attribute, get_meta(T), InnerExprs};
+  {inner_attribute, get_meta(T), {args, get_meta(T), InnerExprs}};
 expr_prefix({op, _, '<<'} = T, InnerExprs, _Mode) ->
   {bits_lit, get_meta(T), InnerExprs};
 expr_prefix({op, _, Op} = T, Exprs, _Mode) ->
@@ -256,10 +254,10 @@ expr_prefix({op, _, Op} = T, Exprs, _Mode) ->
   {expand, get_meta(T), {op, get_meta(T), PrefixOp}, Exprs}.
 
 %% Build operator expressions that need the previous expression.
-expr_postfix({op, _, '('} = T, Exprs, Mode) ->
-  expr_postfix({op, get_meta(T), '()'}, Exprs, Mode);
-expr_postfix({op, _, '['} = T, Exprs, Mode) ->
-  expr_postfix({op, get_meta(T), '[]'}, Exprs, Mode);
+expr_postfix({op, _, '('} = T, [LeftExpr | InnerExprs], Mode) ->
+  expr_postfix({op, get_meta(T), '()'}, [LeftExpr, {args, get_meta(T), InnerExprs}], Mode);
+expr_postfix({op, _, '['} = T, [LeftExpr | InnerExprs], Mode) ->
+  expr_postfix({op, get_meta(T), '[]'}, [LeftExpr, {args, get_meta(T), InnerExprs}], Mode);
 expr_postfix({op, _, '.{'} = T, [LeftExpr, InnerExpr], Mode) ->
   expr_postfix({op, get_meta(T), '.{}'}, [LeftExpr, {block, get_meta(T), InnerExpr}], Mode);
 expr_postfix({op, _, Op} = T, Exprs, _Mode) ->
@@ -270,25 +268,22 @@ expr_postfix({op, _, Op} = T, Exprs, _Mode) ->
   {expand, get_meta(hd(Exprs)), {op, get_meta(T), PostfixOp}, Exprs}.
 
 %% Parse expressions that need both the previous and next expressions.
-expr_infix({op, _, '='} = T, [{tuple_lit, _, LeftExprs}, RightExpr], Mode) ->
-  % `=` and arrows unwrap tuples to the left.
-  expr_infix(T, LeftExprs ++ [RightExpr], Mode);
-expr_infix({op, _, '<-'} = T, [{tuple_lit, _, LeftExprs}, RightExpr], Mode) ->
-  expr_infix(T, LeftExprs ++ [RightExpr], Mode);
-expr_infix({op, _, '->'} = T, [{tuple_lit, _, LeftExprs}, RightExpr], top) ->
-  expr_infix(T, LeftExprs ++ [RightExpr], top);
-expr_infix({op, _, '->'} = T, [{expl_tuple_1, _, LeftExprs}, RightExpr], Mode) ->
-  expr_infix(T, LeftExprs ++ [RightExpr], Mode);
-expr_infix({op, _, '=>'} = T, [{tuple_lit, _, LeftExprs}, RightExpr], Mode) ->
-  expr_infix(T, LeftExprs ++ [RightExpr], Mode);
+expr_infix({op, _, '->'} = T, [{tuple_lit, Meta, LeftExprs}, RightExpr], Mode)
+    when Mode =/= top ->
+  % `->`, except at the top level, unwraps regular tuples and turns them back
+  % to `op_args`. This is transformed again in the general `->` case.
+  expr_infix(T, [{op_args, Meta, LeftExprs}, RightExpr], Mode);
+expr_infix({op, _, '->'} = T, [LeftExpr, RightExpr], _Mode) ->
+  {expand, get_meta(LeftExpr), {op, get_meta(T), '->'}, [arrow_args(LeftExpr), RightExpr]};
 expr_infix({op, _, ':'}, [LeftExpr, RightExpr], _Mode) ->
   {tag, get_meta(LeftExpr), LeftExpr, RightExpr};
 expr_infix({op, _, ','}, [LeftExpr, RightExpr], arg) ->
-  % `,` in args is handled as a macro arg separator.
+  % `,` in `arg` mode is handled as a macro arg separator.
   macro_args(LeftExpr, RightExpr);
 expr_infix({op, _, ','}, [LeftExpr, RightExpr], _Mode) ->
-  % `,` anywhere else is a tuple separator.
-  tuple(LeftExpr, RightExpr);
+  % `,` anywhere else makes it be normal args. Most args are converted to tuples
+  % in a pass later on.
+  op_args(LeftExpr, RightExpr);
 expr_infix({op, _, '$'}, [LeftExpr, RightExpr], _Mode) ->
   macro_call(LeftExpr, RightExpr);
 expr_infix({op, _, ' '}, [LeftExpr, RightExpr], top) ->
@@ -309,13 +304,26 @@ expr_infix({op, _, ' '}, [LeftExpr, {expand_args, _, [{block, _, _} | _]} = Righ
 expr_infix({op, _, ' '}, [LeftExpr, RightExpr], arg) ->
   % Otherwise, in `arg` mode, a ` ` will start a new macro.
   macro_call(LeftExpr, RightExpr);
-expr_infix({op, _, _} = T, Exprs, _Mode) ->
+expr_infix({op, _, Op} = T, Exprs, _Mode) ->
   % Normal infix operator case.
-  {expand, get_meta(hd(Exprs)), T, Exprs}.
+  {expand, get_meta(hd(Exprs)), {op, get_meta(T), Op}, Exprs}.
 
-%% Build a tuple. Tuples to the right are flattened.
-tuple(LeftExpr, RightExpr) ->
-  {tuple_lit, get_meta(LeftExpr), [LeftExpr | plain_tuple(RightExpr)]}.
+%% Build the args on the left side of `->` for `top` expressions.
+%%
+%% When `=` and `<-` and used, their `op_args` are converted to `args` nodes
+%% which won't be translated to implicit tuples. This stops recursing after any
+%% elements are hit except these two.
+arrow_args({expand, _, {op, _, OpName} = Op, Exprs} = Expr) when OpName =:= '=';
+                                                                 OpName =:= '<-' ->
+  {expand, get_meta(Expr), Op, lists:map(fun arrow_args/1, Exprs)};
+arrow_args({op_args, _, Exprs} = T) ->
+  {args, get_meta(T), Exprs};
+arrow_args(Expr) ->
+  {args, get_meta(Expr), [Expr]}.
+
+%% Build operator args. Args to the right are flattened.
+op_args(LeftExpr, RightExpr) ->
+  {op_args, get_meta(LeftExpr), [LeftExpr | plain_op_args(RightExpr)]}.
 
 %% Build a macro call with args on the right.
 macro_call(LeftExpr, {expand_args, _, RightExprs}) ->
@@ -329,32 +337,30 @@ macro_args(LeftExpr, {expand_args, _, RightExprs}) ->
 macro_args(LeftExpr, RightExpr) ->
   {expand_args, get_meta(LeftExpr), [LeftExpr, RightExpr]}.
 
-%% Turn a tuple or single item into a plain list.
-plain_tuple({tuple_lit, _, Exprs}) -> Exprs;
-plain_tuple([{tuple_lit, _, Exprs}]) -> Exprs;
-plain_tuple([]) -> [];
-plain_tuple([Expr]) -> [Expr];
-plain_tuple(Expr) -> [Expr].
+%% Turn op args or a single item into a plain list.
+plain_op_args({op_args, _, Exprs}) -> Exprs;
+plain_op_args([{op_args, _, Exprs}]) -> Exprs;
+plain_op_args([]) -> [];
+plain_op_args([Expr]) -> [Expr];
+plain_op_args(Expr) -> [Expr].
 
-%% Replace explicit tuples with regular tuples.
-replace_explicit_tuples({expl_tuple_1, Meta, Exprs}) ->
-  {tuple_lit, Meta, lists:map(fun replace_explicit_tuples/1, Exprs)};
-replace_explicit_tuples({expl_tuple_2, Meta, Exprs}) ->
-  {tuple_lit, Meta, lists:map(fun replace_explicit_tuples/1, Exprs)};
-replace_explicit_tuples({Type, Meta, Arg, Exprs}) when is_list(Exprs) ->
-  {Type, Meta, Arg, lists:map(fun replace_explicit_tuples/1, Exprs)};
-replace_explicit_tuples({Type, Meta, Arg, Expr}) when is_tuple(Expr) ->
-  {Type, Meta, Arg, replace_explicit_tuples(Expr)};
-replace_explicit_tuples({Type, Meta, Arg, Expr}) ->
-  {Type, Meta, Arg, Expr};
-replace_explicit_tuples({Type, Meta, Exprs}) when is_list(Exprs) ->
-  {Type, Meta, lists:map(fun replace_explicit_tuples/1, Exprs)};
-replace_explicit_tuples({Type, Meta, Expr}) when is_tuple(Expr) ->
-  {Type, Meta, replace_explicit_tuples(Expr)};
-replace_explicit_tuples({Type, Meta, Expr}) ->
-  {Type, Meta, Expr};
-replace_explicit_tuples({Type, Meta}) ->
-  {Type, Meta}.
+%% Replace explicit tuples with regular tuples and create implicit tuples.
+process_tuples({explicit_tuple_lit, Meta, Exprs}) ->
+  {tuple_lit, Meta, lists:map(fun process_tuples/1, Exprs)};
+process_tuples({op_args, Meta, Exprs}) ->
+  {tuple_lit, Meta, lists:map(fun process_tuples/1, Exprs)};
+process_tuples({Type, Meta, Expr1, Exprs}) when is_list(Exprs) ->
+  {Type, Meta, process_tuples(Expr1), lists:map(fun process_tuples/1, Exprs)};
+process_tuples({Type, Meta, Expr1, Expr2}) ->
+  {Type, Meta, process_tuples(Expr1), process_tuples(Expr2)};
+process_tuples({Type, Meta, Exprs}) when is_list(Exprs) ->
+  {Type, Meta, lists:map(fun process_tuples/1, Exprs)};
+process_tuples({Type, Meta, Expr}) ->
+  {Type, Meta, process_tuples(Expr)};
+process_tuples({Type, Meta}) ->
+  {Type, Meta};
+process_tuples(Other) ->
+  Other.
 
 %% Configure operators with binding power and associativity.
 %%
@@ -372,8 +378,6 @@ op(_,   prefix,  '#(')   -> {250, right};  %                      #()
 op(_,   prefix,  '{')    -> {250, right};  %                      {}
 op(_,   prefix,  '#{')   -> {250, right};  %                      #{}
 op(_,   prefix,  '[')    -> {250, right};  %                      []
-op(_,   prefix,  '#[')   -> {250, right};  %                      #[]
-op(_,   prefix,  '#![')  -> {250, right};  %                      #![]
 op(_,   prefix,  '<<')   -> {250, right};  %                      <<>>
 op(_,   infix,   '.')    -> {240, left};   % 240  infix    left   .
 op(_,   infix,   '?.')   -> {240, left};   %                      ?.
@@ -426,11 +430,14 @@ op(_,   infix,   '&&')   -> {90,  left};   %  90  infix    left   &&
 op(_,   infix,   '||')   -> {80,  left};   %  80  infix    left   ||
 op(top, infix,   ':')    -> {75,  right};  %  75  infix    right  top :
 op(tup, infix,   ':')    -> {75,  right};  %                      tuple :
-op(top, infix,   ',')    -> {70,  right};  %  70  infix    right  top ,
-op(tup, infix,   ',')    -> {70,  right};  %                      tuple ,
-op(top, infix,   '$')    -> {70,  right};  %                      top $
-op(tup, infix,   '$')    -> {70,  right};  %                      tuple $
-op(top, infix,   ' ')    -> {70,  right};  %                      top (space)
+op(con, prefix,  '#[')   -> {70,  right};  %  70  prefix   right  con #[]
+op(arg, prefix,  '#[')   -> {70,  right};  %                      arg #[]
+op(sub, prefix,  '#[')   -> {70,  right};  %                      sub #[]
+op(top, infix,   ',')    -> {65,  right};  %  65  infix    right  top ,
+op(tup, infix,   ',')    -> {65,  right};  %                      tuple ,
+op(top, infix,   '$')    -> {65,  right};  %                      top $
+op(tup, infix,   '$')    -> {65,  right};  %                      tuple $
+op(top, infix,   ' ')    -> {65,  right};  %                      top (space)
 op(_,   infix,   '&')    -> {60,  left};   %  60  infix    left   &
 op(_,   infix,   '|')    -> {50,  left};   %  50  infix    left   |
 op(_,   infix,   '=')    -> {40,  right};  %  40  infix    right  =
@@ -441,6 +448,8 @@ op(_,   infix,   ':')    -> {20,  right};  %  20  infix    right  :
 op(_,   infix,   ',')    -> {10,  right};  %  10  infix    right  ,
 op(_,   infix,   '$')    -> {10,  right};  %                      $
 op(_,   infix,   ' ')    -> {10,  right};  %                      (space)
+op(_,   prefix,  '#[')   -> {5,   right};  %   5  prefix   right  #[]
+op(_,   prefix,  '#![')  -> {5,   right};  %                      #![]
 op(_,   postfix, ')')    -> {-1,  right};  %  -1  End of containers
 op(_,   postfix, '}')    -> {-1,  right};  %      (can't stand alone)
 op(_,   postfix, ']')    -> {-1,  right};  %
@@ -457,19 +466,20 @@ op(_,   infix,   _)      -> {0,   none}.
 %% to not allows macros to start for the rest of the expression. Anything else,
 %% and the next thing well be a subexpression. `=` and arrows at the top level
 %% stay at the top level on the right side.
-next_mode(top, infix,  ',')  -> tup;  % ,
-next_mode(tup, infix,  ',')  -> tup;  %
-next_mode(arg, infix,  ',')  -> arg;  %
-next_mode(_,   infix,  '$')  -> arg;  % $
-next_mode(top, infix,  ' ')  -> arg;  % (space)
-next_mode(con, infix,  ' ')  -> arg;  %
-next_mode(arg, infix,  ' ')  -> arg;  %
-next_mode(top, infix,  '=')  -> top;  % =
-next_mode(top, infix,  '<-') -> top;  % <-
-next_mode(top, infix,  '->') -> top;  % ->
-next_mode(top, infix,  '=>') -> top;  % =>
-next_mode(_,   prefix, _)    -> sub;
-next_mode(_,   infix,  _)    -> sub.
+next_mode(top,  infix,  ',')  -> tup;   % ,
+next_mode(tup,  infix,  ',')  -> tup;   %
+next_mode(arg,  infix,  ',')  -> arg;   %
+next_mode(_,    infix,  '$')  -> arg;   % $
+next_mode(top,  infix,  ' ')  -> arg;   % (space)
+next_mode(con,  infix,  ' ')  -> arg;   %
+next_mode(arg,  infix,  ' ')  -> arg;   %
+next_mode(top,  infix,  '=')  -> top;   % =
+next_mode(top,  infix,  '<-') -> top;   % <-
+next_mode(top,  infix,  '->') -> top;   % ->
+next_mode(top,  infix,  '=>') -> top;   % =>
+next_mode(Mode, prefix, '#[') -> Mode;  % #[]
+next_mode(_,    prefix, _)    -> sub;
+next_mode(_,    infix,  _)    -> sub.
 
 %% Action to take place when a space is found in postfix/infix mode.
 %%
