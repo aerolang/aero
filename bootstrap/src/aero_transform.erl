@@ -17,17 +17,16 @@ transform({source, _Meta, Exprs}) ->
     [{context, 'Elixir'}],
     [{'__aliases__', [{alias, false}], ['Aero', 'Kernel']}]
   },
-  Module = ex_macro_call(mod, ['__source__' | lists:map(fun transform/1, Exprs)]),
+  Module = ex_macro_call(mod, ['__source__', ex_block(lists:map(fun transform/1, Exprs))]),
   ex_block([KernelReq, Module]);
-transform({block, _Meta, Exprs}) ->
-  ex_block(lists:map(fun transform/1, Exprs));
-transform({expand, _Meta, Macro, Args}) ->
-  MacroName =
-    case Macro of
-      {ident, _, _} = Ident -> transform(Ident);
-      {op, _, OpName} -> OpName
-    end,
-  ex_macro_call(MacroName, lists:map(fun transform/1, Args));
+transform({integer_lit, _Meta, Integer}) ->
+  Integer;
+transform({float_lit, _Meta, Float}) ->
+  Float;
+transform({atom_lit, _Meta, Atom}) ->
+  Atom;
+transform({string_lit, _Meta, String}) ->
+  String;
 transform({ident, _Meta, Ident}) ->
   Safe = safe_ident(Ident),
   case zero_arg_macro(Safe) of
@@ -37,14 +36,20 @@ transform({ident, _Meta, Ident}) ->
     false ->
       {safe_ident(Ident), [], 'Elixir'}
   end;
-transform({atom_lit, _Meta, Atom}) ->
-  Atom;
-transform({string_lit, _Meta, String}) ->
-  String;
-transform({integer_lit, _Meta, Integer}) ->
-  Integer;
-transform({float_lit, _Meta, Float}) ->
-  Float.
+transform({op, _Meta, Op}) ->
+  safe_ident(Op);
+transform({block, _Meta, Exprs}) ->
+  ex_block(lists:map(fun transform/1, Exprs));
+transform({expand, _Meta, Macro, Exprs}) ->
+  ex_macro_call(transform(Macro), lists:map(fun transform/1, Exprs));
+transform({args, _Meta, Exprs}) ->
+  ex_macro_call('__args__', lists:map(fun transform/1, Exprs));
+transform({tag, _Meta, Left, Right}) ->
+  ex_macro_call('__tag__', [transform(Left), transform(Right)]);
+transform({attribute, _Meta, Left, Right}) ->
+  ex_macro_call('__attr__', [transform(Left), transform(Right)]);
+transform({inner_attribute, _Meta, Expr}) ->
+  ex_macro_call('__inner_attr__', [transform(Expr)]).
 
 %% -----------------------------------------------------------------------------
 %% Helper Functions
