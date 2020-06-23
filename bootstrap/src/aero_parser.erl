@@ -7,12 +7,30 @@
 -module(aero_parser).
 
 -export([parse/1, format_parse_error/1]).
+-export_type([expr/0]).
 
 %% -----------------------------------------------------------------------------
 %% Public API
 %% -----------------------------------------------------------------------------
 
+-type expr() :: {source, meta(), [expr()]}
+              | {integer_lit, meta(), integer()}
+              | {float_lit, meta(), float()}
+              | {atom_lit, meta(), atom()}
+              | {string_lit, meta(), binary()}
+              | {ident, meta(), atom()}
+              | {op, meta(), atom()}
+              | {block, meta(), [expr()]}
+              | {expand, meta(), expr(), [expr()]}
+              | {args, meta(), [expr()]}
+              | {tag, meta(), expr(), expr()}
+              | {attribute, meta(), expr(), expr()}
+              | {inner_attribute, meta(), expr()}.
+
+-type meta() :: [term()].
+
 %% Parse tokens into the Aero AST.
+-spec parse(binary()) -> {ok, expr()} | {error, term(), integer()}.
 parse([]) ->
   {error, no_tokens, ?LINE};
 parse(Tokens) ->
