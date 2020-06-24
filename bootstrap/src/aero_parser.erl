@@ -319,6 +319,9 @@ expr_infix({op, _, ' '}, [LeftExpr, {block, _, _} = RightExpr], arg) ->
 expr_infix({op, _, ' '}, [LeftExpr, {expand_args, _, [{block, _, _} | _]} = RightExpr], arg) ->
   % Also behave as a `,` when the block to the right is inside args already.
   macro_args(LeftExpr, RightExpr);
+expr_infix({op, _, ' '}, [LeftExpr, {expand, _, _, [{block, _, _}, _]} = RightExpr], arg) ->
+  % Also behave as a `,` when the block to the right is inside a binary op.
+  macro_args(LeftExpr, RightExpr);
 expr_infix({op, _, ' '}, [LeftExpr, RightExpr], arg) ->
   % Otherwise, in `arg` mode, a ` ` will start a new macro.
   macro_call(LeftExpr, RightExpr);
