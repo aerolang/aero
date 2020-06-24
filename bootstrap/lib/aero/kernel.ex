@@ -202,4 +202,25 @@ defmodule Aero.Kernel do
 
   @doc "Empty list."
   defmacro nil_, do: []
+
+  defp aero_block(ast) do
+    case ast do
+      {:__block__, _, exprs} -> exprs
+      other -> [other]
+    end
+  end
+
+  defp aero_expand(ast) do
+    case ast do
+      {{:., _, [{:__aliases__, _, [:Aero, :Kernel]}, macro]}, _, args} -> {macro, args}
+      _ -> nil
+    end
+  end
+
+  defp aero_args(ast) do
+    case aero_expand(ast) do
+      {:__args__, args} -> args
+      _ -> nil
+    end
+  end
 end
