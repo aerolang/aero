@@ -20,11 +20,71 @@ defmodule Aero.Kernel do
     end
   end
 
+  @doc "If expression macro."
   defmacro if(expr, then) do
+    case aero_expand(then) do
+      {:else_, [left, right]} ->
+        # When an else block is provided return either case.
+        quote do
+          case unquote(expr) do
+            true -> unquote(left)
+            false -> unquote(right)
+          end
+        end
+      _ ->
+        # Otherwise, wrap into an optional type.
+        quote do
+          case unquote(expr) do
+            true -> {:some, unquote(then)}
+            false -> :none
+          end
+        end
+    end
+  end
+
+  @doc "Cond expression macro."
+  defmacro cond(cases) do
+    ex_cases =
+      aero_block(cases)
+      |> Enum.flat_map(fn case_ ->
+        {:->, [left, right]} = aero_expand(case_)
+        [left_arg] = aero_args(left)
+
+        # Elixir allows truthy values, enforcing only `true`.
+        quote do
+          unquote(left_arg) === true -> unquote(right)
+        end
+      end)
+
+    quote do
+      cond do
+        unquote(ex_cases)
+      end
+    end
+  end
+
+  @doc "Match expression macro."
+  defmacro match(expr, cases) do
+    ex_cases =
+      aero_block(cases)
+      |> Enum.flat_map(fn case_ ->
+        {:->, [left, right]} = aero_expand(case_)
+
+        # When more than one arg is passed, turn it into a tuple.
+        left_arg =
+          case aero_args(left) do
+            [arg] -> arg
+            args -> quote do: {unquote_splicing(args)}
+          end
+
+        quote do
+          unquote(left_arg) -> unquote(right)
+        end
+      end)
+
     quote do
       case unquote(expr) do
-        :true -> {:some, unquote(then)}
-        :false -> :none
+        unquote(ex_cases)
       end
     end
   end
@@ -32,7 +92,7 @@ defmodule Aero.Kernel do
   @doc "Bind the left pattern to the right."
   defmacro left = right do
     # Using the Elixir context does the very unhygienic thing allowing access
-    # to and setting variables in the callee's scope.
+    # to and setting variables in the caller's scope.
     quote context: Elixir, do: unquote(left) = unquote(right)
   end
 
