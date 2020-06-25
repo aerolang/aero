@@ -250,7 +250,7 @@ expr_prefix({op, _, Op} = T, Exprs, _Mode) ->
   PrefixOp = binary_to_atom(<<OpBinary/binary, "_">>, utf8),
   {expand, get_meta(T), {op, get_meta(T), PrefixOp}, Exprs}.
 
-expr_prefix({op, _, '('} = T, {op, _, ')'}, [{expand, _, {op, _, '()'}, InnerExprs}], _Mode) ->
+expr_prefix({op, _, '('} = T, {op, _, ')'}, [{expand, _, {op, _, '(_)'}, InnerExprs}], _Mode) ->
   % Prevents unwrapping on the left side of `->`.
   {explicit_tuple, get_meta(T), InnerExprs};
 expr_prefix({op, _, '('}, {op, _, ')'}, [InnerExpr], _Mode) ->
@@ -269,7 +269,7 @@ expr_prefix({op, _, '#!['} = T, {op, _, ']'}, InnerExprs, _Mode) ->
 expr_prefix({op, _, LeftOp} = T, {op, _, RightOp}, Exprs, _Mode) ->
   LeftOpBinary = atom_to_binary(LeftOp, utf8),
   RightOpBinary = atom_to_binary(RightOp, utf8),
-  ContainerOp = binary_to_atom(<<LeftOpBinary/binary, RightOpBinary/binary>>, utf8),
+  ContainerOp = binary_to_atom(<<LeftOpBinary/binary, "_", RightOpBinary/binary>>, utf8),
   {expand, get_meta(T), {op, get_meta(T), ContainerOp}, Exprs}.
 
 %% Build operator expressions that need the previous expression.
@@ -280,19 +280,21 @@ expr_postfix({op, _, Op} = T, Exprs, _Mode) ->
   PostfixOp = binary_to_atom(<<"_", OpBinary/binary>>, utf8),
   {expand, get_meta(hd(Exprs)), {op, get_meta(T), PostfixOp}, Exprs}.
 
-expr_postfix({op, _, '('} = T, {op, _, ')'}, [LeftExpr | InnerExprs], Mode) ->
-  expr_postfix({op, get_meta(T), '()'}, [LeftExpr, {args, get_meta(T), InnerExprs}], Mode);
-expr_postfix({op, _, '['} = T, {op, _, ']'}, [LeftExpr | InnerExprs], Mode) ->
-  expr_postfix({op, get_meta(T), '[]'}, [LeftExpr, {args, get_meta(T), InnerExprs}], Mode).
+expr_postfix({op, _, LeftOp} = T, {op, _, RightOp}, [LeftExpr | InnerExprs], _Mode) ->
+  LeftOpBinary = atom_to_binary(LeftOp, utf8),
+  RightOpBinary = atom_to_binary(RightOp, utf8),
+  ContainerOp = binary_to_atom(<<"_", LeftOpBinary/binary, "_", RightOpBinary/binary>>, utf8),
+  Exprs = [LeftExpr, {args, get_meta(T), InnerExprs}],
+  {expand, get_meta(T), {op, get_meta(T), ContainerOp}, Exprs}.
 
 %% Parse expressions that need both the previous and next expressions.
-expr_infix({op, _, '->'} = T, [{expand, Meta, {op, _, '()'}, LeftExprs}, RightExpr], Mode)
+expr_infix({op, _, '->'} = T, [{expand, Meta, {op, _, '(_)'}, LeftExprs}, RightExpr], Mode)
     when Mode =/= top ->
   % `->`, except at the top level, unwraps regular tuples and turns them back
   % to `op_args`. This is transformed again in the general `->` case.
   expr_infix(T, [{op_args, Meta, LeftExprs}, RightExpr], Mode);
 expr_infix({op, _, '->'} = T, [LeftExpr, RightExpr], _Mode) ->
-  {expand, get_meta(LeftExpr), {op, get_meta(T), '->'}, [arrow_args(LeftExpr), RightExpr]};
+  {expand, get_meta(LeftExpr), {op, get_meta(T), '_->_'}, [arrow_args(LeftExpr), RightExpr]};
 expr_infix({op, _, ':'}, [LeftExpr, RightExpr], _Mode) ->
   {tag, get_meta(LeftExpr), LeftExpr, RightExpr};
 expr_infix({op, _, ','}, [LeftExpr, RightExpr], arg) ->
@@ -327,7 +329,10 @@ expr_infix({op, _, ' '}, [LeftExpr, RightExpr], arg) ->
   macro_call(LeftExpr, RightExpr);
 expr_infix({op, _, Op} = T, Exprs, _Mode) ->
   % Normal infix operator case.
-  {expand, get_meta(hd(Exprs)), {op, get_meta(T), Op}, Exprs}.
+  % To distinguish an infix operator, underscores are placed on both sides.
+  OpBinary = atom_to_binary(Op, utf8),
+  InfixOp = binary_to_atom(<<"_", OpBinary/binary, "_">>, utf8),
+  {expand, get_meta(hd(Exprs)), {op, get_meta(T), InfixOp}, Exprs}.
 
 %% Build the args on the left side of `->` for `top` expressions.
 %%
@@ -367,9 +372,9 @@ plain_op_args(Expr) -> [Expr].
 
 %% Replace explicit tuples with regular tuples and create implicit tuples.
 process_tuples({explicit_tuple, Meta, Exprs}) ->
-  {expand, Meta, {op, Meta, '()'}, lists:map(fun process_tuples/1, Exprs)};
+  {expand, Meta, {op, Meta, '(_)'}, lists:map(fun process_tuples/1, Exprs)};
 process_tuples({op_args, Meta, Exprs}) ->
-  {expand, Meta, {op, Meta, '()'}, lists:map(fun process_tuples/1, Exprs)};
+  {expand, Meta, {op, Meta, '(_)'}, lists:map(fun process_tuples/1, Exprs)};
 process_tuples({Type, Meta, Expr1, Exprs}) when is_list(Exprs) ->
   {Type, Meta, process_tuples(Expr1), lists:map(fun process_tuples/1, Exprs)};
 process_tuples({Type, Meta, Expr1, Expr2}) ->

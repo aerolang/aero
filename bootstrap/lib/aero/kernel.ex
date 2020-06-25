@@ -23,7 +23,7 @@ defmodule Aero.Kernel do
   @doc "If expression macro."
   defmacro if(expr, then) do
     case aero_expand(then) do
-      {:else_, [left, right]} ->
+      {:_else_, [left, right]} ->
         # When an else block is provided return either case.
         quote do
           case unquote(expr) do
@@ -47,7 +47,7 @@ defmodule Aero.Kernel do
     ex_cases =
       aero_block(cases)
       |> Enum.flat_map(fn case_ ->
-        {:->, [left, right]} = aero_expand(case_)
+        {:"_->_", [left, right]} = aero_expand(case_)
         [left_arg] = aero_args(left)
 
         # Elixir allows truthy values, enforcing only `true`.
@@ -68,7 +68,7 @@ defmodule Aero.Kernel do
     ex_cases =
       aero_block(cases)
       |> Enum.flat_map(fn case_ ->
-        {:->, [left, right]} = aero_expand(case_)
+        {:"_->_", [left, right]} = aero_expand(case_)
 
         # When more than one arg is passed, turn it into a tuple.
         left_arg =
@@ -90,7 +90,7 @@ defmodule Aero.Kernel do
   end
 
   @doc "Bind the left pattern to the right."
-  defmacro left = right do
+  defmacro unquote(:"_=_")(left, right) do
     # Using the Elixir context does the very unhygienic thing allowing access
     # to and setting variables in the caller's scope.
     quote context: Elixir, do: unquote(left) = unquote(right)
@@ -107,22 +107,22 @@ defmodule Aero.Kernel do
   end
 
   @doc "Add two numbers."
-  defmacro left + right do
+  defmacro unquote(:"_+_")(left, right) do
     quote do: Kernel.+(unquote(left), unquote(right))
   end
 
   @doc "Subtract the right from the left."
-  defmacro left - right do
+  defmacro unquote(:"_-_")(left, right) do
     quote do: Kernel.-(unquote(left), unquote(right))
   end
 
   @doc "Multiply two numbers."
-  defmacro left * right do
+  defmacro unquote(:"_*_")(left, right) do
     quote do: Kernel.*(unquote(left), unquote(right))
   end
 
   @doc "Divide the left by the right, two ints give another int."
-  defmacro left / right do
+  defmacro unquote(:"_/_")(left, right) do
     quote do
       Kernel.if is_integer(unquote(left)) and is_integer(unquote(right)) do
         # Floor division for integers.
@@ -134,12 +134,12 @@ defmodule Aero.Kernel do
   end
 
   @doc "Get the remainder when dividing two ints."
-  defmacro unquote(:%)(left, right) do
+  defmacro unquote(:"_%_")(left, right) do
     quote do: Kernel.rem(unquote(left), unquote(right))
   end
 
   @doc "Concatenate two lists or binaries."
-  defmacro left ++ right do
+  defmacro unquote(:"_++_")(left, right) do
     quote do
       Kernel.if is_binary(unquote(left)) and is_binary(unquote(right)) do
         Kernel.<>(unquote(left), unquote(right))
@@ -150,32 +150,32 @@ defmodule Aero.Kernel do
   end
 
   @doc "Less-than operator."
-  defmacro left < right do
+  defmacro unquote(:"_<_")(left, right) do
     quote do: Kernel.<(unquote(left), unquote(right))
   end
 
   @doc "More-than operator."
-  defmacro left > right do
+  defmacro unquote(:"_>_")(left, right) do
     quote do: Kernel.>(unquote(left), unquote(right))
   end
 
   @doc "Check if left is less than or equal to the right."
-  defmacro left <= right do
+  defmacro unquote(:"_<=_")(left, right) do
     quote do: Kernel.<=(unquote(left), unquote(right))
   end
 
   @doc "Check if left is greater than or equal to the right."
-  defmacro left >= right do
+  defmacro unquote(:"_>=_")(left, right) do
     quote do: Kernel.>=(unquote(left), unquote(right))
   end
 
   @doc "Check if the left is equal to the right."
-  defmacro left == right do
+  defmacro unquote(:"_==_")(left, right) do
     quote do: Kernel.===(unquote(left), unquote(right))
   end
 
   @doc "Check if the left is not equal to the right."
-  defmacro left != right do
+  defmacro unquote(:"_!=_")(left, right) do
     quote do: Kernel.!==(unquote(left), unquote(right))
   end
 
@@ -185,12 +185,12 @@ defmodule Aero.Kernel do
   end
 
   @doc "Boolean and."
-  defmacro left && right do
+  defmacro unquote(:"_&&_")(left, right) do
     quote do: Kernel.and(unquote(left), unquote(right))
   end
 
   @doc "Boolean or."
-  defmacro left || right do
+  defmacro unquote(:"_||_")(left, right) do
     quote do: Kernel.or(unquote(left), unquote(right))
   end
 
