@@ -471,6 +471,10 @@ op(_,   infix,   '<-')   -> {40,  right};  %                      <-
 op(_,   infix,   '->')   -> {30,  right};  %  30  infix    right  ->
 op(_,   infix,   '=>')   -> {25,  right};  %  25  infix    right  =>
 op(_,   infix,   ':')    -> {20,  right};  %  20  infix    right  :
+op(_,   infix,   'if')   -> {15,  right};  %  15  infix    right  if
+op(_,   infix,   else)   -> {15,  right};  %                      else
+op(_,   infix,   for)    -> {15,  right};  %                      for
+op(_,   infix,   while)  -> {15,  right};  %                      while
 op(_,   infix,   ',')    -> {10,  right};  %  10  infix    right  ,
 op(_,   infix,   '$')    -> {10,  right};  %                      $
 op(_,   infix,   ' ')    -> {10,  right};  %                      (space)
@@ -581,7 +585,8 @@ get_meta({_, Meta, _}) when is_list(Meta) -> Meta;
 get_meta({_, Meta}) when is_list(Meta) -> Meta.
 
 %% Convert operators to tokens if possible.
-op_to_tokens({op, Meta, Op}) when Op =:= in; Op =:= as ->
+op_to_tokens({op, Meta, Op}) when Op =:= in; Op =:= as; Op =:= 'if'; Op =:= else; Op =:= for;
+                                  Op =:= while ->
   % These infix operators are converted to idents when used in a prefix way.
   [{ident, Meta, Op}];
 op_to_tokens({op, Meta, '!in'}) ->

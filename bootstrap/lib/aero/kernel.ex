@@ -89,6 +89,59 @@ defmodule Aero.Kernel do
     end
   end
 
+  @doc "If mixfix macro."
+  defmacro _if_(left, right) do
+    {:_else_, [middle, right]} = aero_expand(right)
+
+    quote do
+      case unquote(middle) do
+        true -> unquote(left)
+        false -> unquote(right)
+      end
+    end
+  end
+
+  @doc "For comprehension."
+  defmacro _for_(left, right) do
+    {for_comp, rest} = build_comp(right, :_for_, [:_if_])
+    {if_comp, nil} = build_comp(rest, :_if_, [])
+
+    for_exprs =
+      for_comp
+      |> Enum.map(fn expr ->
+        {:"_<-_", [e_left, e_right]} = aero_expand(expr)
+        quote do: unquote(e_left) <- unquote(e_right)
+      end)
+
+    if_exprs =
+      if_comp
+      |> Enum.map(fn expr -> quote do: unquote(expr) === true end)
+
+    quote do
+      for unquote_splicing(for_exprs), unquote_splicing(if_exprs) do
+        unquote(left)
+      end
+    end
+  end
+
+  # Build a segment of a comprehension with repeating infix macros.
+  defp build_comp(expr, macro, end_macros), do: build_comp(expr, macro, end_macros, [])
+
+  defp build_comp(expr, macro, end_macros, comp) do
+    case aero_expand(expr) do
+      {^macro, [left, right]} ->
+        build_comp(right, macro, end_macros, [left | comp])
+      {other_macro, [left, right]} ->
+        Kernel.if other_macro in end_macros do
+          {Enum.reverse([left | comp]), right}
+        else
+          {Enum.reverse([expr | comp]), nil}
+        end
+      _ ->
+        {Enum.reverse([expr | comp]), nil}
+    end
+  end
+
   @doc "Construct a tuple."
   defmacro unquote(:"(_)")(exprs) do
     args = aero_args(exprs)
@@ -206,6 +259,11 @@ defmodule Aero.Kernel do
   @doc "Cons operator."
   defmacro unquote(:"_::_")(left, right) do
     quote do: [unquote(left) | unquote(right)]
+  end
+
+  @doc "Range operator."
+  defmacro unquote(:"_.._")(left, right) do
+    quote do: Kernel.".."(unquote(left), unquote(right))
   end
 
   @doc "Less-than operator."

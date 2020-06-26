@@ -36,6 +36,10 @@ Rules.
 in           : {token, {op, TokenLine, in}}.
 !in          : {token, {op, TokenLine, '!in'}}.
 as           : {token, {op, TokenLine, as}}.
+if           : {token, {op, TokenLine, 'if'}}.
+else         : {token, {op, TokenLine, else}}.
+for          : {token, {op, TokenLine, for}}.
+while        : {token, {op, TokenLine, while}}.
 
 %% Identifiers.
 {IDENT}      : ident_token(TokenChars, TokenLine).
