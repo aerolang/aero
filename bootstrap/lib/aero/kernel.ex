@@ -89,6 +89,60 @@ defmodule Aero.Kernel do
     end
   end
 
+  @doc "Construct a tuple."
+  defmacro unquote(:"(_)")(exprs) do
+    args = aero_args(exprs)
+    quote do: {unquote_splicing(args)}
+  end
+
+  @doc "Construct an array."
+  defmacro unquote(:"[_]")(exprs) do
+    args = aero_args(exprs)
+    quote do: :array.from_list(unquote(args))
+  end
+
+  @doc "Construct a dict."
+  defmacro unquote(:"\\\\\\\#{_}")(exprs) do
+    # Backslashes get duplicated through the unquoting process.
+    args =
+      for arg <- aero_args(exprs) do
+        case aero_expand(arg) do
+          {:"_=>_", [left, right]} -> {left, right}
+          {:__tag__, [left, right]} -> {aero_ident(left), right}
+        end
+      end
+
+    quote do: %{unquote_splicing(args)}
+  end
+
+  @doc "Construct a struct."
+  defmacro unquote(:"#(_)")(exprs) do
+    # Structs are just maps with atom keys only.
+    args =
+      for arg <- aero_args(exprs) do
+        {:__tag__, [left, right]} = aero_expand(arg)
+        {aero_ident(left), right}
+      end
+
+    quote do: %{unquote_splicing(args)}
+  end
+
+  @doc "Construct a bitstring."
+  defmacro unquote(:"<<_>>")(exprs) do
+    args =
+      for arg <- aero_args(exprs) do
+        case aero_expand(arg) do
+          {:__tag__, [left, _right]} ->
+            # TODO: Need to translate tags into the corresponding syntax in Elixir.
+            left
+          _ ->
+            arg
+        end
+      end
+
+    quote do: <<unquote_splicing(args)>>
+  end
+
   @doc "Bind the left pattern to the right."
   defmacro unquote(:"_=_")(left, right) do
     # Using the Elixir context does the very unhygienic thing allowing access
@@ -149,6 +203,11 @@ defmodule Aero.Kernel do
     end
   end
 
+  @doc "Cons operator."
+  defmacro unquote(:"_::_")(left, right) do
+    quote do: [unquote(left) | unquote(right)]
+  end
+
   @doc "Less-than operator."
   defmacro unquote(:"_<_")(left, right) do
     quote do: Kernel.<(unquote(left), unquote(right))
@@ -202,6 +261,13 @@ defmodule Aero.Kernel do
 
   @doc "Empty list."
   defmacro nil_, do: []
+
+  defp aero_ident(ast) do
+    case ast do
+      {ident, _, context} when is_atom(context) -> ident
+      _ -> nil
+    end
+  end
 
   defp aero_block(ast) do
     case ast do

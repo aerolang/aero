@@ -266,10 +266,11 @@ expr_prefix({op, _, '#!['} = T, {op, _, ']'}, [{op_args, _, InnerExprs}], _Mode)
   {inner_attribute, get_meta(T), {args, get_meta(T), InnerExprs}};
 expr_prefix({op, _, '#!['} = T, {op, _, ']'}, InnerExprs, _Mode) ->
   {inner_attribute, get_meta(T), {args, get_meta(T), InnerExprs}};
-expr_prefix({op, _, LeftOp} = T, {op, _, RightOp}, Exprs, _Mode) ->
+expr_prefix({op, _, LeftOp} = T, {op, _, RightOp}, InnerExprs, _Mode) ->
   LeftOpBinary = atom_to_binary(LeftOp, utf8),
   RightOpBinary = atom_to_binary(RightOp, utf8),
   ContainerOp = binary_to_atom(<<LeftOpBinary/binary, "_", RightOpBinary/binary>>, utf8),
+  Exprs = [{args, get_meta(T), InnerExprs}],
   {expand, get_meta(T), {op, get_meta(T), ContainerOp}, Exprs}.
 
 %% Build operator expressions that need the previous expression.
@@ -536,7 +537,7 @@ space_action(_,   _,             _)            -> continue.
 
 space_action_op(Op) ->
   case {op(arg, postfix, Op), op(arg, infix, Op)} of
-    {0, 0} -> space_op;
+    {{0, _}, {0, _}} -> space_op;
     _ -> continue
   end.
 
