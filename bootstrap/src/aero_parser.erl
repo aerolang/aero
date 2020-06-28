@@ -373,9 +373,9 @@ plain_op_args(Expr) -> [Expr].
 
 %% Replace explicit tuples with regular tuples and create implicit tuples.
 process_tuples({explicit_tuple, Meta, Exprs}) ->
-  {expand, Meta, {op, Meta, '(_)'}, lists:map(fun process_tuples/1, Exprs)};
+  {expand, Meta, {op, Meta, '(_)'}, [{args, Meta, lists:map(fun process_tuples/1, Exprs)}]};
 process_tuples({op_args, Meta, Exprs}) ->
-  {expand, Meta, {op, Meta, '(_)'}, lists:map(fun process_tuples/1, Exprs)};
+  {expand, Meta, {op, Meta, '(_)'}, [{args, Meta, lists:map(fun process_tuples/1, Exprs)}]};
 process_tuples({Type, Meta, Expr1, Exprs}) when is_list(Exprs) ->
   {Type, Meta, process_tuples(Expr1), lists:map(fun process_tuples/1, Exprs)};
 process_tuples({Type, Meta, Expr1, Expr2}) ->
