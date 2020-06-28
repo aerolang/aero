@@ -103,8 +103,7 @@ defmodule Aero.Kernel do
 
   @doc "For comprehension."
   defmacro _for_(left, right) do
-    {for_comp, rest} = build_comp(right, :_for_, [:_if_])
-    {if_comp, nil} = build_comp(rest, :_if_, [])
+    [for_comp, if_comp] = build_comp(right, [:_for_, :_if_])
 
     for_exprs =
       for_comp
@@ -124,22 +123,31 @@ defmodule Aero.Kernel do
     end
   end
 
-  # Build a segment of a comprehension with repeating infix macros.
-  defp build_comp(expr, macro, end_macros), do: build_comp(expr, macro, end_macros, [])
+  # Build comprehension with repeating infix macros.
+  defp build_comp(expr, macros) do
+    build_comp(expr, macros, List.duplicate([], length(macros)))
+    |> Enum.map(&Enum.reverse/1)
+  end
 
-  defp build_comp(expr, macro, end_macros, comp) do
+  defp build_comp(expr, macros, comp) do
     case aero_expand(expr) do
-      {^macro, [left, right]} ->
-        build_comp(right, macro, end_macros, [left | comp])
-      {other_macro, [left, right]} ->
-        Kernel.if other_macro in end_macros do
-          {Enum.reverse([left | comp]), right}
+      {macro, [left, right]} ->
+        Kernel.if macro in macros do
+          {_, next_macros} =
+            macros
+            |> Enum.split_while(fn m -> m !== macro end)
+          build_comp(right, next_macros, update_comp(left, -length(macros), comp))
         else
-          {Enum.reverse([expr | comp]), nil}
+          update_comp(expr, -length(macros), comp)
         end
       _ ->
-        {Enum.reverse([expr | comp]), nil}
+        update_comp(expr, -length(macros), comp)
     end
+  end
+
+  defp update_comp(expr, position, comp) do
+    comp
+    |> List.update_at(position, fn m_comp -> [expr | m_comp] end)
   end
 
   @doc "Construct a tuple."
