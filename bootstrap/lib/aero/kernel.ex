@@ -123,6 +123,53 @@ defmodule Aero.Kernel do
     end
   end
 
+  @doc "Loop macro."
+  defmacro loop(head, body) do
+    [[state_comp], for_comp, while_comp, if_comp] =
+      build_comp(head, [:_, :_for_, :_while_, :_if_])
+
+    for_exprs = loop_generators(for_comp)
+    break = loop_condition(while_comp)
+    continue = loop_condition(if_comp)
+
+    {initial, body} =
+      case loop_state(state_comp) do
+        nil ->
+          {
+            Macro.escape({}),
+            quote do
+              unquote(body)
+              {}
+            end
+          }
+        {state, initial} ->
+          {
+            initial,
+            quote do
+              unquote(state) = acc
+              unquote(body)
+            end
+          }
+      end
+
+    quote do
+      break_ref = make_ref()
+
+      try do
+        for unquote_splicing(for_exprs), reduce: unquote(initial) do
+          acc ->
+            cond do
+              unquote(break) -> throw {break_ref, acc}
+              unquote(continue) -> acc
+              true -> unquote(body)
+            end
+        end
+      catch
+        {^break_ref, acc} -> acc
+      end
+    end
+  end
+
   # Build comprehension with repeating infix macros.
   defp build_comp(expr, macros) do
     build_comp(expr, macros, List.duplicate([], length(macros)))
@@ -148,6 +195,74 @@ defmodule Aero.Kernel do
   defp update_comp(expr, position, comp) do
     comp
     |> List.update_at(position, fn m_comp -> [expr | m_comp] end)
+  end
+
+  # Loop generator is infinite when no clauses with `for` macro.
+  defp loop_generators(comp) do
+    Kernel.if Enum.empty?(comp) do
+      [quote do: _ <- Stream.cycle([nil])]
+    else
+      comp
+      |> Enum.map(fn expr ->
+        {:"_<-_", [left, right]} = aero_expand(expr)
+        quote do: unquote(left) <- unquote(right)
+      end)
+    end
+  end
+
+  defp loop_condition(comp) do
+    Kernel.if Enum.empty?(comp) do
+      false
+    else
+      clauses =
+        comp
+        |> Enum.flat_map(fn expr -> quote do: (unquote(expr) === false -> true) end)
+        |> Kernel.++(quote do: (true -> false))
+
+      quote do
+        cond do: unquote(clauses)
+      end
+    end
+  end
+
+  defp loop_state(state_comp) do
+    cond do
+      aero_ident(state_comp) === :__ -> nil
+      true -> loop_state_pattern(state_comp)
+    end
+  end
+
+  defp loop_state_pattern(pattern) do
+    case {aero_ident(pattern), aero_expand(pattern)} do
+      {ident, _} when ident !== nil ->
+        # Without a default value, shadow an existing value of the same name.
+        var = Macro.var(ident, nil)
+        {var, var}
+
+      {_, {:'_\\\\\\\\\\\\\\\\_', [left, right]}} ->
+        # \\ operator.
+        {safe_pattern(left), right}
+
+      {_, {:"(_)", [exprs]}} ->
+        args = aero_args(exprs) |> Enum.map(&loop_state_pattern/1)
+        {patterns, initials} = args |> Enum.unzip()
+        {
+          (quote do: {unquote_splicing(patterns)}),
+          (quote do: {unquote_splicing(initials)})
+        }
+    end
+  end
+
+  # A pattern which will always match with the correct type.
+  defp safe_pattern(pattern) do
+    case {aero_ident(pattern), aero_expand(pattern)} do
+      {ident, _} when ident !== nil ->
+        Macro.var(ident, nil)
+
+      {_, {:"(_)", [exprs]}} ->
+        args = aero_args(exprs) |> Enum.map(&safe_pattern/1)
+        quote do: {unquote_splicing(args)}
+    end
   end
 
   @doc "Construct a tuple."
