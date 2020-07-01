@@ -43,7 +43,7 @@ defmodule Aero.Kernel do
   end
 
   @doc "Cond expression macro."
-  defmacro cond(cases) do
+  defmacro cond_(cases) do
     ex_cases =
       aero_block(cases)
       |> Enum.flat_map(fn case_ ->

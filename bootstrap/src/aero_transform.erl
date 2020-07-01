@@ -72,7 +72,7 @@ ex_macro_call(Macro, Args) ->
   },
   {Callee, [], Args}.
 
-%% Convert idents that are keywords in Elixir.
+%% Convert idents that are keywords or special forms in Elixir.
 safe_ident(true) -> true_;
 safe_ident(false) -> false_;
 safe_ident(nil) -> nil_;
@@ -87,6 +87,26 @@ safe_ident('catch') -> catch_;
 safe_ident(rescue) -> rescue_;
 safe_ident('after') -> after_;
 safe_ident(else) -> else_;
+safe_ident('__CALLER__') -> '__CALLER___';
+safe_ident('__DIR__') -> '__DIR___';
+safe_ident('__ENV__') -> '__ENV___';
+safe_ident('__MODULE__') -> '__MODULE___';
+safe_ident('__STACKTRACE__') -> '__STACKTRACE___';
+safe_ident('__aliases__') -> '__aliases___';
+safe_ident('__block__') -> '__block___';
+safe_ident(alias) -> alias_;
+safe_ident('case') -> case_;
+safe_ident('cond') -> cond_;
+safe_ident(for) -> for_;
+safe_ident(import) -> import_;
+safe_ident(quote) -> quote_;
+safe_ident('receive') -> receive_;
+safe_ident(require) -> require_;
+safe_ident(super) -> super_;
+safe_ident('try') -> try_;
+safe_ident(unquote) -> unquote_;
+safe_ident(unquote_splicing) -> unquote_splicing_;
+safe_ident(with) -> with_;
 safe_ident('_') -> '__';
 safe_ident(Other) -> Other.
 
