@@ -289,8 +289,9 @@ expr_postfix({op, _, LeftOp} = T, {op, _, RightOp}, [LeftExpr | InnerExprs], _Mo
   {expand, get_meta(T), {op, get_meta(T), ContainerOp}, Exprs}.
 
 %% Parse expressions that need both the previous and next expressions.
-expr_infix({op, _, '->'} = T, [{expand, Meta, {op, _, '(_)'}, LeftExprs}, RightExpr], Mode)
-    when Mode =/= top ->
+expr_infix({op, _, '->'} = T,
+           [{expand, Meta, {op, _, '(_)'}, [{args, _, LeftExprs}]}, RightExpr],
+           Mode) when Mode =/= top ->
   % `->`, except at the top level, unwraps regular tuples and turns them back
   % to `op_args`. This is transformed again in the general `->` case.
   expr_infix(T, [{op_args, Meta, LeftExprs}, RightExpr], Mode);
