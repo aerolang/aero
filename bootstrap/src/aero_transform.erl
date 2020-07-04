@@ -43,6 +43,8 @@ transform({ident, _Meta, Ident}) ->
   end;
 transform({op, _Meta, Op}) ->
   safe_ident(Op);
+transform({block, _Meta, []}) ->
+  nil;
 transform({block, _Meta, Exprs}) ->
   ex_block(lists:map(fun transform/1, Exprs));
 transform({expand, _Meta, Macro, Exprs}) ->
