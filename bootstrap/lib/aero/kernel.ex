@@ -1,16 +1,69 @@
 defmodule Aero.Kernel do
   defmacro mod(name, body) do
-    name =
-      Kernel.if name === :__source__ do
-        __CALLER__.file |> Path.basename(".ex") |> String.to_atom()
+    define_mod(nil, name, body, __CALLER__)
+  end
+
+  defmacro func(head, body) do
+    define_func(nil, head, body)
+  end
+
+  defmacro proc(head, body) do
+    define_func(nil, head, body)
+  end
+
+  defmacro pub(definition) do
+    case aero_expand(definition) do
+      {:mod, [name, body]} -> define_mod(:pub, name, body, __CALLER__)
+      {:func, [head, body]} -> define_func(:pub, head, body)
+      {:proc, [head, body]} -> define_func(:pub, head, body)
+    end
+  end
+
+  defp define_mod(_vis, name, body, caller) do
+    name = aero_ident(name)
+    nested? = caller.module !== nil
+
+    full_name =
+      Kernel.if nested? do
+        :"#{caller.module}.#{name}"
       else
-        name
+        :"aero.#{name}"
       end
 
     quote do
-      defmodule unquote(name) do
+      defmodule unquote(full_name) do
         unquote(body)
       end
+    end
+  end
+
+  defp define_func(vis, head, body) do
+    {:"_->_", [head_left_args, _head_right]} = aero_expand(head)
+    [head_left] = aero_args(head_left_args)
+    {:"_(_)", [name, head_args]} = aero_expand(head_left)
+
+    ident = aero_ident(name)
+    args =
+      for arg <- aero_args(head_args) do
+        case aero_expand(arg) do
+          {:__tag__, [left, _right]} -> left
+          _ -> arg
+        end
+      end
+
+    case vis do
+      :pub ->
+        quote do
+          def unquote(ident)(unquote_splicing(args)) do
+            unquote(body)
+          end
+        end
+      _ ->
+        quote do
+          defp unquote(ident)(unquote_splicing(args)) do
+            unquote(body)
+          end
+        end
     end
   end
 
@@ -324,6 +377,56 @@ defmodule Aero.Kernel do
     # Using the Elixir context does the very unhygienic thing allowing access
     # to and setting variables in the caller's scope.
     quote context: Elixir, do: unquote(left) = unquote(right)
+  end
+
+  @doc "Create an anonymous function."
+  defmacro unquote(:"_->_")(left, right) do
+    args = aero_args(left)
+    quote do: fn unquote_splicing(args) -> unquote(right) end
+  end
+
+  @doc "Function call (for both named and anonymous functions)."
+  defmacro unquote(:"_(_)")(callee, exprs) do
+    leftmost = leftmost_callee(callee)
+    args = aero_args(exprs)
+
+    cond do
+      leftmost === nil or Macro.Env.has_var?(__CALLER__, {leftmost, __CALLER__.context}) ->
+        quote do: unquote(callee).(unquote_splicing(args))
+      true ->
+        case aero_expand(callee) do
+          {:"_._", [left, right]} ->
+            left = left_module(left)
+            right = aero_ident(right)
+            quote do: unquote(:"aero.#{left}").unquote(right)(unquote_splicing((args)))
+          _ ->
+            quote do: unquote(:"aero.#{leftmost}")(unquote_splicing(args))
+        end
+    end
+  end
+
+  defp leftmost_callee(callee) do
+    case {aero_ident(callee), aero_expand(callee)} do
+      {ident, _} when ident !== nil ->
+        ident
+      {_, {:"_._", [left, _right]}} ->
+        leftmost_callee(left)
+      _ ->
+        nil
+    end
+  end
+
+  defp left_module(callee) do
+    case {aero_ident(callee), aero_expand(callee)} do
+      {ident, _} when ident !== nil ->
+        ident
+      {_, {:"_._", [left, right]}} ->
+       :"#{left_module(left)}.#{left_module(right)}"
+    end
+  end
+
+  defmacro unquote(:"_._")(left, right) do
+    quote do: unquote(left).unquote(right)
   end
 
   @doc "Unary plus, returns the same number."

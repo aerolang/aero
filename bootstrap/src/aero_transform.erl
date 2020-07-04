@@ -10,9 +10,9 @@
 
 %% Convert the Aero AST into the Elixir AST.
 transform({source, _Meta, Exprs}) ->
-  % Source of an Aero file calls the `mod` macro. A require call to the Aero
-  % kernel implemented in Elixir is inserted at the beginning of the source and
-  % the Elixir kernel (besides the special forms) are unimported.
+  % Elixir kernel functions and macros (besides the special forms) are
+  % unimported and a require call to the Aero kernel implemented in Elixir is
+  % inserted at the beginning of the source.
   NoExKernel = {
     import,
     [{context, 'Elixir'}],
@@ -23,8 +23,7 @@ transform({source, _Meta, Exprs}) ->
     [{context, 'Elixir'}],
     [{'__aliases__', [{alias, false}], ['Aero', 'Kernel']}]
   },
-  Module = ex_macro_call(mod, ['__source__', ex_block(lists:map(fun transform/1, Exprs))]),
-  ex_block([NoExKernel, KernelReq, Module]);
+  ex_block([NoExKernel, KernelReq | lists:map(fun transform/1, Exprs)]);
 transform({integer_lit, _Meta, Integer}) ->
   Integer;
 transform({float_lit, _Meta, Float}) ->
