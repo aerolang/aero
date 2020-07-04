@@ -120,7 +120,7 @@ container(Tokens, EndToken, BP, InnerMode, OuterMode, infix) ->
   {Tokens2, InnerExpr, T} = container(Tokens, EndToken, BP, InnerMode, OuterMode, expr),
   {Tokens3, RightExpr} = expr(trim_whitespace(Tokens2), BP, OuterMode),
   % Right goes first since the container applies to it like a prefix operator.
-  {trim_whitespace(Tokens3), [RightExpr | InnerExpr], T}.
+  {Tokens3, [RightExpr, InnerExpr], T}.
 
 %% Parse an expression with precedence (binding power).
 %%
