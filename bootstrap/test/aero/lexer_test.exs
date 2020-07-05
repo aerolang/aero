@@ -46,7 +46,7 @@ defmodule Aero.LexerTest do
     ]
 
   lexer_test "newlines are tokenized after comments",
-    source: "-- comment\nt_1-- comment ",
+    source: "// comment\nt_1// comment ",
     lines: 2,
     tokens: [
       {:newline, 1},
