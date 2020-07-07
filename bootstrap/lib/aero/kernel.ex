@@ -1,4 +1,10 @@
 defmodule Aero.Kernel do
+  defmacro __source__(exprs) do
+    quote do
+      unquote_splicing(aero_args(exprs))
+    end
+  end
+
   defmacro mod(name, body) do
     define_mod(nil, name, body, __CALLER__)
   end

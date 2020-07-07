@@ -23,7 +23,8 @@ transform({source, _Meta, Exprs}) ->
     [{context, 'Elixir'}],
     [{'__aliases__', [{alias, false}], ['Aero', 'Kernel']}]
   },
-  ex_block([NoExKernel, KernelReq | lists:map(fun transform/1, Exprs)]);
+  Args = ex_macro_call('__args__', lists:map(fun transform/1, Exprs)),
+  ex_block([NoExKernel, KernelReq, ex_macro_call('__source__', [Args])]);
 transform({integer_lit, _Meta, Integer}) ->
   Integer;
 transform({float_lit, _Meta, Float}) ->
