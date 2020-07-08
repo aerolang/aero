@@ -466,12 +466,15 @@ op(top, infix,   '$')    -> {65,  right};  %                      top $
 op(tup, infix,   '$')    -> {65,  right};  %                      tuple $
 op(top, infix,   ' ')    -> {65,  right};  %                      top (space)
 op(_,   infix,   '&')    -> {60,  left};   %  60  infix    left   &
-op(_,   infix,   '|')    -> {50,  left};   %  50  infix    left   |
+op(_,   infix,   '|')    -> {55,  left};   %  55  infix    left   |
+op(con, infix,   '->')   -> {50,  right};  %  50  infix    right  con ->
+op(arg, infix,   '->')   -> {50,  right};  %                      arg ->
+op(sub, infix,   '->')   -> {50,  right};  %                      sub ->
+op(_,   infix,   ':')    -> {45,  right};  %  45  infix    right  :
 op(_,   infix,   '=')    -> {40,  right};  %  40  infix    right  =
 op(_,   infix,   '<-')   -> {40,  right};  %                      <-
 op(_,   infix,   '->')   -> {30,  right};  %  30  infix    right  ->
-op(_,   infix,   '=>')   -> {25,  right};  %  25  infix    right  =>
-op(_,   infix,   ':')    -> {20,  right};  %  20  infix    right  :
+op(_,   infix,   '=>')   -> {20,  right};  %  20  infix    right  =>
 op(_,   infix,   'if')   -> {15,  right};  %  15  infix    right  if
 op(_,   infix,   else)   -> {15,  right};  %                      else
 op(_,   infix,   for)    -> {15,  right};  %                      for
