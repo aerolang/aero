@@ -458,8 +458,10 @@ defmodule Aero.Kernel do
       leftmost === nil or Macro.Env.has_var?(__CALLER__, {leftmost, __CALLER__.context}) ->
         quote do: unquote(callee).(unquote_splicing(args))
       true ->
-        case aero_expand(callee) do
-          {:"_._", [left, right]} ->
+        case {aero_ident(callee), aero_expand(callee)} do
+          {ident, _} when ident !== nil ->
+            quote do: unquote(ident)(unquote_splicing((args)))
+          {_, {:"_._", [left, right]}} ->
             left = left_module(left)
             right = aero_ident(right)
             quote do: unquote(:"aero.#{left}").unquote(right)(unquote_splicing((args)))
