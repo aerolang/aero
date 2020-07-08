@@ -1,5 +1,7 @@
 defmodule Aero.Kernel do
   defmacro __source__(exprs) do
+    :ets.new(:aero_attrs, [:set, :private, :named_table])
+
     quote do
       unquote_splicing(aero_args(exprs))
     end
@@ -31,6 +33,18 @@ defmodule Aero.Kernel do
         define_func(:pub, head, body)
       {:const, [expr]} ->
         define_const(:pub, expr)
+    end
+  end
+
+  defmacro __attr__(args, expr) do
+    # Apply each attribute in order when they're grouped together.
+    for arg <- aero_args(args), reduce: expr do
+      expr ->
+        case {aero_ident(arg), aero_expand(arg)} do
+          {:inline, _} ->
+            :ets.insert_new(:aero_attrs, {:inline})
+            expr
+        end
     end
   end
 
@@ -66,15 +80,29 @@ defmodule Aero.Kernel do
         end
       end
 
+    maybe_inline =
+      case :ets.lookup(:aero_attrs, :inline) do
+        [{:inline}] ->
+          :ets.delete(:aero_attrs, :inline)
+          arity = length(args)
+          [quote do: @compile {:inline, [{unquote(ident), unquote(arity)}]}]
+        _ ->
+          []
+      end
+
     case vis do
       :pub ->
         quote do
+          unquote_splicing(maybe_inline)
+
           def unquote(ident)(unquote_splicing(args)) do
             unquote(body)
           end
         end
       _ ->
         quote do
+          unquote_splicing(maybe_inline)
+
           defp unquote(ident)(unquote_splicing(args)) do
             unquote(body)
           end
