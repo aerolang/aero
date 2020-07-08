@@ -17,11 +17,20 @@ defmodule Aero.Kernel do
     define_func(nil, head, body)
   end
 
+  defmacro const(expr) do
+    define_const(nil, expr)
+  end
+
   defmacro pub(definition) do
     case aero_expand(definition) do
-      {:mod, [name, body]} -> define_mod(:pub, name, body, __CALLER__)
-      {:func, [head, body]} -> define_func(:pub, head, body)
-      {:proc, [head, body]} -> define_func(:pub, head, body)
+      {:mod, [name, body]} ->
+        define_mod(:pub, name, body, __CALLER__)
+      {:func, [head, body]} ->
+        define_func(:pub, head, body)
+      {:proc, [head, body]} ->
+        define_func(:pub, head, body)
+      {:const, [expr]} ->
+        define_const(:pub, expr)
     end
   end
 
@@ -68,6 +77,27 @@ defmodule Aero.Kernel do
         quote do
           defp unquote(ident)(unquote_splicing(args)) do
             unquote(body)
+          end
+        end
+    end
+  end
+
+  defp define_const(vis, expr) do
+    {:"_=_", [left, right]} = aero_expand(expr)
+    IO.inspect aero_tag(left) |> elem(0)
+    ident = aero_tag(left) |> elem(0) |> aero_ident()
+
+    case vis do
+      :pub ->
+        quote do
+          def unquote(ident)() do
+            unquote(right)
+          end
+        end
+      _ ->
+        quote do
+          defp unquote(ident)() do
+            unquote(right)
           end
         end
     end
@@ -553,8 +583,11 @@ defmodule Aero.Kernel do
   defmacro nil_, do: []
 
   defp aero_ident(ast) do
+    # Aliases case covers idents starting with a capital letter which Elixir
+    # thinks is a module.
     case ast do
       {ident, _, context} when is_atom(context) -> ident
+      {:__aliases__, _, [ident]} when is_atom(ident) -> ident
       _ -> nil
     end
   end
@@ -576,6 +609,13 @@ defmodule Aero.Kernel do
   defp aero_args(ast) do
     case aero_expand(ast) do
       {:__args__, args} -> args
+      _ -> nil
+    end
+  end
+
+  defp aero_tag(ast) do
+    case aero_expand(ast) do
+      {:__tag__, [left, right]} -> {left, right}
       _ -> nil
     end
   end
