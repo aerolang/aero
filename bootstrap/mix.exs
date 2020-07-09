@@ -5,7 +5,7 @@ defmodule Aero.MixProject do
     [
       app: :aero_bootstrap,
       version: "0.1.0",
-      elixir: "~> 1.6",
+      elixir: "~> 1.10",
       elixirc_paths: elixirc_paths(Mix.env),
       escript: [main_module: :aero_cli],
       start_permanent: Mix.env() == :prod,
