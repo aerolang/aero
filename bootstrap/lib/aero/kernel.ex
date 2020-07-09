@@ -112,7 +112,6 @@ defmodule Aero.Kernel do
 
   defp define_const(vis, expr) do
     {:"_=_", [left, right]} = aero_expand(expr)
-    IO.inspect aero_tag(left) |> elem(0)
     ident = aero_tag(left) |> elem(0) |> aero_ident()
 
     case vis do
