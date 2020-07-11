@@ -136,6 +136,12 @@ defmodule Aero.Kernel do
     end
   end
 
+  defmacro trace(expr) do
+    quote do
+      IO.inspect(unquote(expr))
+    end
+  end
+
   @doc "If expression macro."
   defmacro if(expr, then) do
     case aero_expand(then) do
