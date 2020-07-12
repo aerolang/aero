@@ -11,9 +11,10 @@ Hopefully, this changes in the future!
 
 ## Bootstrapping
 
-The bootstrap compiler is currently being written in Elixir (and Erlang for the
-lexer and parser using `leex` and `yecc`). The bootstrap compiler converts the
-Aero AST into the Elixir AST and then evals it.
+The bootstrap compiler is currently being written in Erlang with the language
+keywords implemented in Elixir macros. The bootstrap compiler converts the
+Aero AST into the Elixir AST and uses the Elixir compiler to generate
+BEAM object code.
 
 ## License
 
