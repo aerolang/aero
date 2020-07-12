@@ -13,15 +13,17 @@ main(Args) ->
   case parse_args(Args) of
     {ok, {Options, []}} ->
       Input = proplists:get_value(input, Options),
-      Output = proplists:get_value(output, Options),
-      case {Input, Output} of
-        {undefined, _} ->
+      case Input of
+        undefined ->
           show_usage({missing_input, "Input file is required"});
-        {_, undefined} ->
-          show_usage({missing_output, "Output file is required"});
         _ ->
-          CompiledResult = aero:compile(Input),
-          write_output(Output, CompiledResult)
+          OutDir = proplists:get_value(out_dir, Options),
+          CompileOptions = [
+            {paths, proplists:get_all_values(path, Options)},
+            {package, proplists:get_value(package, Options, false)}
+          ],
+          CompileResult = aero:compile(Input, OutDir, CompileOptions),
+          write_output(CompileResult)
       end;
     {error, {Reason, Data}} ->
       show_usage({Reason, Data})
@@ -32,15 +34,9 @@ main(Args) ->
 %% -----------------------------------------------------------------------------
 
 %% Write output to file, handle errors in compiling or file writing and halt.
-write_output(Output, {ok, Compiled}) ->
-  case file:write_file(Output, Compiled) of
-    ok ->
-      ok;
-    {error, Reason} ->
-      print_error("Error writing to output file: ~p~n", [Reason]),
-      halt(1)
-  end;
-write_output(_Output, {error, _} = Error) ->
+write_output(ok) ->
+  ok;
+write_output({error, _} = Error) ->
   print_error("Compile error: ~p~n", [Error]),
   halt(1).
 
@@ -62,8 +58,10 @@ show_usage({Reason, Data}) ->
 %% Options for getopt.
 getopt_spec() ->
   [
-    {output, $o,        "output",  string, "Output Elixir file"},
-    {input,  undefined, undefined, string, "Input Aero file"}
+    {out_dir, $o, "out-dir", {string, "out"}, "Output folder"},
+    {path, $P, "add-path", string, "Prepends a path to the Erlang code path"},
+    {package, undefined, "pkg", undefined, "Compile as a package"},
+    {input, undefined, undefined, string, "Input Aero file"}
   ].
 
 print_error(Format, Data) ->
