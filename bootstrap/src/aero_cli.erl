@@ -20,7 +20,8 @@ main(Args) ->
           OutDir = proplists:get_value(out_dir, Options),
           CompileOptions = [
             {paths, proplists:get_all_values(path, Options)},
-            {package, proplists:get_value(package, Options, false)}
+            {pkg, proplists:get_value(pkg, Options, false)},
+            {root, true}
           ],
           CompileResult = aero:compile(Input, OutDir, CompileOptions),
           write_output(CompileResult)
@@ -34,7 +35,7 @@ main(Args) ->
 %% -----------------------------------------------------------------------------
 
 %% Write output to file, handle errors in compiling or file writing and halt.
-write_output(ok) ->
+write_output({ok, _}) ->
   ok;
 write_output({error, _} = Error) ->
   print_error("Compile error: ~p~n", [Error]),
@@ -60,7 +61,7 @@ getopt_spec() ->
   [
     {out_dir, $o, "out-dir", {string, "out"}, "Output folder"},
     {path, $P, "add-path", string, "Prepends a path to the Erlang code path"},
-    {package, undefined, "pkg", undefined, "Compile as a package"},
+    {pkg, undefined, "pkg", undefined, "Compile as a package"},
     {input, undefined, undefined, string, "Input Aero file"}
   ].
 

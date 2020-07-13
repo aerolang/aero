@@ -10,8 +10,9 @@
 %% Public API
 %% -----------------------------------------------------------------------------
 
--type option() :: {paths, [string()]}
-                | {package, string()}.
+-type option() :: {paths, [file:filename()]}
+                | {pkg, boolean()}
+                | {root, boolean()}.
 
 -type options() :: [option()].
 
@@ -22,7 +23,7 @@ compile(InputFile, OutDir, Options) ->
   AstResult = parse(TokensResult),
   TransformResult = transform(AstResult),
   ExFileResult = write_ex(TransformResult, InputFile, OutDir),
-  ex_compile(ExFileResult, OutDir, Options).
+  ex_compile(ExFileResult, InputFile, OutDir, Options).
 
 %% -----------------------------------------------------------------------------
 %% Helper Functions
@@ -59,17 +60,28 @@ write_ex({ok, Transformed}, InputFile, OutDir) ->
 write_ex({error, _} = Error, _, _) ->
   Error.
 
-ex_compile({ok, ExFile}, OutDir, _Options) ->
+ex_compile({ok, ExFile}, InputFile, OutDir, Options) ->
   BeamDir = filename:join([OutDir, "ebin"]),
   case filelib:ensure_dir(filename:join([BeamDir, "."])) of
     ok ->
+      case proplists:get_bool(root, Options) of
+        true ->
+          % Configure Erlang code path and compile env when the root is being
+          % compiled.
+          code:add_pathsa(proplists:get_value(paths, Options, [])),
+          aero_compile_env:configure(InputFile, OutDir, [
+            {pkg, proplists:get_bool(pkg, Options)}
+          ]);
+        false ->
+          nil
+      end,
       case 'Elixir.Kernel.ParallelCompiler':compile_to_path([list_to_binary(ExFile)],
                                                             list_to_binary(BeamDir)) of
-        {ok, _, _} -> ok;
-        {error, Errors, Warnings} -> {Errors, Warnings}
+        {ok, _, Warnings} -> {ok, Warnings};
+        {error, Errors, Warnings} -> {error, {Errors, Warnings}}
       end;
     {error, _} = Error -> Error
   end;
 
-ex_compile({error, _} = Error, _, _) ->
+ex_compile({error, _} = Error, _, _, _) ->
   Error.
