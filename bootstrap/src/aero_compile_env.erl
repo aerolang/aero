@@ -19,18 +19,23 @@ start_link() ->
 stop() ->
   gen_server:call(?MODULE, stop).
 
+%% Setup global information.
 configure(Root, OutDir, Options) ->
   gen_server:call(?MODULE, {configure, {Root, OutDir, Options}}).
 
+%% Root filename for compilation.
 root() ->
   gen_server:call(?MODULE, root).
 
+%% Output directory.
 out_dir() ->
   gen_server:call(?MODULE, out_dir).
 
+%% Current package name.
 pkg() ->
   gen_server:call(?MODULE, pkg).
 
+%% Map between available packages and their entrypoint modules.
 visible_pkgs() ->
   gen_server:call(?MODULE, visible_pkgs).
 
