@@ -18,13 +18,19 @@ main(Args) ->
           show_usage({missing_input, "Input file is required"});
         _ ->
           OutDir = proplists:get_value(out_dir, Options),
-          CompileOptions = [
-            {paths, proplists:get_all_values(path, Options)},
-            {pkg, proplists:get_value(pkg, Options, false)},
-            {root, true}
-          ],
-          CompileResult = aero:compile(Input, OutDir, CompileOptions),
-          write_output(CompileResult)
+          Pkg =
+            case proplists:get_bool(pkg, Options) of
+              true ->
+                list_to_atom(filename:basename(Input, ".aero"));
+              false ->
+                aero
+            end,
+          %% Configure global environment.
+          code:add_pathsa(proplists:get_all_values(path, Options)),
+          aero_compile_env:configure(Input, OutDir, Pkg),
+          %% Compile the root. Local modules that are dependents will be
+          %% compiled during Elixir macro expansion.
+          write_output(aero:compile(Input))
       end;
     {error, {Reason, Data}} ->
       show_usage({Reason, Data})
@@ -61,7 +67,7 @@ getopt_spec() ->
   [
     {out_dir, $o, "out-dir", {string, "out"}, "Output folder"},
     {path, $P, "add-path", string, "Prepends a path to the Erlang code path"},
-    {pkg, undefined, "pkg", undefined, "Compile as a package"},
+    {pkg, undefined, "pkg", boolean, "Compile as a package"},
     {input, undefined, undefined, string, "Input Aero file"}
   ].
 

@@ -20,8 +20,8 @@ stop() ->
   gen_server:call(?MODULE, stop).
 
 %% Setup global information.
-configure(Root, OutDir, Options) ->
-  gen_server:call(?MODULE, {configure, {Root, OutDir, Options}}).
+configure(Root, OutDir, Pkg) ->
+  gen_server:call(?MODULE, {configure, {Root, OutDir, Pkg}}).
 
 %% Root filename for compilation.
 root() ->
@@ -45,14 +45,7 @@ init(_Args) ->
   Table = ets:new(?MODULE, [set, private]),
   {ok, #state{table = Table}}.
 
-handle_call({configure, {Root, OutDir, Options}}, _From, State) ->
-  Pkg =
-    case proplists:get_bool(pkg, Options) of
-      true ->
-        list_to_binary(filename:basename(Root, ".aero"));
-      false ->
-        <<"aero">>
-    end,
+handle_call({configure, {Root, OutDir, Pkg}}, _From, State) ->
   true = ets:insert(State#state.table, [
     {root, Root},
     {out_dir, OutDir},
@@ -138,11 +131,11 @@ visible_pkg(CurrPkg, Module) ->
   % A module is visible when it's in the form x-y@1.2.3#x_y or x-y#x_y.
   case string:split(Module, "#") of
     [Left, Right] ->
-      case {string:split(Left, "@"), string:replace(Right, "-", "_")} of
-        {[Name | Tail], [Name]} when length(Name) > 0, Name =/= CurrPkg, length(Tail) < 2 ->
+      case {string:split(Left, "@"), string:replace(Right, "-", "_"), atom_to_list(CurrPkg)} of
+        {[Name | Tail], [Name], CurrName} when length(Name) > 0, Name =/= CurrName,
+                                               length(Tail) < 2 ->
           {list_to_atom(Name), list_to_atom(Module)};
-        Other ->
-          'Elixir.IO':inspect(Other),
+        _ ->
           nil
       end;
     _ ->

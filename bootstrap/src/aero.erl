@@ -2,28 +2,19 @@
 
 -module(aero).
 
--export([compile/3]).
-
--export_type([options/0]).
+-export([compile/1]).
 
 %% -----------------------------------------------------------------------------
 %% Public API
 %% -----------------------------------------------------------------------------
 
--type option() :: {paths, [file:filename()]}
-                | {pkg, boolean()}
-                | {root, boolean()}.
-
--type options() :: [option()].
-
--spec compile(file:filename(), file:filename(), options()) -> ok.
-compile(InputFile, OutDir, Options) ->
+compile(InputFile) ->
   InputResult = file:read_file(InputFile),
   TokensResult = tokenize(InputResult),
   AstResult = parse(TokensResult),
   TransformResult = transform(AstResult),
-  ExFileResult = write_ex(TransformResult, InputFile, OutDir),
-  ex_compile(ExFileResult, InputFile, OutDir, Options).
+  ExFileResult = write_ex(TransformResult, InputFile),
+  ex_compile(ExFileResult).
 
 %% -----------------------------------------------------------------------------
 %% Helper Functions
@@ -45,8 +36,9 @@ parse({error, _} = Error) -> Error.
 transform({ok, Ast}) -> {ok, aero_transform:transform(Ast)};
 transform({error, _} = Error) -> Error.
 
-write_ex({ok, Transformed}, InputFile, OutDir) ->
-  ExFile = filename:join([OutDir, "ex", filename:basename(InputFile, ".aero") ++ ".ex"]),
+write_ex({ok, Transformed}, InputFile) ->
+  ExDir = filename:join([aero_compile_env:out_dir(), "ex"]),
+  ExFile = filename:join([ExDir, filename:basename(InputFile, ".aero") ++ ".ex"]),
   ExSource = 'Elixir.Macro':to_string(Transformed),
   Formatted = 'Elixir.Code':'format_string!'(ExSource),
   case filelib:ensure_dir(ExFile) of
@@ -57,24 +49,13 @@ write_ex({ok, Transformed}, InputFile, OutDir) ->
       end;
     {error, _} = Error -> Error
   end;
-write_ex({error, _} = Error, _, _) ->
+write_ex({error, _} = Error, _) ->
   Error.
 
-ex_compile({ok, ExFile}, InputFile, OutDir, Options) ->
-  BeamDir = filename:join([OutDir, "ebin"]),
+ex_compile({ok, ExFile}) ->
+  BeamDir = filename:join([aero_compile_env:out_dir(), "ebin"]),
   case filelib:ensure_dir(filename:join([BeamDir, "."])) of
     ok ->
-      case proplists:get_bool(root, Options) of
-        true ->
-          % Configure Erlang code path and compile env when the root is being
-          % compiled.
-          code:add_pathsa(proplists:get_value(paths, Options, [])),
-          aero_compile_env:configure(InputFile, OutDir, [
-            {pkg, proplists:get_bool(pkg, Options)}
-          ]);
-        false ->
-          nil
-      end,
       case 'Elixir.Kernel.ParallelCompiler':compile_to_path([list_to_binary(ExFile)],
                                                             list_to_binary(BeamDir)) of
         {ok, _, Warnings} -> {ok, Warnings};
@@ -83,5 +64,5 @@ ex_compile({ok, ExFile}, InputFile, OutDir, Options) ->
     {error, _} = Error -> Error
   end;
 
-ex_compile({error, _} = Error, _, _, _) ->
+ex_compile({error, _} = Error) ->
   Error.
