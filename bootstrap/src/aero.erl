@@ -37,8 +37,7 @@ transform({ok, Ast}) -> {ok, aero_transform:transform(Ast)};
 transform({error, _} = Error) -> Error.
 
 write_ex({ok, Transformed}, InputFile) ->
-  ExDir = filename:join([aero_compile_env:out_dir(), "ex"]),
-  ExFile = filename:join([ExDir, filename:basename(InputFile, ".aero") ++ ".ex"]),
+  ExFile = ex_filename(InputFile),
   ExSource = 'Elixir.Macro':to_string(Transformed),
   Formatted = 'Elixir.Code':'format_string!'(ExSource),
   case filelib:ensure_dir(ExFile) of
@@ -51,6 +50,27 @@ write_ex({ok, Transformed}, InputFile) ->
   end;
 write_ex({error, _} = Error, _) ->
   Error.
+
+%% Get Elixir filename, the output file keeps the directory structure next to
+%% the root file.
+ex_filename(InputFile) ->
+  RootDirAbs = filename:absname(filename:dirname(aero_compile_env:root())),
+  InputFileAbs = filename:absname(InputFile),
+  RelInputFile = filename:flatten(
+    remainder_filename(filename:split(RootDirAbs),
+    filename:split(InputFileAbs))
+  ),
+  filename:join([
+    aero_compile_env:out_dir(),
+    "ex",
+    filename:rootname(RelInputFile, ".aero") ++ ".ex"
+  ]).
+
+%% Return tail part of input filename which doesn't match the root directory.
+remainder_filename([Head | RootDirTail], [Head | InputFileTail]) ->
+  remainder_filename(RootDirTail, InputFileTail);
+remainder_filename(_, InputFile) ->
+  InputFile.
 
 ex_compile({ok, ExFile}) ->
   BeamDir = filename:join([aero_compile_env:out_dir(), "ebin"]),
