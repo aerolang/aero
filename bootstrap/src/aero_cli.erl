@@ -9,7 +9,7 @@
 %% -----------------------------------------------------------------------------
 
 %% Entrypoint.
-main(Args) ->
+main([<<"compile">> | Args]) ->
   case parse_args(Args) of
     {ok, {Options, []}} ->
       Input = proplists:get_value(input, Options),
@@ -34,7 +34,9 @@ main(Args) ->
       end;
     {error, {Reason, Data}} ->
       show_usage({Reason, Data})
-  end.
+  end;
+main(_) ->
+  show_usage().
 
 %% -----------------------------------------------------------------------------
 %% Helper Functions
@@ -54,7 +56,7 @@ parse_args(Args) ->
 
 %% Display how to use command-line interface and terminate.
 show_usage() ->
-  getopt:usage(getopt_spec(), "aero_bootstrap"),
+  getopt:usage(getopt_spec(), "aero_bootstrap compile"),
   halt(1).
 
 %% Display usage with error message.
