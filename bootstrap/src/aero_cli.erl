@@ -21,7 +21,7 @@ main([<<"compile">> | Args]) ->
           Pkg =
             case proplists:get_bool(pkg, Options) of
               true ->
-                list_to_atom(filename:basename(Input, ".aero"));
+                binary_to_atom(filename:basename(Input, <<".aero">>), utf8);
               false ->
                 aero
             end,
@@ -67,10 +67,10 @@ show_usage({Reason, Data}) ->
 %% Options for getopt.
 getopt_spec() ->
   [
-    {out_dir, $o, "out-dir", {string, "out"}, "Output folder"},
-    {path, $P, "add-path", string, "Prepends a path to the Erlang code path"},
+    {out_dir, $o, "out-dir", {binary, <<"out">>}, "Output folder"},
+    {path, $P, "add-path", binary, "Prepends a path to the Erlang code path"},
     {pkg, undefined, "pkg", boolean, "Compile as a package"},
-    {input, undefined, undefined, string, "Input Aero file"}
+    {input, undefined, undefined, binary, "Input Aero file"}
   ].
 
 print_error(Format, Data) ->

@@ -62,8 +62,8 @@ ex_filename(InputFile) ->
   ),
   filename:join([
     aero_compile_env:out_dir(),
-    "ex",
-    filename:rootname(RelInputFile, ".aero") ++ ".ex"
+    <<"ex">>,
+    iolist_to_binary([filename:rootname(RelInputFile, <<".aero">>), <<".ex">>])
   ]).
 
 %% Return tail part of input filename which doesn't match the root directory.
@@ -73,11 +73,10 @@ remainder_filename(_, InputFile) ->
   InputFile.
 
 ex_compile({ok, ExFile}) ->
-  BeamDir = filename:join([aero_compile_env:out_dir(), "ebin"]),
-  case filelib:ensure_dir(filename:join([BeamDir, "."])) of
+  BeamDir = filename:join([aero_compile_env:out_dir(), <<"ebin">>]),
+  case filelib:ensure_dir(filename:join([BeamDir, <<".">>])) of
     ok ->
-      case 'Elixir.Kernel.ParallelCompiler':compile_to_path([list_to_binary(ExFile)],
-                                                            list_to_binary(BeamDir)) of
+      case 'Elixir.Kernel.ParallelCompiler':compile_to_path([ExFile], BeamDir) of
         {ok, _, Warnings} -> {ok, Warnings};
         {error, Errors, Warnings} -> {error, {Errors, Warnings}}
       end;

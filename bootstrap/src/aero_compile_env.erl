@@ -103,7 +103,7 @@ visible_pkgs(CurrPkg, [], Acc) ->
   % Packages not in the path, but loaded into Erlang already.
   Loaded =
     lists:filtermap(fun({Module, _}) ->
-      case visible_pkg(CurrPkg, atom_to_list(Module)) of
+      case visible_pkg(CurrPkg, atom_to_binary(Module, utf8)) of
         nil ->
           false;
         Pkg ->
@@ -113,8 +113,8 @@ visible_pkgs(CurrPkg, [], Acc) ->
   lists:umerge(lists:usort(Loaded), lists:usort(Acc)).
 
 visible_pkgs(CurrPkg, Path, [File | Tail], Acc) ->
-  case {filename:extension(File), filename:basename(File, ".beam")} of
-    {".beam", Module} ->
+  case {filename:extension(File), filename:basename(File, <<".beam">>)} of
+    {<<".beam">>, Module} ->
       case visible_pkg(CurrPkg, Module) of
         nil ->
           visible_pkgs(CurrPkg, Path, Tail, Acc);
@@ -134,7 +134,7 @@ visible_pkg(CurrPkg, Module) ->
       case {string:split(Left, "@"), string:replace(Right, "-", "_"), atom_to_list(CurrPkg)} of
         {[Name | Tail], [Name], CurrName} when length(Name) > 0, Name =/= CurrName,
                                                length(Tail) < 2 ->
-          {list_to_atom(Name), list_to_atom(Module)};
+          {binary_to_atom(Name, utf8), binary_to_atom(Module, utf8)};
         _ ->
           nil
       end;
