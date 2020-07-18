@@ -7,6 +7,17 @@ defmodule Aero.Kernel do
     end
   end
 
+  defmacro __block___(exprs) do
+    case length(exprs) do
+      0 ->
+        nil
+      _ ->
+        quote do
+          unquote_splicing(exprs)
+        end
+    end
+  end
+
   defmacro mod(name, body) do
     define_mod(nil, name, body, __CALLER__)
   end
@@ -166,8 +177,10 @@ defmodule Aero.Kernel do
 
   @doc "Cond expression macro."
   defmacro cond_(cases) do
+    {:__block___, [block_exprs]} = aero_expand(cases)
+
     ex_cases =
-      aero_block(cases)
+      block_exprs
       |> Enum.flat_map(fn case_ ->
         {:"_->_", [left, right]} = aero_expand(case_)
         [left_arg] = aero_args(left)
@@ -187,8 +200,10 @@ defmodule Aero.Kernel do
 
   @doc "Match expression macro."
   defmacro match(expr, cases) do
+    {:__block___, [block_exprs]} = aero_expand(cases)
+
     ex_cases =
-      aero_block(cases)
+      block_exprs
       |> Enum.flat_map(fn case_ ->
         {:"_->_", [left, right]} = aero_expand(case_)
 
@@ -624,13 +639,6 @@ defmodule Aero.Kernel do
       {ident, _, context} when is_atom(context) -> ident
       {:__aliases__, _, [ident]} when is_atom(ident) -> ident
       _ -> nil
-    end
-  end
-
-  defp aero_block(ast) do
-    case ast do
-      {:__block__, _, exprs} -> exprs
-      other -> [other]
     end
   end
 
