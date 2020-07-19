@@ -42,11 +42,21 @@ visible_pkgs() ->
 
 %% Localize path to a file from the root directory.
 local_path(Filename) ->
-  case root() of
-    nil ->
-      Filename;
-    Root ->
-      remainder_filename(Filename, filename:dirname(Root))
+  case filename:extension(Filename) of
+    <<".aero">> ->
+      case root() of
+        nil ->
+          nil;
+        Root ->
+          remainder_filename(Filename, filename:dirname(Root))
+      end;
+    <<".ex">> ->
+      case out_dir() of
+        nil ->
+          nil;
+        OutDir ->
+          remainder_filename(Filename, filename:join(OutDir, "ex"))
+      end
   end.
 
 %% gen_server callbacks.
@@ -154,7 +164,7 @@ visible_pkg(CurrPkg, Module) ->
 
 %% Return part of input filename which doesn't match the root directory.
 remainder_filename(Filename, RootDir) ->
-  filename:flatten(
+  filename:join(
     remainder_filename_split(
       filename:split(filename:absname(Filename)),
       filename:split(filename:absname(RootDir))

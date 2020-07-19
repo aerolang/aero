@@ -58,7 +58,7 @@ ex_filename(InputFile) ->
   filename:join([
     aero_compile_env:out_dir(),
     <<"ex">>,
-    iolist_to_binary([filename:rootname(RelInputFile, <<".aero">>), <<".ex">>])
+    filename:flatten([filename:rootname(RelInputFile, <<".aero">>), <<".ex">>])
   ]).
 
 ex_compile({ok, ExFile}) ->
