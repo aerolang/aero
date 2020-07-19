@@ -54,23 +54,12 @@ write_ex({error, _} = Error, _) ->
 %% Get Elixir filename, the output file keeps the directory structure next to
 %% the root file.
 ex_filename(InputFile) ->
-  RootDirAbs = filename:absname(filename:dirname(aero_compile_env:root())),
-  InputFileAbs = filename:absname(InputFile),
-  RelInputFile = filename:flatten(
-    remainder_filename(filename:split(RootDirAbs),
-    filename:split(InputFileAbs))
-  ),
+  RelInputFile = aero_compile_env:local_path(InputFile),
   filename:join([
     aero_compile_env:out_dir(),
     <<"ex">>,
     iolist_to_binary([filename:rootname(RelInputFile, <<".aero">>), <<".ex">>])
   ]).
-
-%% Return tail part of input filename which doesn't match the root directory.
-remainder_filename([Head | RootDirTail], [Head | InputFileTail]) ->
-  remainder_filename(RootDirTail, InputFileTail);
-remainder_filename(_, InputFile) ->
-  InputFile.
 
 ex_compile({ok, ExFile}) ->
   BeamDir = filename:join([aero_compile_env:out_dir(), <<"ebin">>]),
