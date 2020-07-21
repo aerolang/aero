@@ -59,7 +59,7 @@ defmodule Aero.Kernel do
     end
   end
 
-  defp define_mod(_vis, name, body, caller) do
+  defp define_mod(vis, name, body, caller) do
     name = aero_ident(name)
     pkg = :aero_compile_env.pkg()
     path =
