@@ -61,16 +61,38 @@ defmodule Aero.Kernel do
 
   defp define_mod(_vis, name, body, caller) do
     name = aero_ident(name)
-    nested? = caller.module !== nil
+    pkg = :aero_compile_env.pkg()
+    path =
+      :aero_compile_env.local_path(caller.file)
+      |> Path.rootname(".ex")
+      |> String.split()
+      |> Enum.join(".")
 
     full_name =
-      Kernel.if nested? do
-        :"#{caller.module}.#{name}"
-      else
-        :"aero.#{name}"
+      cond do
+        caller.module !== nil ->
+          parent =
+            case Atom.to_string(caller.module) |> String.split("#") |> Enum.at(2) do
+              nil -> Path.basename(caller.file, ".ex")
+              parent -> parent
+            end
+          :"#{pkg}##{path}##{parent}.#{name}"
+
+        vis !== :pub ->
+          :"#{pkg}##{path}##{name}"
+
+        Atom.to_string(name) === Path.basename(caller.file, ".ex") ->
+          :"#{pkg}##{path}"
+
+        true ->
+          raise "Public module '#{name}' at top level must match filename."
       end
 
+    alias_name = :"#{full_name}|.#{name}"
+
     quote do
+      alias unquote(alias_name)
+
       defmodule unquote(full_name) do
         unquote(body)
       end
@@ -477,16 +499,17 @@ defmodule Aero.Kernel do
     cond do
       leftmost === nil or Macro.Env.has_var?(__CALLER__, {leftmost, __CALLER__.context}) ->
         quote do: unquote(callee).(unquote_splicing(args))
+
       true ->
         case {aero_ident(callee), aero_expand(callee)} do
           {ident, _} when ident !== nil ->
             quote do: unquote(ident)(unquote_splicing((args)))
+
           {_, {:"_._", [left, right]}} ->
-            left = left_module(left)
+            left = left_module(left, __CALLER__)
             right = aero_ident(right)
-            quote do: unquote(:"aero.#{left}").unquote(right)(unquote_splicing((args)))
-          _ ->
-            quote do: unquote(:"aero.#{leftmost}")(unquote_splicing(args))
+
+            quote do: unquote(:"#{left}").unquote(right)(unquote_splicing((args)))
         end
     end
   end
@@ -502,12 +525,20 @@ defmodule Aero.Kernel do
     end
   end
 
-  defp left_module(callee) do
+  defp left_module(callee, caller) do
     case {aero_ident(callee), aero_expand(callee)} do
       {ident, _} when ident !== nil ->
-        ident
-      {_, {:"_._", [left, right]}} ->
-       :"#{left_module(left)}.#{left_module(right)}"
+        case caller.aliases |> Keyword.get(:"Elixir.#{ident}") do
+          nil ->
+            throw "Unknown module #{ident}."
+
+          aliased ->
+            aliased
+            |> Atom.to_string()
+            |> String.split("|")
+            |> Enum.at(0)
+            |> String.to_atom()
+        end
     end
   end
 
