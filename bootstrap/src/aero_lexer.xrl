@@ -39,6 +39,7 @@ for          : {token, {op, TokenLine, for}}.
 while        : {token, {op, TokenLine, while}}.
 
 %% Identifiers.
+_            : {token, {blank, TokenLine}}.
 {IDENT}      : ident_token(TokenChars, TokenLine).
 '{IDENT}     : type_param_token(TokenChars, TokenLine).
 
