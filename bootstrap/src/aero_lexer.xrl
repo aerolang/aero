@@ -40,8 +40,7 @@ while        : {token, {op, TokenLine, while}}.
 
 %% Identifiers.
 {IDENT}      : ident_token(TokenChars, TokenLine).
-'{IDENT}     : ident_token(TokenChars, TokenLine).
-{IDENT}'     : ident_token(TokenChars, TokenLine).
+'{IDENT}     : type_param_token(TokenChars, TokenLine).
 
 %% Whitespace.
 {SPACE}      : {token, {space, TokenLine}}.
@@ -155,6 +154,10 @@ quoted_atom_token(Chars, Line) ->
 ident_token(Chars, Line) ->
   Ident = to_atom(Chars),
   {token, {ident, Line, Ident}}.
+
+type_param_token(Chars, Line) ->
+  TypeParam = to_atom(Chars, 1, 0),
+  {token, {type_param, Line, TypeParam}}.
 
 string_token(Chars, Line) ->
   String = list_to_binary(lists:sublist(Chars, 2, length(Chars) - 2)),

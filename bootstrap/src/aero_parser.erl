@@ -19,6 +19,7 @@
               | {atom_lit, meta(), atom()}
               | {string_lit, meta(), binary()}
               | {ident, meta(), atom()}
+              | {type_param, meta(), atom()}
               | {op, meta(), atom()}
               | {block, meta(), [expr()]}
               | {expand, meta(), expr(), [expr()]}
@@ -233,6 +234,8 @@ expr_postfix_infix([T | _], _LeftExpr, _MinBP, _Mode) ->
 %% Simple, one token expressions.
 expr_single({ident, _, Ident} = T, _Mode) ->
   {ident, get_meta(T), Ident};
+expr_single({type_param, _, TypeParam} = T, _Mode) ->
+  {type_param, get_meta(T), TypeParam};
 expr_single({atom_lit, _, Atom} = T, _Mode) ->
   {atom_lit, get_meta(T), Atom};
 expr_single({string_lit, _, String} = T, _Mode) ->
