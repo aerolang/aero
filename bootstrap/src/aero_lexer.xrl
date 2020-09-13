@@ -33,9 +33,6 @@ Rules.
 {STRING}     : string_token(TokenChars, TokenLine).
 
 %% Identifier-like operators.
-in           : {token, {op, TokenLine, in}}.
-!in          : {token, {op, TokenLine, '!in'}}.
-as           : {token, {op, TokenLine, as}}.
 if           : {token, {op, TokenLine, 'if'}}.
 else         : {token, {op, TokenLine, else}}.
 for          : {token, {op, TokenLine, for}}.

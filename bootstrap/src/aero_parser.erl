@@ -428,7 +428,6 @@ op(_,   prefix,  '...')  -> {220, right};  %                      ...
 op(_,   prefix,  '...<') -> {220, right};  %                      ...<
 op(_,   infix,   '..')   -> {210, none};   % 210  prefix   none   ..
 op(_,   infix,   '..<')  -> {210, none};   %                      ..<
-op(_,   infix,   as)     -> {200, left};   % 200  infix    left   as
 op(_,   infix,   '*')    -> {190, left};   % 190  infix    left   *
 op(_,   infix,   '/')    -> {190, left};   %                      /
 op(_,   infix,   '%')    -> {190, left};   %                      %
@@ -444,8 +443,6 @@ op(_,   infix,   '\\\\') -> {130, left};   % 130  infix    left   \\
 op(_,   infix,   '??')   -> {130, left};   %                      ??
 op(_,   infix,   '!!')   -> {130, left};   %                      !!
 op(_,   infix,   '++')   -> {120, left};   % 120  infix    left   ++
-op(_,   infix,   in)     -> {110, none};   % 110  infix    none   in
-op(_,   infix,   '!in')  -> {110, none};   %                      !in
 op(_,   infix,   '==')   -> {100, left};   % 100  infix    left   ==
 op(_,   infix,   '!=')   -> {100, left};   %                      !=
 op(_,   infix,   '<')    -> {100, left};   %                      <
@@ -589,13 +586,9 @@ get_meta({_, Meta, _}) when is_list(Meta) -> Meta;
 get_meta({_, Meta}) when is_list(Meta) -> Meta.
 
 %% Convert operators to tokens if possible.
-op_to_tokens({op, Meta, Op}) when Op =:= in; Op =:= as; Op =:= 'if'; Op =:= else; Op =:= for;
-                                  Op =:= while ->
+op_to_tokens({op, Meta, Op}) when Op =:= 'if'; Op =:= else; Op =:= for; Op =:= while ->
   % These infix operators are converted to idents when used in a prefix way.
   [{ident, Meta, Op}];
-op_to_tokens({op, Meta, '!in'}) ->
-  % `!in` is special since it looks like a negated `in`.
-  [{op, Meta, '!'}, {ident, Meta, in}];
 op_to_tokens(_T) ->
   nil.
 
