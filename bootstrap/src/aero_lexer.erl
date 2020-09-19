@@ -132,6 +132,8 @@ integer_token(Rest, Pos, Source, Base, Prefix) ->
   Length = length(Source) + length(Prefix),
   NewPos = shift(Pos, Length, 0, Length),
   case drop_underscores(Source) of
+    [] when Rest =:= [] ->
+      {error, {unexpected_eof, Pos}};
     Filtered when Filtered =:= []; ?is_ident_start(hd(Rest)) ->
       % No numbers after underscore, unexpected alpha, or number out of range.
       {error, {unexpected_char, unicode:characters_to_binary([hd(Rest)]), NewPos}};
@@ -145,6 +147,8 @@ float_token([$. | Cont], Pos, IntSource) ->
   NewPos = shift(Pos, Length, 0, Length),
 
   case drop_underscores(FractSource) of
+    [] when Rest =:= [] ->
+      {error, {unexpected_eof, Pos}};
     FractFiltered when FractFiltered =:= []; ?is_ident_start(hd(Rest)), hd(Rest) =/= $e ->
       % No numbers after underscore, unexpected alpha, or number out of range.
       {error, {unexpected_char, unicode:characters_to_binary([hd(Rest)]), NewPos}};
@@ -173,6 +177,8 @@ float_token(Rest, Pos, IntSource, FractSource, SignSource) ->
   NewPos = shift(Pos, Length, 0, Length),
 
   case drop_underscores(ExpSource) of
+    [] when Rest =:= [] ->
+      {error, {unexpected_eof, Pos}};
     ExpFiltered when ExpFiltered =:= []; ?is_ident_start(hd(Rest2)) ->
       % No numbers after underscore, unexpected alpha, or number out of range.
       {error, {unexpected_char, unicode:characters_to_binary([hd(Rest2)]), NewPos}};
