@@ -32,7 +32,7 @@
 -type meta() :: [term()].
 
 %% Parse tokens into the Aero AST.
--spec parse(binary()) -> {ok, expr()} | {error, term(), integer()}.
+-spec parse([aero_lexer:token()]) -> {ok, expr()} | {error, term(), integer()}.
 parse([]) ->
   {error, no_tokens, ?LINE};
 parse(Tokens) ->
@@ -73,9 +73,9 @@ group(Tokens, EndToken, Mode, Exprs) ->
   ExprEnded =
     case {Tokens2, EndToken} of
       {[{Type, _, End} | _], {Type, End}} -> true;
-      {[{End, _} | _], End} -> true;
-      {[{newline, _} | _], _} -> true;
-      _ -> false
+      {[{End, _} | _], End}               -> true;
+      {[{newline, _} | _], _}             -> true;
+      _                                   -> false
     end,
   case ExprEnded of
     true ->
@@ -115,7 +115,7 @@ container(Tokens, EndToken, BP, InnerMode, OuterMode, exprs) ->
       {Tokens3, Exprs, T} = container(Tokens2, EndToken, BP, InnerMode, OuterMode, expr),
       case Exprs of
         [{op_args, _, InnerExprs}] -> {Tokens3, InnerExprs, T};
-        _ -> {Tokens3, Exprs, T}
+        _                          -> {Tokens3, Exprs, T}
       end
   end;
 container(Tokens, EndToken, BP, InnerMode, OuterMode, infix) ->
@@ -227,7 +227,7 @@ expr_postfix_infix([{space, Meta} | Tail] = Tokens, LeftExpr, MinBP, Mode) ->
   case space_action(Mode, LeftExpr, hd(Tail)) of
     space_op -> expr_postfix_infix([{op, Meta, ' '} | Tail], LeftExpr, MinBP, Mode);
     continue -> expr_postfix_infix(Tail, LeftExpr, MinBP, Mode);
-    break -> {Tokens, LeftExpr}
+    break    -> {Tokens, LeftExpr}
   end;
 expr_postfix_infix([T | _], _LeftExpr, _MinBP, _Mode) ->
   throw({parse_error, {unexpected_token, T}, ?LINE}).
@@ -372,11 +372,11 @@ macro_args(LeftExpr, RightExpr) ->
   {expand_args, get_meta(LeftExpr), [LeftExpr, RightExpr]}.
 
 %% Turn op args or a single item into a plain list.
-plain_op_args({op_args, _, Exprs}) -> Exprs;
+plain_op_args({op_args, _, Exprs})   -> Exprs;
 plain_op_args([{op_args, _, Exprs}]) -> Exprs;
-plain_op_args([]) -> [];
-plain_op_args([Expr]) -> [Expr];
-plain_op_args(Expr) -> [Expr].
+plain_op_args([])                    -> [];
+plain_op_args([Expr])                -> [Expr];
+plain_op_args(Expr)                  -> [Expr].
 
 %% Replace explicit tuples with regular tuples and create implicit tuples.
 process_tuples({explicit_tuple, Meta, Exprs}) ->
@@ -574,22 +574,24 @@ container_op(postfix, _)     -> nil.
 %% -----------------------------------------------------------------------------
 
 %% Throw an error if a token is not found, otherwise, pop the token off.
-expect([{Type, _, Expected} = T | Tail], {Type, Expected}) -> {Tail, T};
-expect([{Expected, _, _} = T | Tail], Expected) -> {Tail, T};
-expect([{Expected, _} = T | Tail], Expected) -> {Tail, T};
-expect([Found | _], Expected) -> throw({parse_error, {expected_token, Expected, Found}, ?LINE}).
+expect([{Type, _, Expected} = T | Tail], {Type, Expected}) ->
+  {Tail, T};
+expect([{Expected, _, _} = T | Tail], Expected) ->
+  {Tail, T};
+expect([{Expected, _} = T | Tail], Expected) ->
+  {Tail, T};
+expect([Found | _], Expected) ->
+  throw({parse_error, {expected_token, Expected, Found}, ?LINE}).
 
 %% Pop off whitespace tokens if they come up.
 trim_whitespace([{newline, _} | Tail]) -> trim_whitespace(Tail);
-trim_whitespace([{space, _} | Tail]) -> trim_whitespace(Tail);
-trim_whitespace(Tokens) -> Tokens.
+trim_whitespace([{space, _} | Tail])   -> trim_whitespace(Tail);
+trim_whitespace(Tokens)                -> Tokens.
 
 %% Get a token's or expression's line number and put it in metadata.
-get_meta({_, Line, _}) when is_integer(Line) -> [{line, Line}];
-get_meta({_, Line}) when is_integer(Line) -> [{line, Line}];
-get_meta({_, Meta, _, _}) when is_list(Meta) -> Meta;
-get_meta({_, Meta, _}) when is_list(Meta) -> Meta;
-get_meta({_, Meta}) when is_list(Meta) -> Meta.
+get_meta({_, Meta, _, _}) -> [proplists:lookup(line, Meta)];
+get_meta({_, Meta, _})    -> [proplists:lookup(line, Meta)];
+get_meta({_, Meta})       -> [proplists:lookup(line, Meta)].
 
 %% Convert operators to tokens if possible.
 op_to_tokens({op, Meta, Op}) when Op =:= 'if'; Op =:= else; Op =:= for; Op =:= while ->

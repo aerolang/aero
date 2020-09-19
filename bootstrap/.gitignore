@@ -8,8 +8,5 @@ erl_crash.dump
 *.ez
 *.beam
 
-# Leex output.
-/src/aero_lexer.erl
-
 # Output
 /aero_bootstrap
