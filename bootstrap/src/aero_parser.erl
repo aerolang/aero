@@ -51,8 +51,9 @@ format_parse_error(Reason) -> format_error(Reason).
 
 %% Continuously parse expressions in the source until EOF.
 source(Tokens) ->
-  {[{eof, _}], Exprs} = group(Tokens, eof, top),
-  process_tuples({source, [], Exprs}).
+  {[{eof, EofMeta}], Exprs} = group(Tokens, eof, top),
+  Meta = merge_meta([get_meta(hd(Tokens)), EofMeta]),
+  process_tuples({source, Meta, Exprs}).
 
 %% Parse newline-separated expressions until an end token.
 group(Tokens, EndToken, Mode) ->
@@ -233,66 +234,85 @@ expr_postfix_infix([T | _], _LeftExpr, _MinBP, _Mode) ->
   throw({parse_error, {unexpected_token, T}, ?LINE}).
 
 %% Simple, one token expressions.
-expr_single({ident, _, Ident} = T, _Mode) ->
-  {ident, get_meta(T), Ident};
-expr_single({type_param, _, TypeParam} = T, _Mode) ->
-  {type_param, get_meta(T), TypeParam};
-expr_single({blank, _} = T, _Mode) ->
-  {blank, get_meta(T)};
-expr_single({atom_lit, _, Atom} = T, _Mode) ->
-  {atom_lit, get_meta(T), Atom};
-expr_single({string_lit, _, String} = T, _Mode) ->
-  {string_lit, get_meta(T), String};
-expr_single({integer_lit, _, Integer} = T, _Mode) ->
-  {integer_lit, get_meta(T), Integer};
-expr_single({float_lit, _, Float} = T, _Mode) ->
-  {float_lit, get_meta(T), Float}.
+expr_single({ident, Meta, Ident}, _Mode) ->
+  {ident, Meta, Ident};
+expr_single({type_param, Meta, TypeParam}, _Mode) ->
+  {type_param, Meta, TypeParam};
+expr_single({blank, Meta}, _Mode) ->
+  {blank, Meta};
+expr_single({atom_lit, Meta, Atom}, _Mode) ->
+  {atom_lit, Meta, Atom};
+expr_single({string_lit, Meta, String}, _Mode) ->
+  {string_lit, Meta, String};
+expr_single({integer_lit, Meta, Integer}, _Mode) ->
+  {integer_lit, Meta, Integer};
+expr_single({float_lit, Meta, Float}, _Mode) ->
+  {float_lit, Meta, Float}.
 
 %% Build operator expressions that don't require the previous expression.
-expr_prefix({op, _, Op} = T, Exprs, _Mode) ->
+expr_prefix({op, OpMeta, Op}, Exprs, _Mode) ->
   % Normal prefix operator case.
   % To distinguish a prefix operator, an underscore is appended.
   OpBinary = atom_to_binary(Op, utf8),
   PrefixOp = binary_to_atom(<<OpBinary/binary, "_">>, utf8),
-  {expand, get_meta(T), {op, get_meta(T), PrefixOp}, Exprs}.
+  Meta = merge_meta([OpMeta | get_meta(Exprs)]),
+  {expand, Meta, {op, OpMeta, PrefixOp}, Exprs}.
 
-expr_prefix({op, _, '('} = T, {op, _, ')'}, [{expand, _, {op, _, '(_)'}, InnerExprs}], _Mode) ->
+expr_prefix({op, LeftMeta, '('},
+            {op, RightMeta, ')'},
+            [{expand, _, {op, _, '(_)'}, InnerExprs}],
+            _Mode) ->
   % Prevents unwrapping on the left side of `->`.
-  {explicit_tuple, get_meta(T), InnerExprs};
+  Meta = merge_meta([LeftMeta, RightMeta]),
+  {explicit_tuple, Meta, InnerExprs};
 expr_prefix({op, _, '('}, {op, _, ')'}, [InnerExpr], _Mode) ->
   % One item in parens gives back the inside without wrapping.
   InnerExpr;
-expr_prefix({op, _, '{'} = T, {op, _, '}'}, InnerExprs, _Mode) ->
-  {block, get_meta(T), InnerExprs};
-expr_prefix({op, _, '#['} = T, {op, _, ']'}, [RightExpr, {op_args, _, InnerExprs}], _Mode) ->
-  {attribute, get_meta(T), {args, get_meta(T), InnerExprs}, RightExpr};
-expr_prefix({op, _, '#['} = T, {op, _, ']'}, [RightExpr, InnerExprs], _Mode) ->
-  {attribute, get_meta(T), {args, get_meta(T), InnerExprs}, RightExpr};
-expr_prefix({op, _, '#!['} = T, {op, _, ']'}, [{op_args, _, InnerExprs}], _Mode) ->
-  {inner_attribute, get_meta(T), {args, get_meta(T), InnerExprs}};
-expr_prefix({op, _, '#!['} = T, {op, _, ']'}, InnerExprs, _Mode) ->
-  {inner_attribute, get_meta(T), {args, get_meta(T), InnerExprs}};
-expr_prefix({op, _, LeftOp} = T, {op, _, RightOp}, InnerExprs, _Mode) ->
+expr_prefix({op, LeftMeta, '{'}, {op, RightMeta, '}'}, InnerExprs, _Mode) ->
+  Meta = merge_meta([LeftMeta, RightMeta]),
+  {block, Meta, InnerExprs};
+expr_prefix({op, LeftMeta, '#['},
+            {op, RightMeta, ']'},
+            [RightExpr, {op_args, InnerMeta, InnerExprs}],
+            _Mode) ->
+  Meta = merge_meta([LeftMeta, RightMeta]),
+  {attribute, Meta, {args, InnerMeta, InnerExprs}, RightExpr};
+expr_prefix({op, LeftMeta, '#['}, {op, RightMeta, ']'}, [RightExpr, InnerExprs], _Mode) ->
+  Meta = merge_meta([LeftMeta, RightMeta]),
+  {attribute, Meta, {args, merge_meta(get_meta(InnerExprs)), InnerExprs}, RightExpr};
+expr_prefix({op, LeftMeta, '#!['},
+            {op, RightMeta, ']'},
+            [{op_args, InnerMeta, InnerExprs}],
+            _Mode) ->
+  Meta = merge_meta([LeftMeta, RightMeta]),
+  {inner_attribute, Meta, {args, InnerMeta, InnerExprs}};
+expr_prefix({op, LeftMeta, '#!['}, {op, RightMeta, ']'}, InnerExprs, _Mode) ->
+  Meta = merge_meta([LeftMeta, RightMeta]),
+  {inner_attribute, Meta, {args, merge_meta(get_meta(InnerExprs)), InnerExprs}};
+expr_prefix({op, LeftMeta, LeftOp}, {op, RightMeta, RightOp}, InnerExprs, _Mode) ->
   LeftOpBinary = atom_to_binary(LeftOp, utf8),
   RightOpBinary = atom_to_binary(RightOp, utf8),
   ContainerOp = binary_to_atom(<<LeftOpBinary/binary, "_", RightOpBinary/binary>>, utf8),
-  Exprs = [{args, get_meta(T), InnerExprs}],
-  {expand, get_meta(T), {op, get_meta(T), ContainerOp}, Exprs}.
+  Exprs = [{args, merge_meta(get_meta(InnerExprs)), InnerExprs}],
+  Meta = merge_meta([LeftMeta, RightMeta]),
+  {expand, Meta, {op, Meta, ContainerOp}, Exprs}.
 
 %% Build operator expressions that need the previous expression.
-expr_postfix({op, _, Op} = T, Exprs, _Mode) ->
+expr_postfix({op, OpMeta, Op}, Exprs, _Mode) ->
   % Normal postfix operator case.
   % To distinguish a postfix operator, an underscore is prepended.
   OpBinary = atom_to_binary(Op, utf8),
   PostfixOp = binary_to_atom(<<"_", OpBinary/binary>>, utf8),
-  {expand, get_meta(hd(Exprs)), {op, get_meta(T), PostfixOp}, Exprs}.
+  Meta = merge_meta([OpMeta | get_meta(Exprs)]),
+  {expand, Meta, {op, OpMeta, PostfixOp}, Exprs}.
 
-expr_postfix({op, _, LeftOp} = T, {op, _, RightOp}, [LeftExpr | InnerExprs], _Mode) ->
+expr_postfix({op, LeftMeta, LeftOp}, {op, RightMeta, RightOp}, [LeftExpr | InnerExprs], _Mode) ->
   LeftOpBinary = atom_to_binary(LeftOp, utf8),
   RightOpBinary = atom_to_binary(RightOp, utf8),
   ContainerOp = binary_to_atom(<<"_", LeftOpBinary/binary, "_", RightOpBinary/binary>>, utf8),
-  Exprs = [LeftExpr, {args, get_meta(T), InnerExprs}],
-  {expand, get_meta(T), {op, get_meta(T), ContainerOp}, Exprs}.
+  Exprs = [LeftExpr, {args, merge_meta(get_meta(InnerExprs)), InnerExprs}],
+  Meta = merge_meta([get_meta(LeftExpr), RightMeta]),
+  {expand, Meta, {op, merge_meta([LeftMeta, RightMeta]), ContainerOp}, Exprs}.
 
 %% Parse expressions that need both the previous and next expressions.
 expr_infix({op, _, '->'} = T,
@@ -301,10 +321,12 @@ expr_infix({op, _, '->'} = T,
   % `->`, except at the top level, unwraps regular tuples and turns them back
   % to `op_args`. This is transformed again in the general `->` case.
   expr_infix(T, [{op_args, Meta, LeftExprs}, RightExpr], Mode);
-expr_infix({op, _, '->'} = T, [LeftExpr, RightExpr], _Mode) ->
-  {expand, get_meta(LeftExpr), {op, get_meta(T), '_->_'}, [arrow_args(LeftExpr), RightExpr]};
+expr_infix({op, OpMeta, '->'}, [LeftExpr, RightExpr], _Mode) ->
+  Meta = merge_meta(get_meta([LeftExpr, RightExpr])),
+  {expand, Meta, {op, OpMeta, '_->_'}, [arrow_args(LeftExpr), RightExpr]};
 expr_infix({op, _, ':'}, [LeftExpr, RightExpr], _Mode) ->
-  {tag, get_meta(LeftExpr), LeftExpr, RightExpr};
+  Meta = merge_meta(get_meta([LeftExpr, RightExpr])),
+  {tag, Meta, LeftExpr, RightExpr};
 expr_infix({op, _, ','}, [LeftExpr, RightExpr], arg) ->
   % `,` in `arg` mode is handled as a macro arg separator.
   macro_args(LeftExpr, RightExpr);
@@ -335,41 +357,46 @@ expr_infix({op, _, ' '}, [LeftExpr, {expand, _, _, [{block, _, _}, _]} = RightEx
 expr_infix({op, _, ' '}, [LeftExpr, RightExpr], arg) ->
   % Otherwise, in `arg` mode, a ` ` will start a new macro.
   macro_call(LeftExpr, RightExpr);
-expr_infix({op, _, Op} = T, Exprs, _Mode) ->
+expr_infix({op, OpMeta, Op}, Exprs, _Mode) ->
   % Normal infix operator case.
   % To distinguish an infix operator, underscores are placed on both sides.
   OpBinary = atom_to_binary(Op, utf8),
   InfixOp = binary_to_atom(<<"_", OpBinary/binary, "_">>, utf8),
-  {expand, get_meta(hd(Exprs)), {op, get_meta(T), InfixOp}, Exprs}.
+  Meta = merge_meta(get_meta(Exprs)),
+  {expand, Meta, {op, OpMeta, InfixOp}, Exprs}.
 
 %% Build the args on the left side of `->` for `top` expressions.
 %%
 %% When `=` and `<-` and used, their `op_args` are converted to `args` nodes
 %% which won't be translated to implicit tuples. This stops recursing after any
 %% elements are hit except these two.
-arrow_args({expand, _, {op, _, OpName} = Op, Exprs} = Expr) when OpName =:= '=';
-                                                                 OpName =:= '<-' ->
-  {expand, get_meta(Expr), Op, lists:map(fun arrow_args/1, Exprs)};
-arrow_args({op_args, _, Exprs} = T) ->
-  {args, get_meta(T), Exprs};
+arrow_args({expand, Meta, {op, _, OpName} = Op, Exprs}) when OpName =:= '='; OpName =:= '<-' ->
+  {expand, Meta, Op, lists:map(fun arrow_args/1, Exprs)};
+arrow_args({op_args, Meta, Exprs}) ->
+  {args, Meta, Exprs};
 arrow_args(Expr) ->
   {args, get_meta(Expr), [Expr]}.
 
 %% Build operator args. Args to the right are flattened.
 op_args(LeftExpr, RightExpr) ->
-  {op_args, get_meta(LeftExpr), [LeftExpr | plain_op_args(RightExpr)]}.
+  Meta = merge_meta(get_meta([LeftExpr, RightExpr])),
+  {op_args, Meta, [LeftExpr | plain_op_args(RightExpr)]}.
 
 %% Build a macro call with args on the right.
 macro_call(LeftExpr, {expand_args, _, RightExprs}) ->
-  {expand, get_meta(LeftExpr), LeftExpr, RightExprs};
+  Meta = merge_meta(get_meta([LeftExpr | RightExprs])),
+  {expand, Meta, LeftExpr, RightExprs};
 macro_call(LeftExpr, RightExpr) ->
-  {expand, get_meta(LeftExpr), LeftExpr, [RightExpr]}.
+  Meta = merge_meta(get_meta([LeftExpr, RightExpr])),
+  {expand, Meta, LeftExpr, [RightExpr]}.
 
 %% Build macro args. Args to the right are flattened.
 macro_args(LeftExpr, {expand_args, _, RightExprs}) ->
-  {expand_args, get_meta(LeftExpr), [LeftExpr | RightExprs]};
+  Meta = merge_meta(get_meta([LeftExpr | RightExprs])),
+  {expand_args, Meta, [LeftExpr | RightExprs]};
 macro_args(LeftExpr, RightExpr) ->
-  {expand_args, get_meta(LeftExpr), [LeftExpr, RightExpr]}.
+  Meta = merge_meta(get_meta([LeftExpr, RightExpr])),
+  {expand_args, Meta, [LeftExpr, RightExpr]}.
 
 %% Turn op args or a single item into a plain list.
 plain_op_args({op_args, _, Exprs})   -> Exprs;
@@ -588,10 +615,28 @@ trim_whitespace([{newline, _} | Tail]) -> trim_whitespace(Tail);
 trim_whitespace([{space, _} | Tail])   -> trim_whitespace(Tail);
 trim_whitespace(Tokens)                -> Tokens.
 
-%% Get a token's or expression's line number and put it in metadata.
-get_meta({_, Meta, _, _}) -> [proplists:lookup(line, Meta)];
-get_meta({_, Meta, _})    -> [proplists:lookup(line, Meta)];
-get_meta({_, Meta})       -> [proplists:lookup(line, Meta)].
+%% Get a token's or expression's metadata.
+get_meta({_, Meta, _, _})           -> Meta;
+get_meta({_, Meta, _})              -> Meta;
+get_meta({_, Meta})                 -> Meta;
+get_meta(Exprs) when is_list(Exprs) ->
+  [get_meta(Expr) || Expr <- Exprs].
+
+%% Combine code spans together and use the first line/column.
+merge_meta([]) ->
+  [];
+merge_meta(Metas) ->
+  [{line, Line}, {column, Column}, {span, Span}] = hd(Metas),
+  merge_meta(tl(Metas), Line, Column, Span).
+
+merge_meta([], Line, Column, Span) ->
+  [{line, Line}, {column, Column}, {span, Span}];
+merge_meta([Meta | Tail], Line, Column, Span) ->
+  [{line, Line2}, {column, Column2}, {span, Span2}] = Meta,
+  case Line2 < Line orelse (Line2 =:= Line andalso Column2 < Column) of
+    true  -> merge_meta(Tail, Line2, Column2, aero_span:merge(Span, Span2));
+    false -> merge_meta(Tail, Line, Column, aero_span:merge(Span, Span2))
+  end.
 
 %% Convert operators to tokens if possible.
 op_to_tokens({op, Meta, Op}) when Op =:= 'if'; Op =:= else; Op =:= for; Op =:= while ->
