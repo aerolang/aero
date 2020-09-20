@@ -72,7 +72,10 @@ next_token("0x" ++ Cont, Pos) ->
   {Hex, Rest} = lists:splitwith(fun(S1) -> ?is_hex(S1) orelse S1 =:= $_ end, Cont),
   integer_token(Rest, Pos, Hex, 16, "0x");
 next_token([S1 | _] = Input, Pos) when ?is_digit(S1) ->
+  % A single `.` and `e` result in a float being made. Double `..` is tokenized
+  % as an integer for a range.
   case lists:splitwith(fun(S2) -> ?is_digit(S2) orelse S2 =:= $_ end, Input) of
+    {Int, [$., $. | _] = Rest} -> integer_token(Rest, Pos, Int, 10, "");
     {IntPart, [$. | _] = Rest} -> float_token(Rest, Pos, IntPart);
     {IntPart, [$e | _] = Rest} -> float_token(Rest, Pos, IntPart);
     {Int, Rest}                -> integer_token(Rest, Pos, Int, 10, "")
