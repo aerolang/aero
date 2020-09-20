@@ -42,6 +42,10 @@ transform({ident, _Meta, Ident}) ->
     false ->
       {safe_ident(Ident), [], 'Elixir'}
   end;
+transform({blank, _Meta}) ->
+  {safe_ident('_'), [], 'Elixir'};
+transform({type_param, _Meta, TypeParam}) ->
+  ex_macro_call('__type_param__', [safe_ident(TypeParam)]);
 transform({op, _Meta, Op}) ->
   safe_ident(Op);
 transform({block, _Meta, Exprs}) ->
