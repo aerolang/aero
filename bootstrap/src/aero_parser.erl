@@ -459,7 +459,7 @@ op(_,   prefix,  '*')    -> {220, right};  %                      *
 op(_,   prefix,  '..')   -> {220, right};  %                      ..
 op(_,   prefix,  '...')  -> {220, right};  %                      ...
 op(_,   prefix,  '...<') -> {220, right};  %                      ...<
-op(_,   infix,   '..')   -> {210, none};   % 210  prefix   none   ..
+op(_,   infix,   '..')   -> {210, none};   % 210  infix    none   ..
 op(_,   infix,   '..<')  -> {210, none};   %                      ..<
 op(_,   infix,   '*')    -> {190, left};   % 190  infix    left   *
 op(_,   infix,   '/')    -> {190, left};   %                      /
@@ -475,7 +475,7 @@ op(_,   infix,   '::')   -> {135, right};  % 135  infix    right  ::
 op(_,   infix,   '\\\\') -> {130, left};   % 130  infix    left   \\
 op(_,   infix,   '??')   -> {130, left};   %                      ??
 op(_,   infix,   '!!')   -> {130, left};   %                      !!
-op(_,   infix,   '++')   -> {120, left};   % 120  infix    left   ++
+op(_,   infix,   '++')   -> {120, right};  % 120  infix    right  ++
 op(_,   infix,   '==')   -> {100, left};   % 100  infix    left   ==
 op(_,   infix,   '!=')   -> {100, left};   %                      !=
 op(_,   infix,   '<')    -> {100, left};   %                      <
