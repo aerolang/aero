@@ -7,32 +7,32 @@
 -module(aero_parser).
 
 -export([parse/1, format_parse_error/1]).
--export_type([expr/0]).
+-export_type([ast/0]).
 
 %% -----------------------------------------------------------------------------
 %% Public API
 %% -----------------------------------------------------------------------------
 
--type expr() :: {source, meta(), [expr()]}
-              | {integer_lit, meta(), integer()}
-              | {float_lit, meta(), float()}
-              | {atom_lit, meta(), atom()}
-              | {string_lit, meta(), binary()}
-              | {ident, meta(), atom()}
-              | {type_param, meta(), atom()}
-              | {blank, meta()}
-              | {op, meta(), atom()}
-              | {block, meta(), [expr()]}
-              | {expand, meta(), expr(), [expr()]}
-              | {args, meta(), [expr()]}
-              | {tag, meta(), expr(), expr()}
-              | {attribute, meta(), expr(), expr()}
-              | {inner_attribute, meta(), expr()}.
+-type ast() :: {source, meta(), [ast()]}
+             | {integer_lit, meta(), integer()}
+             | {float_lit, meta(), float()}
+             | {atom_lit, meta(), atom()}
+             | {string_lit, meta(), binary()}
+             | {ident, meta(), atom()}
+             | {type_param, meta(), atom()}
+             | {blank, meta()}
+             | {op, meta(), atom()}
+             | {block, meta(), [ast()]}
+             | {expand, meta(), ast(), [ast()]}
+             | {args, meta(), [ast()]}
+             | {tag, meta(), ast(), ast()}
+             | {attribute, meta(), ast(), ast()}
+             | {inner_attribute, meta(), ast()}.
 
 -type meta() :: [term()].
 
 %% Parse tokens into the Aero AST.
--spec parse([aero_lexer:token()]) -> {ok, expr()} | {error, term(), integer()}.
+-spec parse([aero_lexer:token()]) -> {ok, ast()} | {error, term(), integer()}.
 parse([]) ->
   {error, no_tokens, ?LINE};
 parse(Tokens) ->
