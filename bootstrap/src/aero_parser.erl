@@ -443,6 +443,7 @@ op(_,   prefix,  '<<')   -> {250, right};  %                      <<>>
 op(_,   infix,   '.')    -> {240, left};   % 240  infix    left   .
 op(_,   infix,   '?.')   -> {240, left};   %                      ?.
 op(_,   infix,   '!.')   -> {240, left};   %                      !.
+op(_,   prefix,  '#')    -> {235, right};  % 235  prefix   right  #
 op(_,   postfix, '?')    -> {230, left};   % 230  postfix  left   ?
 op(_,   postfix, '!')    -> {230, left};   %                      !
 op(_,   postfix, '?!')   -> {230, left};   %                      ?!
