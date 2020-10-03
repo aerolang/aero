@@ -324,6 +324,14 @@ expr_infix({op, _, '->'} = T,
 expr_infix({op, OpMeta, '->'}, [LeftExpr, RightExpr], _Mode) ->
   Meta = merge_meta(get_meta([LeftExpr, RightExpr])),
   {expand, Meta, {op, OpMeta, '_->_'}, [arrow_args(LeftExpr), RightExpr]};
+expr_infix({op, _, '->>'} = T,
+           [{expand, Meta, {op, _, '(_)'}, [{args, _, LeftExprs}]}, RightExpr],
+           Mode) when Mode =/= top ->
+  % Same special cases for `->>`.
+  expr_infix(T, [{op_args, Meta, LeftExprs}, RightExpr], Mode);
+expr_infix({op, OpMeta, '->>'}, [LeftExpr, RightExpr], _Mode) ->
+  Meta = merge_meta(get_meta([LeftExpr, RightExpr])),
+  {expand, Meta, {op, OpMeta, '_->>_'}, [arrow_args(LeftExpr), RightExpr]};
 expr_infix({op, _, ':'}, [LeftExpr, RightExpr], _Mode) ->
   Meta = merge_meta(get_meta([LeftExpr, RightExpr])),
   {tag, Meta, LeftExpr, RightExpr};
@@ -439,14 +447,12 @@ op(_,   prefix,  '#(')   -> {250, right};  %                      #()
 op(_,   prefix,  '{')    -> {250, right};  %                      {}
 op(_,   prefix,  '#{')   -> {250, right};  %                      #{}
 op(_,   prefix,  '[')    -> {250, right};  %                      []
-op(_,   prefix,  '<<')   -> {250, right};  %                      <<>>
 op(_,   infix,   '.')    -> {240, left};   % 240  infix    left   .
 op(_,   infix,   '?.')   -> {240, left};   %                      ?.
 op(_,   infix,   '!.')   -> {240, left};   %                      !.
 op(_,   prefix,  '#')    -> {235, right};  % 235  prefix   right  #
 op(_,   postfix, '?')    -> {230, left};   % 230  postfix  left   ?
 op(_,   postfix, '!')    -> {230, left};   %                      !
-op(_,   postfix, '?!')   -> {230, left};   %                      ?!
 op(_,   postfix, '(')    -> {230, left};   %                      ()
 op(_,   postfix, '[')    -> {230, left};   %                      []
 op(_,   postfix, '...')  -> {230, left};   %                      ...
@@ -457,6 +463,7 @@ op(_,   prefix,  '~~~')  -> {220, right};  %                      ~~~
 op(_,   prefix,  '&')    -> {220, right};  %                      &
 op(_,   prefix,  '^')    -> {220, right};  %                      ^
 op(_,   prefix,  '*')    -> {220, right};  %                      *
+op(_,   prefix,  '<<-')  -> {220, right};  %                      <<-
 op(_,   prefix,  '..')   -> {220, right};  %                      ..
 op(_,   prefix,  '...')  -> {220, right};  %                      ...
 op(_,   prefix,  '...<') -> {220, right};  %                      ...<
@@ -472,20 +479,19 @@ op(_,   infix,   '>>>')  -> {170, left};   %                      >>>
 op(_,   infix,   '&&&')  -> {160, left};   % 160  infix    left   &&&
 op(_,   infix,   '^^^')  -> {150, left};   % 150  infix    left   ^^^
 op(_,   infix,   '|||')  -> {140, left};   % 140  infix    left   |||
-op(_,   infix,   '::')   -> {135, right};  % 135  infix    right  ::
-op(_,   infix,   '\\\\') -> {130, left};   % 130  infix    left   \\
-op(_,   infix,   '??')   -> {130, left};   %                      ??
-op(_,   infix,   '!!')   -> {130, left};   %                      !!
-op(_,   infix,   '++')   -> {120, right};  % 120  infix    right  ++
+op(_,   infix,   '::')   -> {130, right};  % 130  infix    right  ::
+op(_,   infix,   '++')   -> {130, right};  %                      ++
+op(_,   infix,   '??')   -> {120, none};   % 120  infix    none   ??
+op(_,   infix,   '!!')   -> {120, none};   %                      !!
 op(_,   infix,   '==')   -> {100, left};   % 100  infix    left   ==
 op(_,   infix,   '!=')   -> {100, left};   %                      !=
 op(_,   infix,   '<')    -> {100, left};   %                      <
 op(_,   infix,   '>')    -> {100, left};   %                      >
 op(_,   infix,   '<=')   -> {100, left};   %                      <=
 op(_,   infix,   '>=')   -> {100, left};   %                      >=
-op(_,   infix,   '<=>')  -> {100, left};   %                      <=>
 op(_,   infix,   '&&')   -> {90,  left};   %  90  infix    left   &&
-op(_,   infix,   '||')   -> {80,  left};   %  80  infix    left   ||
+op(_,   infix,   '||')   -> {85,  left};   %  85  infix    left   ||
+op(_,   infix,   '<<-')  -> {80,  right};  %  80  infix    right  <<-
 op(top, infix,   ':')    -> {75,  right};  %  75  infix    right  top :
 op(tup, infix,   ':')    -> {75,  right};  %                      tuple :
 op(con, prefix,  '#[')   -> {70,  right};  %  70  prefix   right  con #[]
@@ -501,10 +507,14 @@ op(_,   infix,   '|')    -> {55,  left};   %  55  infix    left   |
 op(con, infix,   '->')   -> {50,  right};  %  50  infix    right  con ->
 op(arg, infix,   '->')   -> {50,  right};  %                      arg ->
 op(sub, infix,   '->')   -> {50,  right};  %                      sub ->
+op(con, infix,   '->>')  -> {50,  right};  %                      con ->>
+op(arg, infix,   '->>')  -> {50,  right};  %                      arg ->>
+op(sub, infix,   '->>')  -> {50,  right};  %                      sub ->>
 op(_,   infix,   ':')    -> {45,  right};  %  45  infix    right  :
 op(_,   infix,   '=')    -> {40,  right};  %  40  infix    right  =
 op(_,   infix,   '<-')   -> {40,  right};  %                      <-
 op(_,   infix,   '->')   -> {30,  right};  %  30  infix    right  ->
+op(_,   infix,   '->>')  -> {30,  right};  %                      ->>
 op(_,   infix,   '=>')   -> {20,  right};  %  20  infix    right  =>
 op(_,   infix,   'if')   -> {15,  right};  %  15  infix    right  if
 op(_,   infix,   else)   -> {15,  right};  %                      else
@@ -518,7 +528,6 @@ op(_,   prefix,  '#![')  -> {5,   right};  %                      #![]
 op(_,   postfix, ')')    -> {-1,  right};  %  -1  End of containers
 op(_,   postfix, '}')    -> {-1,  right};  %      (can't stand alone)
 op(_,   postfix, ']')    -> {-1,  right};  %
-op(_,   postfix, '>>')   -> {-1,  right};  %
 op(_,   prefix,  _)      -> {0,   none};
 op(_,   postfix, _)      -> {0,   none};
 op(_,   infix,   _)      -> {0,   none}.
@@ -531,20 +540,21 @@ op(_,   infix,   _)      -> {0,   none}.
 %% to not allows macros to start for the rest of the expression. Anything else,
 %% and the next thing well be a subexpression. `=` and arrows at the top level
 %% stay at the top level on the right side.
-next_mode(top,  infix,  ',')  -> tup;   % ,
-next_mode(tup,  infix,  ',')  -> tup;   %
-next_mode(arg,  infix,  ',')  -> arg;   %
-next_mode(_,    infix,  '$')  -> arg;   % $
-next_mode(top,  infix,  ' ')  -> arg;   % (space)
-next_mode(con,  infix,  ' ')  -> arg;   %
-next_mode(arg,  infix,  ' ')  -> arg;   %
-next_mode(top,  infix,  '=')  -> top;   % =
-next_mode(top,  infix,  '<-') -> top;   % <-
-next_mode(top,  infix,  '->') -> top;   % ->
-next_mode(top,  infix,  '=>') -> top;   % =>
-next_mode(Mode, prefix, '#[') -> Mode;  % #[]
-next_mode(_,    prefix, _)    -> sub;
-next_mode(_,    infix,  _)    -> sub.
+next_mode(top,  infix,  ',')   -> tup;   % ,
+next_mode(tup,  infix,  ',')   -> tup;   %
+next_mode(arg,  infix,  ',')   -> arg;   %
+next_mode(_,    infix,  '$')   -> arg;   % $
+next_mode(top,  infix,  ' ')   -> arg;   % (space)
+next_mode(con,  infix,  ' ')   -> arg;   %
+next_mode(arg,  infix,  ' ')   -> arg;   %
+next_mode(top,  infix,  '=')   -> top;   % =
+next_mode(top,  infix,  '<-')  -> top;   % <-
+next_mode(top,  infix,  '->')  -> top;   % ->
+next_mode(top,  infix,  '->>') -> top;   % ->>
+next_mode(top,  infix,  '=>')  -> top;   % =>
+next_mode(Mode, prefix, '#[')  -> Mode;  % #[]
+next_mode(_,    prefix, _)     -> sub;
+next_mode(_,    infix,  _)     -> sub.
 
 %% Action to take place when a space is found in postfix/infix mode.
 %%
@@ -593,7 +603,6 @@ container_op(prefix,  '#(')  -> {')',  exprs, con};  % #()
 container_op(prefix,  '#{')  -> {'}',  exprs, con};  % #{}
 container_op(prefix,  '#[')  -> {']',  infix, con};  % #[]
 container_op(prefix,  '#![') -> {']',  expr,  con};  % #![]
-container_op(prefix,  '<<')  -> {'>>', exprs, con};  % <<>>
 container_op(prefix,  _)     -> nil;
 container_op(postfix, _)     -> nil.
 
