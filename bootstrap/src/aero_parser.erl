@@ -520,6 +520,7 @@ op(_,   infix,   'if')   -> {15,  right};  %  15  infix    right  if
 op(_,   infix,   else)   -> {15,  right};  %                      else
 op(_,   infix,   for)    -> {15,  right};  %                      for
 op(_,   infix,   while)  -> {15,  right};  %                      while
+op(_,   infix,   where)  -> {15,  right};  %                      where
 op(_,   infix,   ',')    -> {10,  right};  %  10  infix    right  ,
 op(_,   infix,   '$')    -> {10,  right};  %                      $
 op(_,   infix,   ' ')    -> {10,  right};  %                      (space)

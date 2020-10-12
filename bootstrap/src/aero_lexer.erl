@@ -95,7 +95,7 @@ next_token([S1 | _] = Input, Pos) when ?is_ident_start(S1) ->
     {token, Rest, _, {ident, _, '_'}} ->
       blank_token(Rest, Pos);
     {token, Rest, _, {ident, _, Ident}} when Ident =:= 'if'; Ident =:= else; Ident =:= for;
-                                             Ident =:= while ->
+                                             Ident =:= while; Ident =:= where ->
       op_token(Rest, Pos, Ident, length(atom_to_list(Ident)));
     {token, _, _, _} = IdentToken ->
       IdentToken
