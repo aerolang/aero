@@ -480,8 +480,8 @@ op(_,   infix,   '^^^')  -> {150, left};   % 150  infix    left   ^^^
 op(_,   infix,   '|||')  -> {140, left};   % 140  infix    left   |||
 op(_,   infix,   '::')   -> {130, right};  % 130  infix    right  ::
 op(_,   infix,   '++')   -> {130, right};  %                      ++
-op(_,   infix,   '??')   -> {120, none};   % 120  infix    none   ??
-op(_,   infix,   '!!')   -> {120, none};   %                      !!
+op(_,   infix,   '??')   -> {120, left};   % 120  infix    left   ??
+op(_,   infix,   '!!')   -> {120, left};   %                      !!
 op(_,   infix,   '==')   -> {100, left};   % 100  infix    left   ==
 op(_,   infix,   '<>')   -> {100, left};   %                      <>
 op(_,   infix,   '<')    -> {100, left};   %                      <
