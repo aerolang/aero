@@ -38,6 +38,8 @@ tokenize(Input) ->
 -define(is_ident_start(S1), (S1 =:= $_ orelse (S1 >= $a andalso S1 =< $z) orelse
                                               (S1 >= $A andalso S1 =< $Z))).
 -define(is_ident_continue(S1), (?is_ident_start(S1) orelse ?is_digit(S1))).
+-define(is_ident_op(S), S =:= 'if'; S =:= else; S =:= 'and'; S =:= 'or'; S =:= 'not'; S =:= for;
+                        S =:= while; S =:= where).
 
 -define(is_whitespace_start_1(S), S =:= "\s"; S =:= "\t"; S =:= "\n"; S =:= ["\r\n"]; S =:= ";").
 -define(is_whitespace_start_2(S), S =:= "//").
@@ -46,10 +48,9 @@ tokenize(Input) ->
                     S =:= "-"; S =:= "*"; S =:= "/"; S =:= "%"; S =:= "<"; S =:= ">"; S =:= ",";
                     S =:= "$"; S =:= ":"; S =:= "="; S =:= "^"; S =:= "&"; S =:= "|"; S =:= "?";
                     S =:= "!"; S =:= "."; S =:= "#").
--define(is_op_2(S), S =:= "#("; S =:= "#{"; S =:= "#["; S =:= "=="; S =:= "!="; S =:= "<=";
-                    S =:= ">="; S =:= "&&"; S =:= "||"; S =:= "::"; S =:= "->"; S =:= "<-";
-                    S =:= "=>"; S =:= "++"; S =:= "??"; S =:= "!!"; S =:= "?."; S =:= "!.";
-                    S =:= "..").
+-define(is_op_2(S), S =:= "#("; S =:= "#{"; S =:= "#["; S =:= "=="; S =:= "<>"; S =:= "<=";
+                    S =:= ">="; S =:= "->"; S =:= "<-"; S =:= "=>"; S =:= "::"; S =:= "++";
+                    S =:= "??"; S =:= "!!"; S =:= "?."; S =:= "!."; S =:= "..").
 -define(is_op_3(S), S =:= "#!["; S =:= "&&&"; S =:= "|||"; S =:= "^^^"; S =:= "<<<"; S =:= ">>>";
                     S =:= "~~~"; S =:= "->>"; S =:= "<<-"; S =:= "..."; S =:= "..<").
 -define(is_op_4(S), S =:= "...<").
@@ -94,8 +95,7 @@ next_token([S1 | _] = Input, Pos) when ?is_ident_start(S1) ->
   case ident_token(Input, Pos) of
     {token, Rest, _, {ident, _, '_'}} ->
       blank_token(Rest, Pos);
-    {token, Rest, _, {ident, _, Ident}} when Ident =:= 'if'; Ident =:= else; Ident =:= for;
-                                             Ident =:= while; Ident =:= where ->
+    {token, Rest, _, {ident, _, Ident}} when ?is_ident_op(Ident) ->
       op_token(Rest, Pos, Ident, length(atom_to_list(Ident)));
     {token, _, _, _} = IdentToken ->
       IdentToken

@@ -458,7 +458,6 @@ op(_,   postfix, '[')    -> {230, left};   %                      []
 op(_,   postfix, '...')  -> {230, left};   %                      ...
 op(_,   prefix,  '+')    -> {220, right};  % 220  prefix   right  +
 op(_,   prefix,  '-')    -> {220, right};  %                      -
-op(_,   prefix,  '!')    -> {220, right};  %                      !
 op(_,   prefix,  '~~~')  -> {220, right};  %                      ~~~
 op(_,   prefix,  '&')    -> {220, right};  %                      &
 op(_,   prefix,  '^')    -> {220, right};  %                      ^
@@ -484,13 +483,14 @@ op(_,   infix,   '++')   -> {130, right};  %                      ++
 op(_,   infix,   '??')   -> {120, none};   % 120  infix    none   ??
 op(_,   infix,   '!!')   -> {120, none};   %                      !!
 op(_,   infix,   '==')   -> {100, left};   % 100  infix    left   ==
-op(_,   infix,   '!=')   -> {100, left};   %                      !=
+op(_,   infix,   '<>')   -> {100, left};   %                      <>
 op(_,   infix,   '<')    -> {100, left};   %                      <
 op(_,   infix,   '>')    -> {100, left};   %                      >
 op(_,   infix,   '<=')   -> {100, left};   %                      <=
 op(_,   infix,   '>=')   -> {100, left};   %                      >=
-op(_,   infix,   '&&')   -> {90,  left};   %  90  infix    left   &&
-op(_,   infix,   '||')   -> {85,  left};   %  85  infix    left   ||
+op(_,   prefix,  'not')  -> {95,  right};  %  95  prefix   right  not
+op(_,   infix,   'and')  -> {90,  left};   %  90  infix    left   and
+op(_,   infix,   'or')   -> {85,  left};   %  85  infix    left   or
 op(_,   infix,   '<<-')  -> {80,  right};  %  80  infix    right  <<-
 op(top, infix,   ':')    -> {75,  right};  %  75  infix    right  top :
 op(tup, infix,   ':')    -> {75,  right};  %                      tuple :
