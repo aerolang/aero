@@ -515,12 +515,13 @@ op(_,   infix,   '=')    -> {40,  right};  %  40  infix    right  =
 op(_,   infix,   '<-')   -> {40,  right};  %                      <-
 op(_,   infix,   '->')   -> {30,  right};  %  30  infix    right  ->
 op(_,   infix,   '->>')  -> {30,  right};  %                      ->>
-op(_,   infix,   '=>')   -> {20,  right};  %  20  infix    right  =>
-op(_,   infix,   'if')   -> {15,  right};  %  15  infix    right  if
-op(_,   infix,   else)   -> {15,  right};  %                      else
-op(_,   infix,   for)    -> {15,  right};  %                      for
-op(_,   infix,   while)  -> {15,  right};  %                      while
-op(_,   infix,   where)  -> {15,  right};  %                      where
+op(_,   infix,   '=>')   -> {30,  right};  %                      =>
+op(_,   infix,   'if')   -> {20,  right};  %  20  infix    right  if
+op(_,   infix,   else)   -> {20,  right};  %                      else
+op(_,   infix,   for)    -> {20,  right};  %                      for
+op(_,   infix,   while)  -> {20,  right};  %                      while
+op(_,   infix,   where)  -> {20,  right};  %                      where
+op(_,   infix,   as)     -> {20,  right};  %                      as
 op(_,   infix,   ',')    -> {10,  right};  %  10  infix    right  ,
 op(_,   infix,   '$')    -> {10,  right};  %                      $
 op(_,   infix,   ' ')    -> {10,  right};  %                      (space)
