@@ -6,7 +6,7 @@
 
 -module(aero_parser).
 
--export([parse/1, format_parse_error/1]).
+-export([parse/1]).
 -export_type([ast/0]).
 
 %% -----------------------------------------------------------------------------
@@ -41,9 +41,6 @@ parse(Tokens) ->
   catch
     throw:{parse_error, Reason, Line} -> {error, Reason, Line}
   end.
-
-%% Format a parsing error for displaying.
-format_parse_error(Reason) -> format_error(Reason).
 
 %% -----------------------------------------------------------------------------
 %% Parsing
@@ -656,25 +653,3 @@ op_to_tokens({op, Meta, Op}) when Op =:= 'if'; Op =:= else; Op =:= for; Op =:= w
   [{ident, Meta, Op}];
 op_to_tokens(_T) ->
   nil.
-
-%% -----------------------------------------------------------------------------
-%% Error Formatting
-%% -----------------------------------------------------------------------------
-
-format_error(no_tokens) ->
-  <<"no tokens provided to parser, at least EOF is required">>;
-format_error({unexpected_token, Found}) ->
-  format_message("unexpected token '~p'", [Found]);
-format_error({expected_token, Expected, Found}) ->
-  format_message("expected token '~p', found token '~p'", [Expected, Found]);
-format_error({expected_token, Expected}) ->
-  format_message("expected token '~p'", [Expected]);
-format_error({nonassoc_op, Op}) ->
-  format_message("operator token '~p' is not associative", [Op]);
-format_error(_) ->
-  <<"unknown error">>.
-
-format_message(Format, Terms) ->
-  TermStrings = [io_lib:write(T) || T <- Terms],
-  Message = lists:flatten(io_lib:fwrite(Format, TermStrings)),
-  list_to_binary(Message).
