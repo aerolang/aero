@@ -27,9 +27,9 @@ main([<<"compile">> | Args]) ->
             end,
           %% Configure global environment.
           code:add_pathsa(proplists:get_all_values(path, Options)),
-          aero_compile_env:configure(Input, OutDir, Pkg),
+          aero_session:configure(Input, OutDir, Pkg),
           %% Compile the root. Local modules that are dependents will be
-          %% compiled during Elixir macro expansion.
+          %% compiled during macro expansion.
           write_output(aero:compile(Input))
       end;
     {error, {Reason, Data}} ->
@@ -43,8 +43,8 @@ main(_) ->
 %% -----------------------------------------------------------------------------
 
 %% Write output to file, handle errors in compiling or file writing and halt.
-write_output({ok, _}) ->
-  ok;
+write_output({ok, Number}) ->
+  print("Compiled ~p module(s).~n", [Number]);
 write_output({error, _} = Error) ->
   print_error("Compile error: ~p~n", [Error]),
   halt(1).
@@ -72,6 +72,9 @@ getopt_spec() ->
     {pkg, undefined, "pkg", boolean, "Compile as a package"},
     {input, undefined, undefined, binary, "Input Aero file"}
   ].
+
+print(Format, Data) ->
+  io:format(Format, Data).
 
 print_error(Format, Data) ->
   io:format(standard_error, Format, Data).

@@ -17,8 +17,8 @@ init(_Args) ->
   },
   ChildSpecifications = [
     #{
-      id => aero_compile_env,
-      start => {aero_compile_env, start_link, []}
+      id => aero_session,
+      start => {aero_session, start_link, []}
     }
   ],
   {ok, {SupervisorSpecification, ChildSpecifications}}.
