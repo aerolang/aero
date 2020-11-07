@@ -34,8 +34,11 @@
 %% Any expression, excludes non-expression parts of Core Aero.
 -type c_expr() :: c_block()
                 | c_literal()
+                | c_cons()
+                | c_nil()
                 | c_unit()
                 | c_func()
+                | c_call()
                 | c_var().
 
 %% A group of expressions with the last giving the value of the group.
@@ -53,7 +56,11 @@
 -type c_atom_lit()    :: {c_atom_lit, meta(), atom()}.
 -type c_string_lit()  :: {c_string_lit, meta(), binary()}.
 
-%% Unit type.
+%% List constructor and nil.
+-type c_cons() :: {c_cons, meta(), c_expr(), c_cons() | c_nil()}.
+-type c_nil()  :: {c_nil, meta()}.
+
+%% Unit value.
 -type c_unit() :: {c_unit, meta()}.
 
 %% A function expression.
@@ -63,6 +70,11 @@
 -type c_func_ret()    :: c_type_inner().
 -type c_func_where()  :: c_type_where().
 -type c_func_body()   :: c_expr().
+
+%% A call to a remote function in a module.
+-type c_call() :: {c_call, meta(), c_atom_lit() | c_var(), c_atom_lit() | c_var(), c_call_args()}.
+
+-type c_call_args() :: [c_expr()].
 
 %% Variables.
 -type c_var() :: {c_var, meta(), atom()}.
@@ -190,6 +202,10 @@ expand_expr({atom_lit, _, Atom}) ->
 expand_expr({string_lit, _, String}) ->
   {c_string_lit, [], String};
 
+% Unit value.
+expand_expr({unit, _}) ->
+  {c_unit, []};
+
 %% Blocks.
 expand_expr({block, _, []}) ->
   {c_unit, []};
@@ -197,6 +213,18 @@ expand_expr({block, _, [Expr]}) ->
   expand_expr(Expr);
 expand_expr({block, _, Exprs}) ->
   lists:map(fun expand_expr/1, Exprs);
+
+%% Logs.
+expand_expr({expand, _, {ident, _, log}, [Message]}) ->
+  %% TODO: call into a type-checkable Aero function instead.
+  Module = {c_atom_lit, [], io},
+  Function = {c_atom_lit, [], put_chars},
+  Args = [
+    {c_atom_lit, [], standard_io},
+    {c_cons, [], expand_expr(Message), {c_cons, [], {c_integer_lit, [], $\n}, {c_nil, []}}}
+  ],
+
+  {c_call, [], Module, Function, Args};
 
 %% Anything else...
 expand_expr(Expr) ->
@@ -223,7 +251,7 @@ expand_type_inner({ident, _, ref}) ->
   c_type_ref;
 
 % Unit type.
-expand_type_inner({expand, _, {op, _, '(_)'}, []}) ->
+expand_type_inner({expand, _, {op, _, '(_)'}, [{args, _, []}]}) ->
   c_type_unit;
 
 %% Anything else...

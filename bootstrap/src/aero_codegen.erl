@@ -10,8 +10,8 @@
 
 -spec generate(aero_expander:c_module()) -> {ok, binary()} | {error, term()}.
 generate(CoreModule) ->
-  CerlMod = gen_module(CoreModule),
-  case compile:noenv_forms(CerlMod, [from_core, return_errors]) of
+  CerlModule = gen_module(CoreModule),
+  case compile:noenv_forms(CerlModule, [from_core, return_errors]) of
     {ok, _, Binary} ->
       Name = element(3, CoreModule),
       {ok, Name, Binary};
@@ -48,17 +48,32 @@ gen_module({c_module, _, Name, Exports, Attrs, Defs}) ->
 gen_func({c_func, _, Args, _Ret, _Where, Body}) ->
   CerlArgs = [cerl:c_var(Name) || {Name, _} <- Args],
   CerlBody = gen_expr(Body),
+
   cerl:ann_c_fun([], CerlArgs, CerlBody).
 
 gen_expr({c_integer_lit, _, Integer}) ->
-  cerl:ann_c_int([], Integer);
+  cerl:add_ann([], cerl:abstract(Integer));
 gen_expr({c_float_lit, _, Float}) ->
-  cerl:ann_c_float([], Float);
+  cerl:add_ann([], cerl:abstract(Float));
 gen_expr({c_atom_lit, _, Atom}) ->
-  cerl:ann_c_atom([], Atom);
-gen_expr({c_string_lit, _, _String}) ->
-  % TODO: Implement.
-  throw(unimplemented).
+  cerl:add_ann([], cerl:abstract(Atom));
+gen_expr({c_string_lit, _, String}) ->
+  cerl:add_ann([], cerl:abstract(String));
+
+gen_expr({c_cons, _, Head, Tail}) ->
+  cerl:ann_c_cons([], gen_expr(Head), gen_expr(Tail));
+gen_expr({c_nil, _}) ->
+  cerl:ann_c_nil([]);
+
+gen_expr({c_unit, _}) ->
+  cerl:add_ann([], cerl:abstract(ok));
+
+gen_expr({c_call, _, Module, Function, Args}) ->
+  CerlModule = gen_expr(Module),
+  CerlFunction = gen_expr(Function),
+  CerlArgs = [gen_expr(Arg) || Arg <- Args],
+
+  cerl:ann_c_call([], CerlModule, CerlFunction, CerlArgs).
 
 arity({c_func, _, Args, _, _, _}) ->
   length(Args).
