@@ -25,12 +25,13 @@ main([<<"compile">> | Args]) ->
               false ->
                 aero
             end,
+          Core = proplists:get_bool(core, Options),
           %% Configure global environment.
           code:add_pathsa(proplists:get_all_values(path, Options)),
           aero_session:configure(Input, OutDir, Pkg),
           %% Compile the root. Local modules that are dependents will be
           %% compiled during macro expansion.
-          write_output(aero:compile(Input))
+          write_output(aero:compile(Input, [{core, Core}]))
       end;
     {error, {Reason, Data}} ->
       show_usage({Reason, Data})
@@ -70,6 +71,7 @@ getopt_spec() ->
     {out_dir, $o, "out-dir", {binary, <<"out">>}, "Output folder"},
     {path, $P, "add-path", binary, "Prepends a path to the Erlang code path"},
     {pkg, undefined, "pkg", boolean, "Compile as a package"},
+    {core, undefined, "core", boolean, "Compile to Core Aero"},
     {input, undefined, undefined, binary, "Input Aero file"}
   ].
 

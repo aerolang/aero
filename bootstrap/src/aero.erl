@@ -2,18 +2,21 @@
 
 -module(aero).
 
--export([compile/1]).
+-export([compile/2]).
 
 %% -----------------------------------------------------------------------------
 %% Public API
 %% -----------------------------------------------------------------------------
 
-compile(InputFile) ->
+compile(InputFile, Options) ->
   InputResult = file:read_file(InputFile),
   TokensResult = tokenize(InputResult),
   AstResult = parse(TokensResult),
   ExpandResult = expand(AstResult, InputFile),
-  codegen(ExpandResult).
+  case proplists:get_bool(core, Options) of
+    false -> codegen(ExpandResult);
+    true  -> write_core(ExpandResult)
+  end.
 
 %% -----------------------------------------------------------------------------
 %% Helper Functions
@@ -54,5 +57,25 @@ codegen([H | T], BeamDir, Acc) ->
         ok                 -> codegen(T, BeamDir, Acc + 1);
         {error, _} = Error -> Error
       end;
+    {error, _} = Error -> Error
+  end.
+
+write_core({ok, CoreModules}) ->
+  BeamDir = filename:join([aero_session:out_dir(), <<"core">>]),
+  case filelib:ensure_dir(filename:join([BeamDir, <<".">>])) of
+    ok                 -> write_core(CoreModules, BeamDir, 0);
+    {error, _} = Error -> Error
+  end;
+write_core({error, _} = Error) ->
+  Error.
+
+write_core([], _, Acc) ->
+  {ok, Acc};
+write_core([H | T], BeamDir, Acc) ->
+  Name = element(3, H),
+  String = aero_pprint:pprint_core_aero(H),
+  Filename = filename:join([BeamDir, atom_to_list(Name) ++ ".c-aero"]),
+  case file:write_file(Filename, <<String/binary, "\n">>) of
+    ok                 -> write_core(T, BeamDir, Acc + 1);
     {error, _} = Error -> Error
   end.

@@ -11,7 +11,7 @@
 -export([expand/2]).
 
 -export_type([c_any/0, c_module/0, c_expr/0, c_block/0]).
--export_type([c_literal/0, c_integer_lit/0, c_float_lit/0, c_atom_lit/0, c_string_lit/0]).
+-export_type([c_literal/0, c_bool_lit/0, c_int_lit/0, c_float_lit/0, c_atom_lit/0, c_str_lit/0]).
 -export_type([c_func/0, c_var/0, c_type/0]).
 
 %% -----------------------------------------------------------------------------
@@ -45,18 +45,20 @@
 -type c_block() :: {c_block, meta(), [c_expr()]}.
 
 %% A constant literal value at compile time.
--type c_literal() :: c_integer_lit()
+-type c_literal() :: c_bool_lit()
+                   | c_int_lit()
                    | c_float_lit()
                    | c_atom_lit()
-                   | c_string_lit().
+                   | c_str_lit().
 
 %% Literals.
--type c_integer_lit() :: {c_integer_lit, meta(), integer()}.
--type c_float_lit()   :: {c_float_lit, meta(), float()}.
--type c_atom_lit()    :: {c_atom_lit, meta(), atom()}.
--type c_string_lit()  :: {c_string_lit, meta(), binary()}.
+-type c_bool_lit()  :: {c_bool_lit, meta(), atom()}.
+-type c_int_lit()   :: {c_int_lit, meta(), integer()}.
+-type c_float_lit() :: {c_float_lit, meta(), float()}.
+-type c_atom_lit()  :: {c_atom_lit, meta(), atom()}.
+-type c_str_lit()   :: {c_str_lit, meta(), binary()}.
 
-%% List constructor and nil.
+%% Cons and nil.
 -type c_cons() :: {c_cons, meta(), c_expr(), c_cons() | c_nil()}.
 -type c_nil()  :: {c_nil, meta()}.
 
@@ -82,7 +84,8 @@
 %% Any type in Core Aero.
 -type c_type() :: {c_type, meta(), c_type_inner(), c_type_where()}.
 
--type c_type_inner() :: c_type_int
+-type c_type_inner() :: c_type_bool
+                      | c_type_int
                       | c_type_float
                       | c_type_atom
                       | c_type_str
@@ -193,16 +196,24 @@ expand_func_def_body(FuncBody) ->
 %% -----------------------------------------------------------------------------
 
 %% Literals.
+expand_expr({ident, _, Bool}) when Bool =:= true; Bool =:= false ->
+  {c_bool_lit, [], Bool};
 expand_expr({integer_lit, _, Integer}) ->
-  {c_integer_lit, [], Integer};
+  {c_int_lit, [], Integer};
 expand_expr({float_lit, _, Float}) ->
   {c_float_lit, [], Float};
 expand_expr({atom_lit, _, Atom}) ->
   {c_atom_lit, [], Atom};
 expand_expr({string_lit, _, String}) ->
-  {c_string_lit, [], String};
+  {c_str_lit, [], String};
 
-% Unit value.
+%% Cons and nil.
+expand_expr({expand, _, {op, _, '_::_'}, [Head, Tail]}) ->
+  {c_cons, [], expand_expr(Head), expand_expr(Tail)};
+expand_expr({ident, _, nil}) ->
+  {c_nil, []};
+
+%% Unit value.
 expand_expr({unit, _}) ->
   {c_unit, []};
 
@@ -214,6 +225,16 @@ expand_expr({block, _, [Expr]}) ->
 expand_expr({block, _, Exprs}) ->
   lists:map(fun expand_expr/1, Exprs);
 
+%% Constructors.
+expand_expr({expand, Meta, {op, _, '_(_)'},
+                           [{expand, _, {op, _, '#_'}, [Path]}, {args, _, Args}]}) ->
+  case Path of
+    {ident, _, list} ->
+      lists:foldr(fun(Arg, Acc) -> {c_cons, [], expand_expr(Arg), Acc} end, {c_nil, []}, Args);
+    _ ->
+      throw({expand_error, {constructor_invalid, Meta}})
+  end;
+
 %% Logs.
 expand_expr({expand, _, {ident, _, log}, [Message]}) ->
   %% TODO: call into a type-checkable Aero function instead.
@@ -221,7 +242,7 @@ expand_expr({expand, _, {ident, _, log}, [Message]}) ->
   Function = {c_atom_lit, [], put_chars},
   Args = [
     {c_atom_lit, [], standard_io},
-    {c_cons, [], expand_expr(Message), {c_cons, [], {c_integer_lit, [], $\n}, {c_nil, []}}}
+    {c_cons, [], expand_expr(Message), {c_cons, [], {c_int_lit, [], $\n}, {c_nil, []}}}
   ],
 
   {c_call, [], Module, Function, Args};
@@ -235,6 +256,8 @@ expand_expr(Expr) ->
 %% -----------------------------------------------------------------------------
 
 %% Builtins.
+expand_type_inner({ident, _, bool}) ->
+  c_type_bool;
 expand_type_inner({ident, _, int}) ->
   c_type_int;
 expand_type_inner({ident, _, float}) ->
@@ -250,9 +273,13 @@ expand_type_inner({ident, _, bits}) ->
 expand_type_inner({ident, _, ref}) ->
   c_type_ref;
 
-% Unit type.
+%% Unit type.
 expand_type_inner({expand, _, {op, _, '(_)'}, [{args, _, []}]}) ->
   c_type_unit;
+
+%% Collections.
+expand_type_inner({expand, _, {ident, _, list}, [T]}) ->
+  {c_type_list, expand_type_inner(T)};
 
 %% Anything else...
 expand_type_inner(Type) ->

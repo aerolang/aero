@@ -51,13 +51,15 @@ gen_func({c_func, _, Args, _Ret, _Where, Body}) ->
 
   cerl:ann_c_fun([], CerlArgs, CerlBody).
 
-gen_expr({c_integer_lit, _, Integer}) ->
+gen_expr({c_bool_lit, _, Bool}) ->
+  cerl:add_ann([], cerl:abstract(Bool));
+gen_expr({c_int_lit, _, Integer}) ->
   cerl:add_ann([], cerl:abstract(Integer));
 gen_expr({c_float_lit, _, Float}) ->
   cerl:add_ann([], cerl:abstract(Float));
 gen_expr({c_atom_lit, _, Atom}) ->
   cerl:add_ann([], cerl:abstract(Atom));
-gen_expr({c_string_lit, _, String}) ->
+gen_expr({c_str_lit, _, String}) ->
   cerl:add_ann([], cerl:abstract(String));
 
 gen_expr({c_cons, _, Head, Tail}) ->
