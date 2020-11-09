@@ -36,6 +36,10 @@ pprint(c_vis_pub, _Level) ->
 pprint(c_vis_priv, _Level) ->
   "priv";
 
+pprint({c_block, _, Exprs}, Level) ->
+  ExprStrs = [["\n", spaces(Level + 2), pprint(Expr, Level + 4)] || Expr <- Exprs],
+  format([block | ExprStrs], Level);
+
 pprint({c_bool_lit, _, Bool}, _Level) ->
   atom_to_list(Bool);
 pprint({c_int_lit, _, Integer}, _Level) ->
@@ -72,6 +76,9 @@ pprint({c_callee_remote, {c_var, _, ModName}, {c_var, _, FuncName}}, _Level) ->
 pprint({c_var, _, Name}, _Level) ->
   [$$, printable_atom(Name)];
 
+pprint({c_let, _, Left, Type, Right}, Level) ->
+  format(['let', Left, Type, Right], Level);
+
 pprint(c_type_bool, _Level) ->
   "bool";
 pprint(c_type_int, _Level) ->
@@ -96,6 +103,8 @@ pprint({c_type_list, T}, Level) ->
 %% Keep binaries as they are, and otherwise, turn it into a binary.
 pprint(Node, _Level) when is_list(Node) ->
   Node;
+pprint(Node, _Level) when is_atom(Node) ->
+  io_lib:fwrite("~s", [Node]);
 pprint(Node, _Level) ->
   io_lib:fwrite("~p", [Node]).
 

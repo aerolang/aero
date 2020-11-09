@@ -36,7 +36,7 @@ gen_module({c_module, _, {c_var, [], Name}, Attrs, Defs}) ->
     lists:foldl(fun(Def, {AccExports, AccDefs}) ->
       case Def of
         {{c_var, _, FuncName}, Vis, {c_func, _, _, _, _, _} = Func} ->
-          CerlDef = {cerl:c_var({FuncName, arity(Func)}), gen_func(Func)},
+          CerlDef = {cerl:c_var({FuncName, arity(Func)}), gen_expr(Func)},
           case Vis of
             c_vis_pub ->
               CerlExport = cerl:c_var({FuncName, arity(Func)}),
@@ -49,11 +49,13 @@ gen_module({c_module, _, {c_var, [], Name}, Attrs, Defs}) ->
 
   cerl:ann_c_module([], CerlName, lists:reverse(CerlExports), CerlAttrs, lists:reverse(CerlDefs)).
 
-gen_func({c_func, _, Args, _Ret, _Where, Body}) ->
-  CerlArgs = [cerl:c_var(Name) || {Name, _} <- Args],
-  CerlBody = gen_expr(Body),
+gen_expr({c_block, _, Exprs}) ->
+  RevExprs = lists:reverse(Exprs),
 
-  cerl:ann_c_fun([], CerlArgs, CerlBody).
+  % Erlang "let"s go backwards, so we expand the inner parts first.
+  lists:foldr(fun({c_let, _, Left, _Type, Right}, Inner) ->
+    cerl:ann_c_let([], [gen_expr(Left)], gen_expr(Right), Inner)
+  end, gen_expr(hd(RevExprs)), tl(RevExprs));
 
 gen_expr({c_bool_lit, _, Bool}) ->
   cerl:add_ann([], cerl:abstract(Bool));
@@ -74,12 +76,25 @@ gen_expr({c_nil, _}) ->
 gen_expr({c_unit, _}) ->
   cerl:add_ann([], cerl:abstract(ok));
 
+gen_expr({c_func, _, Args, _Ret, _Where, Body}) ->
+  CerlArgs = [cerl:c_var(Name) || {Name, _} <- Args],
+  CerlBody = gen_expr(Body),
+
+  cerl:ann_c_fun([], CerlArgs, CerlBody);
+
 gen_expr({c_call, _, {c_callee_remote, {c_var, _, Module}, {c_var, _, Function}}, Args}) ->
   CerlModule = cerl:add_ann([], cerl:abstract(Module)),
   CerlFunction = cerl:add_ann([], cerl:abstract(Function)),
   CerlArgs = [gen_expr(Arg) || Arg <- Args],
 
-  cerl:ann_c_call([], CerlModule, CerlFunction, CerlArgs).
+  cerl:ann_c_call([], CerlModule, CerlFunction, CerlArgs);
+
+gen_expr({c_var, _, VarName}) ->
+  cerl:ann_c_var([], VarName);
+
+% Occurs when a let is at the end of a block, binding is not used.
+gen_expr({c_let, _, _Left, _Type, Right}) ->
+  gen_expr(Right).
 
 arity({c_func, _, Args, _, _, _}) ->
   length(Args).

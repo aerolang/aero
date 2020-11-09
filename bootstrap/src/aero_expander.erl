@@ -41,7 +41,9 @@
                 | c_unit()
                 | c_func()
                 | c_call()
-                | c_var().
+                | c_var()
+                | c_let()
+                | c_letrec().
 
 %% A group of expressions with the last giving the value of the group.
 -type c_block() :: {c_block, meta(), [c_expr()]}.
@@ -86,6 +88,10 @@
 
 %% Variables.
 -type c_var() :: {c_var, meta(), atom()}.
+
+%% Let and letrec expressions.
+-type c_let()    :: {c_let, meta(), c_var(), c_type(), c_expr()}.
+-type c_letrec() :: {c_letrec, meta(), c_var(), c_type(), c_func()}.
 
 %% Any type in Core Aero.
 -type c_type() :: {c_type, meta(), c_type_inner(), c_type_where()}.
@@ -194,7 +200,7 @@ expand_func_def_arg(Arg) ->
   throw({expand_error, {func_def_arg_invalid, get_meta(Arg)}}).
 
 expand_func_def_body({block, _, _} = Block) ->
-  expand_expr(Block);
+  expand_expr(Block, new_env());
 expand_func_def_body(FuncBody) ->
   throw({expand_error, {func_def_body_invalid, get_meta(FuncBody)}}).
 
@@ -202,59 +208,93 @@ expand_func_def_body(FuncBody) ->
 %% Expression Expanding
 %% -----------------------------------------------------------------------------
 
+%% Blocks.
+expand_expr({block, _, []}, _Env) ->
+  {c_unit, []};
+expand_expr({block, _, BlockExprs}, Env) ->
+  {Exprs, _} =
+    lists:foldl(fun(BlockExpr, {ExprAcc, EnvAcc}) ->
+      case BlockExpr of
+        {expand, _, {op, _, '_=_'}, [Ident, RightExpr]} ->
+          {NewEnv, Var} = register_var(EnvAcc, Ident),
+          LetExpr = {c_let, [], Var, '_', expand_expr(RightExpr, Env)},
+
+          {[LetExpr | ExprAcc], NewEnv};
+        _ ->
+          {[expand_expr(BlockExpr, EnvAcc) | ExprAcc], EnvAcc}
+      end
+    end, {[], Env}, BlockExprs),
+  case Exprs of
+    [Expr] ->
+      Expr;
+    _ ->
+      % Unused expressions in a block are given variables (the last expression
+      % isn't modified, however).
+      {c_block, [], lists:reverse(lists:map(fun(Expr) ->
+        case Expr of
+          {c_let, _, _, _, _} ->
+            Expr;
+          _ ->
+            {c_let, [], element(2, register_var(Env, {ident, [], '_'})), '_', Expr}
+        end
+      end, tl(Exprs))) ++ [hd(Exprs)]}
+  end;
+
 %% Literals.
-expand_expr({ident, _, Bool}) when Bool =:= true; Bool =:= false ->
+expand_expr({ident, _, Bool}, _Env) when Bool =:= true; Bool =:= false ->
   {c_bool_lit, [], Bool};
-expand_expr({integer_lit, _, Integer}) ->
+expand_expr({integer_lit, _, Integer}, _Env) ->
   {c_int_lit, [], Integer};
-expand_expr({float_lit, _, Float}) ->
+expand_expr({float_lit, _, Float}, _Env) ->
   {c_float_lit, [], Float};
-expand_expr({atom_lit, _, Atom}) ->
+expand_expr({atom_lit, _, Atom}, _Env) ->
   {c_atom_lit, [], Atom};
-expand_expr({string_lit, _, String}) ->
+expand_expr({string_lit, _, String}, _Env) ->
   {c_str_lit, [], String};
 
 %% Cons and nil.
-expand_expr({expand, _, {op, _, '_::_'}, [Head, Tail]}) ->
-  {c_cons, [], expand_expr(Head), expand_expr(Tail)};
-expand_expr({ident, _, nil}) ->
+expand_expr({expand, _, {op, _, '_::_'}, [Head, Tail]}, Env) ->
+  {c_cons, [], expand_expr(Head, Env), expand_expr(Tail, Env)};
+expand_expr({ident, _, nil}, _Env) ->
   {c_nil, []};
 
 %% Unit value.
-expand_expr({unit, _}) ->
+expand_expr({expand, _, {op, _, '(_)'}, [{args, _, []}]}, _Env) ->
   {c_unit, []};
 
-%% Blocks.
-expand_expr({block, _, []}) ->
-  {c_unit, []};
-expand_expr({block, _, [Expr]}) ->
-  expand_expr(Expr);
-expand_expr({block, _, Exprs}) ->
-  lists:map(fun expand_expr/1, Exprs);
+%% Variables.
+expand_expr({ident, Meta, _} = Ident, Env) ->
+  case lookup_var(Env, Ident) of
+    undefined ->
+      throw({expand_error, {var_undefined, Meta}});
+    Var ->
+      Var
+  end;
 
 %% Constructors.
 expand_expr({expand, Meta, {op, _, '_(_)'},
-                           [{expand, _, {op, _, '#_'}, [Path]}, {args, _, Args}]}) ->
+                           [{expand, _, {op, _, '#_'}, [Path]}, {args, _, Args}]},
+            Env) ->
   case Path of
     {ident, _, list} ->
-      lists:foldr(fun(Arg, Acc) -> {c_cons, [], expand_expr(Arg), Acc} end, {c_nil, []}, Args);
+      lists:foldr(fun(Arg, Acc) -> {c_cons, [], expand_expr(Arg, Env), Acc} end, {c_nil, []}, Args);
     _ ->
       throw({expand_error, {constructor_invalid, Meta}})
   end;
 
 %% Logs.
-expand_expr({expand, _, {ident, _, log}, [Message]}) ->
+expand_expr({expand, _, {ident, _, log}, [Message]}, Env) ->
   %% TODO: call into a type-checkable Aero function instead.
   Callee = {c_callee_remote, {c_var, [], io}, {c_var, [], put_chars}},
   Args = [
     {c_atom_lit, [], standard_io},
-    {c_cons, [], expand_expr(Message), {c_cons, [], {c_int_lit, [], $\n}, {c_nil, []}}}
+    {c_cons, [], expand_expr(Message, Env), {c_cons, [], {c_int_lit, [], $\n}, {c_nil, []}}}
   ],
 
   {c_call, [], Callee, Args};
 
 %% Anything else...
-expand_expr(Expr) ->
+expand_expr(Expr, _Env) ->
   throw({expand_error, {expr_invalid, get_meta(Expr)}}).
 
 %% -----------------------------------------------------------------------------
@@ -299,6 +339,28 @@ expand_type_where(Where) ->
 %% -----------------------------------------------------------------------------
 %% Utilities
 %% -----------------------------------------------------------------------------
+
+%% Variable environment.
+-record(env, {vars, counter}).
+
+%% Empty expression environment.
+new_env() ->
+  #env{vars = [], counter = counters:new(1, [])}.
+
+%% Get a variable by its name.
+lookup_var(Env, {ident, _, IdentName}) ->
+  case proplists:get_value(IdentName, Env#env.vars) of
+    undefined -> undefined;
+    VarName   -> {c_var, [], VarName}
+  end.
+
+%% Create a fresh variable name from an identifier and save it to the env.
+register_var(Env, {ident, _, IdentName}) ->
+  counters:add(Env#env.counter, 1, 1),
+  Num = counters:get(Env#env.counter, 1),
+
+  VarName = list_to_atom(atom_to_list(IdentName) ++ "_" ++ integer_to_list(Num)),
+  {Env#env{vars = [{IdentName, VarName} | Env#env.vars]}, {c_var, [], VarName}}.
 
 get_meta({source, Meta, _})          -> Meta;
 get_meta({integer_lit, Meta, _})     -> Meta;
