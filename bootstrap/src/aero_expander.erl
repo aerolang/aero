@@ -10,7 +10,7 @@
 
 -export([expand/2]).
 
--export_type([c_any/0, c_module/0, c_expr/0, c_block/0]).
+-export_type([c_any/0, c_module/0, c_vis/0, c_expr/0, c_block/0]).
 -export_type([c_literal/0, c_bool_lit/0, c_int_lit/0, c_float_lit/0, c_atom_lit/0, c_str_lit/0]).
 -export_type([c_func/0, c_var/0, c_type/0]).
 
@@ -24,12 +24,14 @@
                | c_type().
 
 %% Top-level of Core Aero, represents a whole module.
--type c_module() :: {c_module, meta(), c_atom_lit(), c_module_exports(), c_module_attrs(),
-                                                     c_module_defs()}.
+-type c_module() :: {c_module, meta(), c_var(), c_module_attrs(), c_module_defs()}.
 
--type c_module_exports() :: [c_atom_lit()].
--type c_module_attrs()   :: [{c_atom_lit(), c_literal()}].
--type c_module_defs()    :: [{c_atom_lit(), c_func()}].
+-type c_module_attrs() :: [{c_atom_lit(), c_literal()}].
+-type c_module_defs()  :: [{c_var(), c_vis(), c_func()}].
+
+% Definition visibility.
+-type c_vis() :: c_vis_pub
+               | c_vis_priv.
 
 %% Any expression, excludes non-expression parts of Core Aero.
 -type c_expr() :: c_block()
@@ -68,15 +70,19 @@
 %% A function expression.
 -type c_func() :: {c_func, meta(), c_func_args(), c_func_ret(), c_func_where(), c_func_body()}.
 
--type c_func_args()   :: [{c_var(), c_type_inner()}].
--type c_func_ret()    :: c_type_inner().
--type c_func_where()  :: c_type_where().
--type c_func_body()   :: c_expr().
+-type c_func_args()  :: [{c_var(), c_type_inner()}].
+-type c_func_ret()   :: c_type_inner().
+-type c_func_where() :: c_type_where().
+-type c_func_body()  :: c_expr().
 
-%% A call to a remote function in a module.
--type c_call() :: {c_call, meta(), c_atom_lit() | c_var(), c_atom_lit() | c_var(), c_call_args()}.
+%% A call to a named function.
+-type c_call() :: {c_call, meta(), c_callee(), c_call_args()}.
 
 -type c_call_args() :: [c_expr()].
+
+%% Local or remote functions.
+-type c_callee() :: {c_callee_local, c_var()}
+                  | {c_callee_remote, c_var(), c_var()}.
 
 %% Variables.
 -type c_var() :: {c_var, meta(), atom()}.
@@ -134,34 +140,34 @@ expand_source(_, _) ->
 expand_mod_def([{ident, _IdentMeta, Ident}, {block, _BlockMeta, BlockArgs}], _ModuleMeta) ->
   Meta = [],
   Attrs = [],
-  {Exports, Defs, InnerModules} =
-    lists:foldl(fun(BlockArg, {Exports, Defs, InnerModules}) ->
+  {Defs, InnerModules} =
+    lists:foldl(fun(BlockArg, {Defs, InnerModules}) ->
       case BlockArg of
         % Public functions.
         {expand, FuncMeta, {ident, _, pub}, [{expand, _, {ident, _, func}, FuncArgs}]} ->
-          {Name, _} = Func = expand_func_def(FuncArgs, FuncMeta),
-          {[Name | Exports], [Func | Defs], InnerModules};
-        
+          Def = expand_func_def(FuncArgs, FuncMeta, c_vis_pub),
+          {[Def | Defs], InnerModules};
+
         % Private functions.
         {expand, FuncMeta, {ident, _, func}, FuncArgs} ->
-          Func = expand_func_def(FuncArgs, FuncMeta),
-          {Exports, [Func | Defs], InnerModules}
+          Def = expand_func_def(FuncArgs, FuncMeta, c_vis_priv),
+          {[Def | Defs], InnerModules}
       end
-    end, {[], [], []}, BlockArgs),
+    end, {[], []}, BlockArgs),
 
-  Module = {c_module, Meta, Ident, lists:reverse(Exports), Attrs, lists:reverse(Defs)},
+  Module = {c_module, Meta, {c_var, [], Ident}, Attrs, lists:reverse(Defs)},
   [Module | lists:reverse(InnerModules)];
 expand_mod_def(_, ModuleMeta) ->
   throw({expand_error, {mod_def_invalid, ModuleMeta}}).
 
-expand_func_def([FuncHead, FuncBody], _FuncMeta) ->
+expand_func_def([FuncHead, FuncBody], _FuncMeta, Vis) ->
   Meta = [],
   {Name, Args, Ret, Where} = expand_func_def_head(FuncHead),
   Body = expand_func_def_body(FuncBody),
 
   Func = {c_func, Meta, Args, Ret, Where, Body},
-  {Name, Func};
-expand_func_def(_, FuncMeta) ->
+  {Name, Vis, Func};
+expand_func_def(_, FuncMeta, _) ->
   throw({expand_error, {func_def_invalid, FuncMeta}}).
 
 expand_func_def_head(FuncHead) ->
@@ -174,7 +180,8 @@ expand_func_def_head({expand, FuncHeadMeta, {op, _, Arrow}, [{args, _, LeftArrow
   % TODO: check when pure.
   case LeftArrowArgs of
     [{expand, _, {op, _, '_(_)'}, [{ident, _, Name}, {args, _, Args}]}] ->
-      {Name, lists:map(fun expand_func_def_arg/1, Args), expand_type_inner(Ret), Where};
+      NameVar = {c_var, [], Name},
+      {NameVar, lists:map(fun expand_func_def_arg/1, Args), expand_type_inner(Ret), Where};
     _ ->
       throw({expand_error, {func_def_head_invalid, FuncHeadMeta}})
   end;
@@ -238,14 +245,13 @@ expand_expr({expand, Meta, {op, _, '_(_)'},
 %% Logs.
 expand_expr({expand, _, {ident, _, log}, [Message]}) ->
   %% TODO: call into a type-checkable Aero function instead.
-  Module = {c_atom_lit, [], io},
-  Function = {c_atom_lit, [], put_chars},
+  Callee = {c_callee_remote, {c_var, [], io}, {c_var, [], put_chars}},
   Args = [
     {c_atom_lit, [], standard_io},
     {c_cons, [], expand_expr(Message), {c_cons, [], {c_int_lit, [], $\n}, {c_nil, []}}}
   ],
 
-  {c_call, [], Module, Function, Args};
+  {c_call, [], Callee, Args};
 
 %% Anything else...
 expand_expr(Expr) ->

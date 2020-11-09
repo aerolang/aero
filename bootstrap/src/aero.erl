@@ -71,8 +71,7 @@ write_core({error, _} = Error) ->
 
 write_core([], _, Acc) ->
   {ok, Acc};
-write_core([H | T], BeamDir, Acc) ->
-  Name = element(3, H),
+write_core([{c_module, _, {c_var, _, Name}, _, _} = H | T], BeamDir, Acc) ->
   String = aero_pprint:pprint_core_aero(H),
   Filename = filename:join([BeamDir, atom_to_list(Name) ++ ".c-aero"]),
   case file:write_file(Filename, <<String/binary, "\n">>) of

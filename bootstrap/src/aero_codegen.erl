@@ -13,7 +13,7 @@ generate(CoreModule) ->
   CerlModule = gen_module(CoreModule),
   case compile:noenv_forms(CerlModule, [from_core, return_errors]) of
     {ok, _, Binary} ->
-      Name = element(3, CoreModule),
+      {c_module, _, {c_var, _, Name}, _, _} = CoreModule,
       {ok, Name, Binary};
     {error, Errors, _} ->
       {error, {internal_cerl_compile, Errors}}
@@ -23,27 +23,31 @@ generate(CoreModule) ->
 %% Helper Functions
 %% -----------------------------------------------------------------------------
 
-gen_module({c_module, _, Name, Exports, Attrs, Defs}) ->
+gen_module({c_module, _, {c_var, [], Name}, Attrs, Defs}) ->
   CerlName = cerl:c_atom(Name),
 
-  CerlExports = lists:map(fun(Export) ->
-    Func = proplists:get_value(Export, Defs),
-    cerl:c_var({Export, arity(Func)})
-  end, Exports),
+  CerlAttrs =
+    lists:map(fun(_Attr) ->
+      % TODO: Implement.
+      throw(unimplemented)
+    end, Attrs),
 
-  CerlAttrs = lists:map(fun(_Attr) ->
-    % TODO: Implement.
-    throw(unimplemented)
-  end, Attrs),
+  {CerlExports, CerlDefs} =
+    lists:foldl(fun(Def, {AccExports, AccDefs}) ->
+      case Def of
+        {{c_var, _, FuncName}, Vis, {c_func, _, _, _, _, _} = Func} ->
+          CerlDef = {cerl:c_var({FuncName, arity(Func)}), gen_func(Func)},
+          case Vis of
+            c_vis_pub ->
+              CerlExport = cerl:c_var({FuncName, arity(Func)}),
+              {[CerlExport | AccExports], [CerlDef | AccDefs]};
+            c_vis_priv ->
+              {AccExports, [CerlDef | AccDefs]}
+          end
+      end
+    end, {[], []}, Defs),
 
-  CerlDefs = lists:map(fun(Def) ->
-    {FuncName, Func} = Def,
-    CerlVar = cerl:c_var({FuncName, arity(Func)}),
-    CerlFunc = gen_func(Func),
-    {CerlVar, CerlFunc}
-  end, Defs),
-
-  cerl:ann_c_module([], CerlName, CerlExports, CerlAttrs, CerlDefs).
+  cerl:ann_c_module([], CerlName, lists:reverse(CerlExports), CerlAttrs, lists:reverse(CerlDefs)).
 
 gen_func({c_func, _, Args, _Ret, _Where, Body}) ->
   CerlArgs = [cerl:c_var(Name) || {Name, _} <- Args],
@@ -70,9 +74,9 @@ gen_expr({c_nil, _}) ->
 gen_expr({c_unit, _}) ->
   cerl:add_ann([], cerl:abstract(ok));
 
-gen_expr({c_call, _, Module, Function, Args}) ->
-  CerlModule = gen_expr(Module),
-  CerlFunction = gen_expr(Function),
+gen_expr({c_call, _, {c_callee_remote, {c_var, _, Module}, {c_var, _, Function}}, Args}) ->
+  CerlModule = cerl:add_ann([], cerl:abstract(Module)),
+  CerlFunction = cerl:add_ann([], cerl:abstract(Function)),
   CerlArgs = [gen_expr(Arg) || Arg <- Args],
 
   cerl:ann_c_call([], CerlModule, CerlFunction, CerlArgs).

@@ -23,14 +23,18 @@ pprint_core_aero(CoreAero) ->
 pprint(Node) ->
   pprint(Node, 0).
 
-pprint({c_module, _, Name, Exports, _Attrs, Defs}, Level) ->
-  ExportStrs = pprint_args(export, Exports, Level + 2),
-  InnerDefs = [
-    [pprint(FuncName), "\n", spaces(Level + 4), pprint(Func, Level + 4)]
-      || {FuncName, Func} <- Defs
-  ],
-  DefStrs = pprint_args(def, InnerDefs, Level + 2),
-  format([module, Name, ExportStrs, [], DefStrs], Level);
+pprint({c_module, _, Name, _Attrs, Defs}, Level) ->
+  InnerDefs =
+    lists:map(fun({DefName, Vis, Expr}) ->
+      [pprint(Vis), " ", pprint(DefName), "\n", spaces(Level + 4), pprint(Expr, Level + 4)]
+    end, Defs),
+  DefStrs = lists:join($\n, pprint_args(def, InnerDefs, Level + 2)),
+  format([module, Name, [], DefStrs], Level);
+
+pprint(c_vis_pub, _Level) ->
+  "pub";
+pprint(c_vis_priv, _Level) ->
+  "priv";
 
 pprint({c_bool_lit, _, Bool}, _Level) ->
   atom_to_list(Bool);
@@ -39,14 +43,7 @@ pprint({c_int_lit, _, Integer}, _Level) ->
 pprint({c_float_lit, _, Float}, _Level) ->
   float_to_list(Float);
 pprint({c_atom_lit, _, Atom}, _Level) ->
-  Str = atom_to_list(Atom),
-  Alnum = fun(C) -> C =:= $_ orelse (C >= $a andalso C =< $z)
-                             orelse (C >= $A andalso C =< $Z)
-                             orelse (C >= $0 andalso C =< $9) end,
-  case lists:all(Alnum, Str) andalso hd(Str) > $9 of
-    true  -> [":", Str];
-    false -> [":\"", Str, "\""]
-  end;
+  [$:, printable_atom(Atom)];
 pprint({c_str_lit, _, String}, _Level) ->
   [$", printable_string(String), $"];
 
@@ -63,9 +60,17 @@ pprint({c_func, _, _Args, Ret, _Where, Body}, Level) ->
   BodyStr = pprint_arg(body, Body, Level + 2),
   format([func, RetStr, BodyStr], Level);
 
-pprint({c_call, _, Module, Function, Argments}, Level) ->
+pprint({c_call, _, Callee, Argments}, Level) ->
   ArgumentStrs = pprint_args(arg, Argments, Level + 2),
-  format([call, Module, Function, ArgumentStrs], Level);
+  format([call, Callee, ArgumentStrs], Level);
+
+pprint({c_callee_local, Func}, _Level) ->
+  pprint(Func);
+pprint({c_callee_remote, {c_var, _, ModName}, {c_var, _, FuncName}}, _Level) ->
+  [$$, printable_atom(ModName), "::", printable_atom(FuncName)];
+
+pprint({c_var, _, Name}, _Level) ->
+  [$$, printable_atom(Name)];
 
 pprint(c_type_bool, _Level) ->
   "bool";
@@ -107,6 +112,26 @@ format(Nodes, Level) when is_list(Nodes) ->
 
 spaces(Level) ->
   lists:duplicate(Level, " ").
+
+printable_atom(Atom) ->
+  Str = atom_to_list(Atom),
+  case lists:all(fun unquoted_atom_char/1, Str) of
+    true  -> Str;
+    false -> [$\", printable_string(Str), $\"]
+  end.
+
+%% Core Aero atoms also allow "-" and "." where Aero ones do not and can start
+%% with a number as well.
+unquoted_atom_char($_) ->
+  true;
+unquoted_atom_char($-) ->
+  true;
+unquoted_atom_char($.) ->
+  true;
+unquoted_atom_char(C) when C >= $a, C =< $z; C >= $A, C =< $Z; C >= $0, C =< $9 ->
+  true;
+unquoted_atom_char(_) ->
+  false.
 
 %% Convert to printable ASCII and escape characters.
 printable_string(String) ->
