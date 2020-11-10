@@ -14,7 +14,7 @@
 -spec pprint_core_aero(aero_expander:c_any()) -> binary().
 pprint_core_aero(CoreAero) ->
   String = pprint(CoreAero),
-  list_to_binary(lists:flatten(String)).
+  re:replace(String, " +\\n", "\n", [global, {return, binary}]).
 
 %% -----------------------------------------------------------------------------
 %% Helper Functions
@@ -59,14 +59,19 @@ pprint({c_nil, _}, _Level) ->
 pprint({c_unit, _}, _Level) ->
   "unit";
 
-pprint({c_func, _, _Args, Ret, _Where, Body}, Level) ->
-  RetStr = pprint_arg(ret, Ret, Level + 2),
+pprint({c_func, _, Args, Result, _Where, Body}, Level) ->
+  InnerArgs =
+    lists:map(fun({ArgVar, ArgType}) ->
+      [pprint(ArgVar), " ", pprint(ArgType)]
+    end, Args),
+  ArgStrs = pprint_args(arg, InnerArgs, Level + 2),
+  ResultStr = pprint_arg(result, Result, Level + 2),
   BodyStr = pprint_arg(body, Body, Level + 2),
-  format([func, RetStr, BodyStr], Level);
+  format([func, ArgStrs, ResultStr, BodyStr], Level);
 
-pprint({c_call, _, Callee, Argments}, Level) ->
-  ArgumentStrs = pprint_args(arg, Argments, Level + 2),
-  format([call, Callee, ArgumentStrs], Level);
+pprint({c_call, _, Callee, Args}, Level) ->
+  ArgStrs = pprint_args(arg, Args, Level + 2),
+  format([call, Callee, ArgStrs], Level);
 
 pprint({c_callee_local, Func}, _Level) ->
   pprint(Func);
@@ -99,6 +104,8 @@ pprint(c_type_unit, _Level) ->
   "unit";
 pprint({c_type_list, T}, Level) ->
   format([list, T], Level + 2);
+pprint({c_type_param, Name}, _Level) ->
+  [$', printable_atom(Name)];
 
 %% Keep binaries as they are, and otherwise, turn it into a binary.
 pprint(Node, _Level) when is_list(Node) ->

@@ -76,8 +76,8 @@ gen_expr({c_nil, _}) ->
 gen_expr({c_unit, _}) ->
   cerl:add_ann([], cerl:abstract(ok));
 
-gen_expr({c_func, _, Args, _Ret, _Where, Body}) ->
-  CerlArgs = [cerl:c_var(Name) || {Name, _} <- Args],
+gen_expr({c_func, _, Args, _Result, _Where, Body}) ->
+  CerlArgs = [cerl:c_var(Name) || {{c_var, _, Name}, _} <- Args],
   CerlBody = gen_expr(Body),
 
   cerl:ann_c_fun([], CerlArgs, CerlBody);

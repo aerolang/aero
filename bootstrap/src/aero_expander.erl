@@ -70,12 +70,12 @@
 -type c_unit() :: {c_unit, meta()}.
 
 %% A function expression.
--type c_func() :: {c_func, meta(), c_func_args(), c_func_ret(), c_func_where(), c_func_body()}.
+-type c_func() :: {c_func, meta(), c_func_args(), c_func_result(), c_func_where(), c_func_body()}.
 
--type c_func_args()  :: [{c_var(), c_type_inner()}].
--type c_func_ret()   :: c_type_inner().
--type c_func_where() :: c_type_where().
--type c_func_body()  :: c_expr().
+-type c_func_args()   :: [{c_var(), c_type_inner()}].
+-type c_func_result() :: c_type_inner().
+-type c_func_where()  :: c_type_where().
+-type c_func_body()   :: c_expr().
 
 %% A call to a named function.
 -type c_call() :: {c_call, meta(), c_callee(), c_call_args()}.
@@ -168,40 +168,50 @@ expand_mod_def(_, ModuleMeta) ->
 
 expand_func_def([FuncHead, FuncBody], _FuncMeta, Vis) ->
   Meta = [],
-  {Name, Args, Ret, Where} = expand_func_def_head(FuncHead),
-  Body = expand_func_def_body(FuncBody),
+  {Name, Args, Result, Where, Env} = expand_func_def_head(FuncHead, new_env()),
+  Body = expand_func_def_body(FuncBody, Env),
 
-  Func = {c_func, Meta, Args, Ret, Where, Body},
+  Func = {c_func, Meta, Args, Result, Where, Body},
   {Name, Vis, Func};
 expand_func_def(_, FuncMeta, _) ->
   throw({expand_error, {func_def_invalid, FuncMeta}}).
 
-expand_func_def_head(FuncHead) ->
-  expand_func_def_head(FuncHead, []).
+expand_func_def_head(FuncHead, Env) ->
+  expand_func_def_head(FuncHead, [], Env).
 
-expand_func_def_head({expand, _, {op, _, '_where_'}, [FuncHeadLeft, Clause]}, Where) ->
-  expand_func_def_head(FuncHeadLeft, [Clause | expand_type_where(Where)]);
-expand_func_def_head({expand, FuncHeadMeta, {op, _, Arrow}, [{args, _, LeftArrowArgs}, Ret]},
-                     Where) when Arrow =:= '_->_'; Arrow =:= '_->>_'->
+expand_func_def_head({expand, _, {op, _, '_where_'}, [FuncHeadLeft, Clause]}, Where, Env) ->
+  expand_func_def_head(FuncHeadLeft, [Clause | expand_type_where(Where)], Env);
+expand_func_def_head({expand, FuncHeadMeta, {op, _, Arrow}, [{args, _, LeftArrowArgs}, Result]},
+                     Where,
+                     Env) when Arrow =:= '_->_'; Arrow =:= '_->>_'->
   % TODO: check when pure.
   case LeftArrowArgs of
     [{expand, _, {op, _, '_(_)'}, [{ident, _, Name}, {args, _, Args}]}] ->
       NameVar = {c_var, [], Name},
-      {NameVar, lists:map(fun expand_func_def_arg/1, Args), expand_type_inner(Ret), Where};
+      {CoreArgs, BodyEnv} =
+        lists:foldl(fun(Arg, {ArgAcc, EnvAcc}) ->
+          case Arg of
+            {tag, _, {ident, _, _} = Ident, Type} ->
+              {NewEnv, ArgVar} = register_var(EnvAcc, Ident),
+              ArgType = expand_type_inner(Type),
+
+              {[{ArgVar, ArgType} | ArgAcc], NewEnv};
+            _ ->
+              throw({expand_error, {func_def_arg_invalid, get_meta(Arg)}})
+          end
+        end, {[], Env}, Args),
+      ResultType = expand_type_inner(Result),
+
+      {NameVar, CoreArgs, ResultType, Where, BodyEnv};
     _ ->
       throw({expand_error, {func_def_head_invalid, FuncHeadMeta}})
   end;
-expand_func_def_head(FuncHead, _) ->
+expand_func_def_head(FuncHead, _, _Env) ->
   throw({expand_error, {func_def_head_invalid, get_meta(FuncHead)}}).
 
-expand_func_def_arg({tag, _, {ident, _, Ident}, Type}) ->
-  {{c_var, [], Ident}, expand_type_inner(Type)};
-expand_func_def_arg(Arg) ->
-  throw({expand_error, {func_def_arg_invalid, get_meta(Arg)}}).
-
-expand_func_def_body({block, _, _} = Block) ->
-  expand_expr(Block, new_env());
-expand_func_def_body(FuncBody) ->
+expand_func_def_body({block, _, _} = Block, Env) ->
+  expand_expr(Block, Env);
+expand_func_def_body(FuncBody, _Env) ->
   throw({expand_error, {func_def_body_invalid, get_meta(FuncBody)}}).
 
 %% -----------------------------------------------------------------------------
@@ -217,7 +227,7 @@ expand_expr({block, _, BlockExprs}, Env) ->
       case BlockExpr of
         {expand, _, {op, _, '_=_'}, [Ident, RightExpr]} ->
           {NewEnv, Var} = register_var(EnvAcc, Ident),
-          LetExpr = {c_let, [], Var, '_', expand_expr(RightExpr, Env)},
+          LetExpr = {c_let, [], Var, {c_type_param, '_'}, expand_expr(RightExpr, Env)},
 
           {[LetExpr | ExprAcc], NewEnv};
         _ ->
@@ -235,7 +245,8 @@ expand_expr({block, _, BlockExprs}, Env) ->
           {c_let, _, _, _, _} ->
             Expr;
           _ ->
-            {c_let, [], element(2, register_var(Env, {ident, [], '_'})), '_', Expr}
+            Var = element(2, register_var(Env, {ident, [], '_'})),
+            {c_let, [], Var, {c_type_param, '_'}, Expr}
         end
       end, tl(Exprs))) ++ [hd(Exprs)]}
   end;
