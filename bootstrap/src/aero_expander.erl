@@ -36,9 +36,10 @@
 %% Any expression, excludes non-expression parts of Core Aero.
 -type c_expr() :: c_block()
                 | c_literal()
+                | c_unit()
+                | c_tuple()
                 | c_cons()
                 | c_nil()
-                | c_unit()
                 | c_func()
                 | c_call()
                 | c_var()
@@ -62,12 +63,15 @@
 -type c_atom_lit()  :: {c_atom_lit, meta(), atom()}.
 -type c_str_lit()   :: {c_str_lit, meta(), binary()}.
 
+%% Unit value.
+-type c_unit() :: {c_unit, meta()}.
+
+%% Tuple.
+-type c_tuple() :: {c_tuple, meta(), [c_expr()]}.
+
 %% Cons and nil.
 -type c_cons() :: {c_cons, meta(), c_expr(), c_cons() | c_nil()}.
 -type c_nil()  :: {c_nil, meta()}.
-
-%% Unit value.
--type c_unit() :: {c_unit, meta()}.
 
 %% A function expression.
 -type c_func() :: {c_func, meta(), c_func_args(), c_func_result(), c_func_where(), c_func_body()}.
@@ -202,7 +206,7 @@ expand_func_def_head({expand, FuncHeadMeta, {op, _, Arrow}, [{args, _, LeftArrow
         end, {[], Env}, Args),
       ResultType = expand_type_inner(Result),
 
-      {NameVar, CoreArgs, ResultType, Where, BodyEnv};
+      {NameVar, lists:reverse(CoreArgs), ResultType, Where, BodyEnv};
     _ ->
       throw({expand_error, {func_def_head_invalid, FuncHeadMeta}})
   end;
@@ -263,15 +267,19 @@ expand_expr({atom_lit, _, Atom}, _Env) ->
 expand_expr({string_lit, _, String}, _Env) ->
   {c_str_lit, [], String};
 
+%% Unit value.
+expand_expr({expand, _, {op, _, '(_)'}, [{args, _, []}]}, _Env) ->
+  {c_unit, []};
+
+%% Tuples.
+expand_expr({expand, _, {op, _, '(_)'}, [{args, _, Args}]}, Env) when length(Args) > 1 ->
+  {c_tuple, [], [expand_expr(Arg, Env) || Arg <- Args]};
+
 %% Cons and nil.
 expand_expr({expand, _, {op, _, '_::_'}, [Head, Tail]}, Env) ->
   {c_cons, [], expand_expr(Head, Env), expand_expr(Tail, Env)};
 expand_expr({ident, _, nil}, _Env) ->
   {c_nil, []};
-
-%% Unit value.
-expand_expr({expand, _, {op, _, '(_)'}, [{args, _, []}]}, _Env) ->
-  {c_unit, []};
 
 %% Variables.
 expand_expr({ident, Meta, _} = Ident, Env) ->
@@ -335,8 +343,16 @@ expand_type_inner({expand, _, {op, _, '(_)'}, [{args, _, []}]}) ->
   c_type_unit;
 
 %% Collections.
+expand_type_inner({expand, _, {op, _, '(_)'}, [{args, _, Args}]}) when length(Args) > 1 ->
+  {c_type_tuple, lists:map(fun expand_type_inner/1, Args)};
 expand_type_inner({expand, _, {ident, _, list}, [T]}) ->
   {c_type_list, expand_type_inner(T)};
+expand_type_inner({expand, _, {ident, _, dict}, [K, V]}) ->
+  {c_type_dict, expand_type_inner(K), expand_type_inner(V)};
+
+%% Type parameters.
+expand_type_inner({type_param, _, TParam}) ->
+  {c_type_param, TParam};
 
 %% Anything else...
 expand_type_inner(Type) ->

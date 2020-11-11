@@ -68,13 +68,16 @@ gen_expr({c_atom_lit, _, Atom}) ->
 gen_expr({c_str_lit, _, String}) ->
   cerl:add_ann([], cerl:abstract(String));
 
+gen_expr({c_unit, _}) ->
+  cerl:add_ann([], cerl:abstract(ok));
+
+gen_expr({c_tuple, _, Exprs}) ->
+  cerl:ann_c_tuple([], [gen_expr(Expr) || Expr <- Exprs]);
+
 gen_expr({c_cons, _, Head, Tail}) ->
   cerl:ann_c_cons([], gen_expr(Head), gen_expr(Tail));
 gen_expr({c_nil, _}) ->
   cerl:ann_c_nil([]);
-
-gen_expr({c_unit, _}) ->
-  cerl:add_ann([], cerl:abstract(ok));
 
 gen_expr({c_func, _, Args, _Result, _Where, Body}) ->
   CerlArgs = [cerl:c_var(Name) || {{c_var, _, Name}, _} <- Args],

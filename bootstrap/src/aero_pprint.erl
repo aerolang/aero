@@ -51,13 +51,17 @@ pprint({c_atom_lit, _, Atom}, _Level) ->
 pprint({c_str_lit, _, String}, _Level) ->
   [$", printable_string(String), $"];
 
+pprint({c_unit, _}, _Level) ->
+  "unit";
+
+pprint({c_tuple, _, Exprs}, Level) ->
+  format([tuple | Exprs], Level + 2);
+
 pprint({c_cons, _, Head, Tail}, Level) ->
   format([cons, Head, Tail], Level + 2);
 pprint({c_nil, _}, _Level) ->
   "nil";
 
-pprint({c_unit, _}, _Level) ->
-  "unit";
 
 pprint({c_func, _, Args, Result, _Where, Body}, Level) ->
   InnerArgs =
@@ -102,8 +106,12 @@ pprint(c_type_ref, _Level) ->
   "ref";
 pprint(c_type_unit, _Level) ->
   "unit";
+pprint({c_type_tuple, TArgs}, Level) ->
+  format([tuple | TArgs], Level + 2);
 pprint({c_type_list, T}, Level) ->
   format([list, T], Level + 2);
+pprint({c_type_dict, K, V}, Level) ->
+  format([dict, K, V], Level + 2);
 pprint({c_type_param, Name}, _Level) ->
   [$', printable_atom(Name)];
 
