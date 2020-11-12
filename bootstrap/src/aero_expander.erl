@@ -40,6 +40,7 @@
                 | c_tuple()
                 | c_cons()
                 | c_nil()
+                | c_dict()
                 | c_func()
                 | c_call()
                 | c_var()
@@ -72,6 +73,11 @@
 %% Cons and nil.
 -type c_cons() :: {c_cons, meta(), c_expr(), c_cons() | c_nil()}.
 -type c_nil()  :: {c_nil, meta()}.
+
+%% Dictionary.
+-type c_dict() :: {c_dict, meta(), [c_dict_pair()]}.
+
+-type c_dict_pair() :: {c_expr(), c_expr()}.
 
 %% A function expression.
 -type c_func() :: {c_func, meta(), c_func_args(), c_func_result(), c_func_where(), c_func_body()}.
@@ -280,6 +286,22 @@ expand_expr({expand, _, {op, _, '_::_'}, [Head, Tail]}, Env) ->
   {c_cons, [], expand_expr(Head, Env), expand_expr(Tail, Env)};
 expand_expr({ident, _, nil}, _Env) ->
   {c_nil, []};
+
+%% Dictionaries.
+expand_expr({expand, _, {op, _, '#{_}'}, [{args, _, Args}]}, Env) ->
+  Pairs =
+    lists:map(fun(Arg) ->
+      case Arg of
+        {expand, _, {op, _, '_=>_'}, [Key, Value]} ->
+          {expand_expr(Key, Env), expand_expr(Value, Env)};
+
+        % We can have a tag in a dictionary for #{ atom: expr } syntax.
+        % Needing to corece the left side into an atom.
+        {tag, _, {ident, _, Key}, Value} ->
+          {{c_atom_lit, [], Key}, expand_expr(Value, Env)}
+      end
+    end, Args),
+  {c_dict, [], Pairs};
 
 %% Variables.
 expand_expr({ident, Meta, _} = Ident, Env) ->

@@ -62,6 +62,13 @@ pprint({c_cons, _, Head, Tail}, Level) ->
 pprint({c_nil, _}, _Level) ->
   "nil";
 
+pprint({c_dict, _, Pairs}, Level) ->
+  InnerPairs =
+    lists:map(fun({Key, Value}) ->
+      [pprint(Key, Level + 4), " ", pprint(Value, Level + 4)]
+    end, Pairs),
+  PairStrs = pprint_args(pair, InnerPairs, Level + 2),
+  format([dict, PairStrs], Level);
 
 pprint({c_func, _, Args, Result, _Where, Body}, Level) ->
   InnerArgs =

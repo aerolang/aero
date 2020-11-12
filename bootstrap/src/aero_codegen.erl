@@ -79,6 +79,14 @@ gen_expr({c_cons, _, Head, Tail}) ->
 gen_expr({c_nil, _}) ->
   cerl:ann_c_nil([]);
 
+gen_expr({c_dict, _, Pairs}) ->
+  CerlPairs =
+    lists:map(
+      fun({Key, Value}) ->
+        cerl:add_ann([], cerl:c_map_pair(gen_expr(Key), gen_expr(Value)))
+      end, Pairs),
+  cerl:ann_c_map([], CerlPairs);
+
 gen_expr({c_func, _, Args, _Result, _Where, Body}) ->
   CerlArgs = [cerl:c_var(Name) || {{c_var, _, Name}, _} <- Args],
   CerlBody = gen_expr(Body),
