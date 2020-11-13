@@ -34,12 +34,12 @@
 %% Parse tokens into the Aero AST.
 -spec parse([aero_lexer:token()]) -> {ok, ast()} | {error, term(), integer()}.
 parse([]) ->
-  {error, no_tokens, ?LINE};
+  {error, no_tokens};
 parse(Tokens) ->
   try source(Tokens) of
     Expr -> {ok, Expr}
   catch
-    throw:{parse_error, Reason, Line} -> {error, Reason, Line}
+    throw:{parse_error, Reason} -> {error, Reason}
   end.
 
 %% -----------------------------------------------------------------------------
@@ -79,7 +79,7 @@ group(Tokens, EndToken, Mode, Exprs) ->
     true ->
       group(Tokens2, EndToken, Mode, [Expr | Exprs]);
     false ->
-      throw({parse_error, {unexpected_token, hd(Tokens2)}, ?LINE})
+      throw({parse_error, {unexpected_token, hd(Tokens2)}})
   end.
 
 %% Parse the remainder of a container after it's starting token.
@@ -106,9 +106,11 @@ container(Tokens, EndToken, BP, InnerMode, OuterMode, exprs) ->
     {[{Type, _, End} | _] = Tokens2, {Type, End}} ->
       {Tokens3, T} = expect(Tokens2, EndToken),
       {Tokens3, [], T};
+
     {[{End, _} | _] = Tokens2, End} ->
       {Tokens3, T} = expect(Tokens2, EndToken),
       {Tokens3, [], T};
+
     {Tokens2, _} ->
       {Tokens3, Exprs, T} = container(Tokens2, EndToken, BP, InnerMode, OuterMode, expr),
       case Exprs of
@@ -146,23 +148,25 @@ expr([{op, _, Op} = T | Tail], MinBP, Mode) ->
   {NextBP, _} = op(NextMode, prefix, Op),
   {Tokens, LeftExpr} =
     case {op(Mode, prefix, Op), container_op(prefix, Op)} of
+      % Only right precedence works with prefix operators. This is the typical
+      % operator case when it's not a container.
       {{BP, right}, nil} when BP >= MinBP ->
-        % Only right precedence works with prefix operators. This is the typical
-        % operator case when it's not a container.
         {Tokens2, RightExpr} = expr(Tail, NextBP, NextMode),
         Expr = expr_prefix(T, [RightExpr], Mode),
         {Tokens2, Expr};
+
+      % Here, we handle containers.
       {{BP, right}, {EndOp, ContainerType, InnerMode}} when BP >= MinBP ->
-        % Here, we handle containers.
         {Tokens2, InnerExprs, EndT} =
           container(Tail, {op, EndOp}, NextBP, InnerMode, NextMode, ContainerType),
         Expr = expr_prefix(T, EndT, InnerExprs, Mode),
         {Tokens2, Expr};
+
+      % Some operators like `if` can be used in a prefix way. They are sent back
+      % to try again.
       _ ->
-        % Some operators like `if` can be used in a prefix way. They are sent
-        % back to try again.
         case op_to_tokens(T) of
-          nil -> throw({parse_error, {unexpected_token, T}, ?LINE});
+          nil -> throw({parse_error, {unexpected_token, T}});
           OpTokens -> expr(OpTokens ++ Tail, MinBP, Mode)
         end
     end,
@@ -179,13 +183,14 @@ expr([T | Tail], MinBP, Mode) ->
 %% and the operators meet the required binding power.
 expr_postfix_infix([{op, _, Op} = T | Tail] = Tokens, LeftExpr, MinBP, Mode) ->
   case {op(Mode, postfix, Op), op(Mode, infix, Op), LeftExpr} of
+    % Error when nonassociative ops are found twice in a row, can only be for
+    % infix ops.
     {{0, _}, {_, none}, {expand, _, {op, _, Op}, _}} ->
-      % Error when nonassociative ops are found twice in a row, can only be for
-      % infix ops.
-      throw({parse_error, {nonassoc_op, T}, ?LINE});
+      throw({parse_error, {nonassoc_op, T}});
+
+    % Postfix is always left associative. We just parse a postfix op, and
+    % continue in the loop.
     {{BP, left}, _, _} when BP > MinBP ->
-      % Postfix is always left associative. We just parse a postfix op, and
-      % continue in the loop.
       {Tokens2, Expr} =
         case container_op(postfix, Op) of
           nil ->
@@ -199,19 +204,23 @@ expr_postfix_infix([{op, _, Op} = T | Tail] = Tokens, LeftExpr, MinBP, Mode) ->
               container(Tail, {op, EndOp}, NextBP, InnerMode, NextMode, ContainerType),
             {Tokens3, expr_postfix(T, EndT, [LeftExpr | InnerExprs], Mode)}
         end,
+
       expr_postfix_infix(Tokens2, Expr, MinBP, Mode);
+
+    % Right associative operators can also equal the minimum binding power, this
+    % lets the right expression to keep being evalulated. For infix, the next
+    % expression is parsed with an optional newline preceding it, and the loop
+    % is continued.
     {_, {BP, Assoc}, _} when Assoc =/= right, BP > MinBP; Assoc =:= right, BP >= MinBP ->
-      % Right associative operators can also equal the minimum binding power,
-      % this lets the right expression to keep being evalulated. For infix, the
-      % next expression is parsed with an optional newline preceding it, and the
-      % loop is continued.
       NextMode = next_mode(Mode, infix, Op),
       {NextBP, _} = op(NextMode, infix, Op),
       {Tokens2, RightExpr} = expr(trim_whitespace(Tail), NextBP, NextMode),
       Expr = expr_infix(T, [LeftExpr, RightExpr], Mode),
+
       expr_postfix_infix(Tokens2, Expr, MinBP, Mode);
+
+    % No operators with high enough binding power.
     _ ->
-      % No operators with high enough binding power.
       {Tokens, LeftExpr}
   end;
 expr_postfix_infix([{eof, _}] = Tokens, LeftExpr, _MinBP, _Mode) ->
@@ -228,7 +237,7 @@ expr_postfix_infix([{space, Meta} | Tail] = Tokens, LeftExpr, MinBP, Mode) ->
     break    -> {Tokens, LeftExpr}
   end;
 expr_postfix_infix([T | _], _LeftExpr, _MinBP, _Mode) ->
-  throw({parse_error, {unexpected_token, T}, ?LINE}).
+  throw({parse_error, {unexpected_token, T}}).
 
 %% Simple, one token expressions.
 expr_single({ident, Meta, Ident}, _Mode) ->
@@ -253,6 +262,7 @@ expr_prefix({op, OpMeta, Op}, Exprs, _Mode) ->
   OpBinary = atom_to_binary(Op, utf8),
   PrefixOp = binary_to_atom(<<OpBinary/binary, "_">>, utf8),
   Meta = merge_meta([OpMeta | get_meta(Exprs)]),
+
   {expand, Meta, {op, OpMeta, PrefixOp}, Exprs}.
 
 expr_prefix({op, LeftMeta, '('},
@@ -261,30 +271,36 @@ expr_prefix({op, LeftMeta, '('},
             _Mode) ->
   % Prevents unwrapping on the left side of `->`.
   Meta = merge_meta([LeftMeta, RightMeta]),
+
   {explicit_tuple, Meta, InnerExprs};
 expr_prefix({op, _, '('}, {op, _, ')'}, [InnerExpr], _Mode) ->
   % One item in parens gives back the inside without wrapping.
   InnerExpr;
 expr_prefix({op, LeftMeta, '{'}, {op, RightMeta, '}'}, InnerExprs, _Mode) ->
   Meta = merge_meta([LeftMeta, RightMeta]),
+
   {block, Meta, InnerExprs};
 expr_prefix({op, LeftMeta, '#['},
             {op, RightMeta, ']'},
             [RightExpr, {op_args, InnerMeta, InnerExprs}],
             _Mode) ->
   Meta = merge_meta([LeftMeta, RightMeta]),
+
   {attribute, Meta, {args, InnerMeta, InnerExprs}, RightExpr};
 expr_prefix({op, LeftMeta, '#['}, {op, RightMeta, ']'}, [RightExpr, InnerExprs], _Mode) ->
   Meta = merge_meta([LeftMeta, RightMeta]),
+
   {attribute, Meta, {args, merge_meta(get_meta(InnerExprs)), InnerExprs}, RightExpr};
 expr_prefix({op, LeftMeta, '#!['},
             {op, RightMeta, ']'},
             [{op_args, InnerMeta, InnerExprs}],
             _Mode) ->
   Meta = merge_meta([LeftMeta, RightMeta]),
+
   {inner_attribute, Meta, {args, InnerMeta, InnerExprs}};
 expr_prefix({op, LeftMeta, '#!['}, {op, RightMeta, ']'}, InnerExprs, _Mode) ->
   Meta = merge_meta([LeftMeta, RightMeta]),
+
   {inner_attribute, Meta, {args, merge_meta(get_meta(InnerExprs)), InnerExprs}};
 expr_prefix({op, LeftMeta, LeftOp}, {op, RightMeta, RightOp}, InnerExprs, _Mode) ->
   LeftOpBinary = atom_to_binary(LeftOp, utf8),
@@ -292,6 +308,7 @@ expr_prefix({op, LeftMeta, LeftOp}, {op, RightMeta, RightOp}, InnerExprs, _Mode)
   ContainerOp = binary_to_atom(<<LeftOpBinary/binary, "_", RightOpBinary/binary>>, utf8),
   Exprs = [{args, merge_meta(get_meta(InnerExprs)), InnerExprs}],
   Meta = merge_meta([LeftMeta, RightMeta]),
+
   {expand, Meta, {op, Meta, ContainerOp}, Exprs}.
 
 %% Build operator expressions that need the previous expression.
@@ -301,6 +318,7 @@ expr_postfix({op, OpMeta, Op}, Exprs, _Mode) ->
   OpBinary = atom_to_binary(Op, utf8),
   PostfixOp = binary_to_atom(<<"_", OpBinary/binary>>, utf8),
   Meta = merge_meta([OpMeta | get_meta(Exprs)]),
+
   {expand, Meta, {op, OpMeta, PostfixOp}, Exprs}.
 
 expr_postfix({op, LeftMeta, LeftOp}, {op, RightMeta, RightOp}, [LeftExpr | InnerExprs], _Mode) ->
@@ -309,6 +327,7 @@ expr_postfix({op, LeftMeta, LeftOp}, {op, RightMeta, RightOp}, [LeftExpr | Inner
   ContainerOp = binary_to_atom(<<"_", LeftOpBinary/binary, "_", RightOpBinary/binary>>, utf8),
   Exprs = [LeftExpr, {args, merge_meta(get_meta(InnerExprs)), InnerExprs}],
   Meta = merge_meta([get_meta(LeftExpr), RightMeta]),
+
   {expand, Meta, {op, merge_meta([LeftMeta, RightMeta]), ContainerOp}, Exprs}.
 
 %% Parse expressions that need both the previous and next expressions.
@@ -320,6 +339,7 @@ expr_infix({op, _, '->'} = T,
   expr_infix(T, [{op_args, Meta, LeftExprs}, RightExpr], Mode);
 expr_infix({op, OpMeta, '->'}, [LeftExpr, RightExpr], _Mode) ->
   Meta = merge_meta(get_meta([LeftExpr, RightExpr])),
+
   {expand, Meta, {op, OpMeta, '_->_'}, [arrow_args(LeftExpr), RightExpr]};
 expr_infix({op, _, '->>'} = T,
            [{expand, Meta, {op, _, '(_)'}, [{args, _, LeftExprs}]}, RightExpr],
@@ -328,9 +348,11 @@ expr_infix({op, _, '->>'} = T,
   expr_infix(T, [{op_args, Meta, LeftExprs}, RightExpr], Mode);
 expr_infix({op, OpMeta, '->>'}, [LeftExpr, RightExpr], _Mode) ->
   Meta = merge_meta(get_meta([LeftExpr, RightExpr])),
+
   {expand, Meta, {op, OpMeta, '_->>_'}, [arrow_args(LeftExpr), RightExpr]};
 expr_infix({op, _, ':'}, [LeftExpr, RightExpr], _Mode) ->
   Meta = merge_meta(get_meta([LeftExpr, RightExpr])),
+
   {tag, Meta, LeftExpr, RightExpr};
 expr_infix({op, _, ','}, [LeftExpr, RightExpr], arg) ->
   % `,` in `arg` mode is handled as a macro arg separator.
@@ -368,6 +390,7 @@ expr_infix({op, OpMeta, Op}, Exprs, _Mode) ->
   OpBinary = atom_to_binary(Op, utf8),
   InfixOp = binary_to_atom(<<"_", OpBinary/binary, "_">>, utf8),
   Meta = merge_meta(get_meta(Exprs)),
+
   {expand, Meta, {op, OpMeta, InfixOp}, Exprs}.
 
 %% Build the args on the left side of `->` for `top` expressions.
@@ -617,7 +640,7 @@ expect([{Expected, _, _} = T | Tail], Expected) ->
 expect([{Expected, _} = T | Tail], Expected) ->
   {Tail, T};
 expect([Found | _], Expected) ->
-  throw({parse_error, {expected_token, Expected, Found}, ?LINE}).
+  throw({parse_error, {expected_token, Expected, Found}}).
 
 %% Pop off whitespace tokens if they come up.
 trim_whitespace([{newline, _} | Tail]) -> trim_whitespace(Tail);
@@ -628,8 +651,7 @@ trim_whitespace(Tokens)                -> Tokens.
 get_meta({_, Meta, _, _})           -> Meta;
 get_meta({_, Meta, _})              -> Meta;
 get_meta({_, Meta})                 -> Meta;
-get_meta(Exprs) when is_list(Exprs) ->
-  [get_meta(Expr) || Expr <- Exprs].
+get_meta(Exprs) when is_list(Exprs) -> [get_meta(Expr) || Expr <- Exprs].
 
 %% Combine code spans together and use the first line/column.
 merge_meta([]) ->
@@ -642,6 +664,7 @@ merge_meta([], Line, Column, Span) ->
   [{line, Line}, {column, Column}, {span, Span}];
 merge_meta([Meta | Tail], Line, Column, Span) ->
   [{line, Line2}, {column, Column2}, {span, Span2}] = Meta,
+
   case Line2 < Line orelse (Line2 =:= Line andalso Column2 < Column) of
     true  -> merge_meta(Tail, Line2, Column2, aero_span:merge(Span, Span2));
     false -> merge_meta(Tail, Line, Column, aero_span:merge(Span, Span2))
