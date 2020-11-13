@@ -318,15 +318,21 @@ expand_expr({expand, Meta, {op, _, '_(_)'},
                            [{expand, _, {op, _, '#_'}, [Path]}, {args, _, Args}]},
             Env) ->
   case Path of
+    {ident, _, ref} when length(Args) =:= 0 ->
+      % TODO: call into a type-checkable Aero function instead.
+      {c_call, [], {c_path, [], [{c_var, [], erlang}, {c_var, [], make_ref}]}, []};
     {ident, _, list} ->
       lists:foldr(fun(Arg, Acc) -> {c_cons, [], expand_expr(Arg, Env), Acc} end, {c_nil, []}, Args);
+    {ident, _, mbox} when length(Args) =:= 0 ->
+      % TODO: call into a type-checkable Aero function instead.
+      {c_call, [], {c_path, [], [{c_var, [], erlang}, {c_var, [], make_ref}]}, []};
     _ ->
       throw({expand_error, {constructor_invalid, Meta}})
   end;
 
 %% Logs.
 expand_expr({expand, _, {ident, _, log}, [Message]}, Env) ->
-  %% TODO: call into a type-checkable Aero function instead.
+  % TODO: call into a type-checkable Aero function instead.
   Callee = {c_path, [], [{c_var, [], io}, {c_var, [], put_chars}]},
   Args = [
     {c_atom_lit, [], standard_io},
@@ -372,6 +378,16 @@ expand_type_inner({expand, _, {ident, _, list}, [T]}) ->
   {c_type_list, expand_type_inner(T)};
 expand_type_inner({expand, _, {ident, _, dict}, [K, V]}) ->
   {c_type_dict, expand_type_inner(K), expand_type_inner(V)};
+
+%% Concurrent primitives.
+expand_type_inner({ident, _, wld}) ->
+  c_type_wld;
+expand_type_inner({ident, _, never}) ->
+  c_type_never;
+expand_type_inner({expand, _, {ident, _, mbox}, [T]}) ->
+  {c_type_mbox, expand_type_inner(T)};
+expand_type_inner({expand, _, {ident, _, addr}, [T]}) ->
+  {c_type_addr, expand_type_inner(T)};
 
 %% Type parameters.
 expand_type_inner({type_param, _, TParam}) ->

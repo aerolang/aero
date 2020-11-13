@@ -82,7 +82,7 @@ pprint({c_func, _, Args, Result, _Where, Body}, Level) ->
 
 pprint({c_call, _, Callee, Args}, Level) ->
   ArgStrs = pprint_args(arg, Args, Level + 2),
-  format([call, Callee, ArgStrs], Level);
+  format([call, Callee | ArgStrs], Level);
 
 pprint({c_var, _, Name}, _Level) ->
   [$$, printable_atom(Name)];
@@ -120,6 +120,15 @@ pprint({c_type_list, T}, Level) ->
   format([list, T], Level + 2);
 pprint({c_type_dict, K, V}, Level) ->
   format([dict, K, V], Level + 2);
+
+pprint(c_type_wld, _Level) ->
+  "wld";
+pprint(c_type_never, _Level) ->
+  "never";
+pprint({c_type_mbox, T}, Level) ->
+  format([mbox, T], Level + 2);
+pprint({c_type_addr, T}, Level) ->
+  format([addr, T], Level + 2);
 
 pprint({c_type_param, Name}, _Level) ->
   [$', printable_atom(Name)];
