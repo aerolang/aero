@@ -84,13 +84,12 @@ pprint({c_call, _, Callee, Args}, Level) ->
   ArgStrs = pprint_args(arg, Args, Level + 2),
   format([call, Callee, ArgStrs], Level);
 
-pprint({c_callee_local, Func}, _Level) ->
-  pprint(Func);
-pprint({c_callee_remote, {c_var, _, ModName}, {c_var, _, FuncName}}, _Level) ->
-  [$$, printable_atom(ModName), "::", printable_atom(FuncName)];
-
 pprint({c_var, _, Name}, _Level) ->
   [$$, printable_atom(Name)];
+
+pprint({c_path, _, Segments}, _Level) ->
+  SegmentStrs = [printable_atom(Name) || {c_var, _, Name} <- Segments],
+  [$$ | lists:join("::", SegmentStrs)]; 
 
 pprint({c_let, _, Left, Type, Right}, Level) ->
   format(['let', Left, Type, Right], Level);
@@ -111,16 +110,32 @@ pprint(c_type_bits, _Level) ->
   "bits";
 pprint(c_type_ref, _Level) ->
   "ref";
+
 pprint(c_type_unit, _Level) ->
   "unit";
+
 pprint({c_type_tuple, TArgs}, Level) ->
   format([tuple | TArgs], Level + 2);
 pprint({c_type_list, T}, Level) ->
   format([list, T], Level + 2);
 pprint({c_type_dict, K, V}, Level) ->
   format([dict, K, V], Level + 2);
+
 pprint({c_type_param, Name}, _Level) ->
   [$', printable_atom(Name)];
+pprint({c_type_tag, Name}, _Level) ->
+  [$:, printable_atom(Name)];
+
+pprint({c_type_struct, Name, TArgs}, Level) ->
+  format([struct, Name | pprint_args(arg, TArgs, Level + 4)], Level + 2);
+pprint({c_type_proto, Name, TArgs}, Level) ->
+  format([proto, Name| pprint_args(arg, TArgs, Level + 4)], Level + 2);
+pprint({c_type_union, TArgs}, Level) ->
+  TArgStrs = [[$\n, spaces(Level + 2), pprint(TArg, Level + 4)] || TArg <- TArgs],
+  format([union | TArgStrs], Level + 2);
+pprint({c_type_inter, TArgs}, Level) ->
+  TArgStrs = [[$\n, spaces(Level + 2), pprint(TArg, Level + 4)] || TArg <- TArgs],
+  format([inter | TArgStrs], Level + 2);
 
 %% Keep binaries as they are, and otherwise, turn it into a binary.
 pprint(Node, _Level) when is_list(Node) ->

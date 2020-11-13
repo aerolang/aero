@@ -44,6 +44,7 @@
                 | c_func()
                 | c_call()
                 | c_var()
+                | c_path()
                 | c_let()
                 | c_letrec().
 
@@ -88,16 +89,15 @@
 -type c_func_body()   :: c_expr().
 
 %% A call to a named function.
--type c_call() :: {c_call, meta(), c_callee(), c_call_args()}.
+-type c_call() :: {c_call, meta(), c_path(), c_call_args()}.
 
 -type c_call_args() :: [c_expr()].
 
-%% Local or remote functions.
--type c_callee() :: {c_callee_local, c_var()}
-                  | {c_callee_remote, c_var(), c_var()}.
-
 %% Variables.
--type c_var() :: {c_var, meta(), atom()}.
+-type c_var()   :: {c_var, meta(), atom()}.
+
+%% Paths.
+-type c_path() :: {c_path, [], [c_var()]}.
 
 %% Let and letrec expressions.
 -type c_let()    :: {c_let, meta(), c_var(), c_type(), c_expr()}.
@@ -126,8 +126,9 @@
                       | {c_type_mbox, c_type_inner()}
                       | {c_type_addr, c_type_inner()}
                       | {c_type_param, atom()}
-                      | {c_type_struct, atom(), [c_type_inner()]}
-                      | {c_type_proto, atom(), [c_type_inner()]}
+                      | {c_type_tag, atom()}
+                      | {c_type_struct, c_path(), [c_type_inner()]}
+                      | {c_type_proto, c_path(), [c_type_inner()]}
                       | {c_type_union, [c_type_inner()]}
                       | {c_type_inter, [c_type_inner()]}.
 -type c_type_where() :: [{c_type_inner(), c_type_inner()}].
@@ -326,7 +327,7 @@ expand_expr({expand, Meta, {op, _, '_(_)'},
 %% Logs.
 expand_expr({expand, _, {ident, _, log}, [Message]}, Env) ->
   %% TODO: call into a type-checkable Aero function instead.
-  Callee = {c_callee_remote, {c_var, [], io}, {c_var, [], put_chars}},
+  Callee = {c_path, [], [{c_var, [], io}, {c_var, [], put_chars}]},
   Args = [
     {c_atom_lit, [], standard_io},
     {c_cons, [], expand_expr(Message, Env), {c_cons, [], {c_int_lit, [], $\n}, {c_nil, []}}}
@@ -375,6 +376,24 @@ expand_type_inner({expand, _, {ident, _, dict}, [K, V]}) ->
 %% Type parameters.
 expand_type_inner({type_param, _, TParam}) ->
   {c_type_param, TParam};
+
+%% Option and Result type macros.
+expand_type_inner({expand, _, {op, _, '_?'}, [Type]}) ->
+  Some = {c_type_tuple, [{c_type_tag, some}, expand_type_inner(Type)]},
+  None = {c_type_tag, none},
+
+  {c_type_union, [Some, None]};
+expand_type_inner({expand, _, {op, _, '_!'}, [Type]}) ->
+  OkInner =
+    case expand_type_inner(Type) of
+      {c_type_tuple, InnerTypes} -> InnerTypes;
+      InnerType                  -> [InnerType]
+    end,
+  Ok = {c_type_tuple, [{c_type_tag, ok} | OkInner]},
+  ErrorInner = {c_type_proto, {c_path, [], [{c_var, [], aero_std}, {c_var, [], 'Error'}]}, []},
+  Error = {c_type_tuple, [{c_type_tag, error}, ErrorInner]},
+
+  {c_type_union, [Ok, Error]};
 
 %% Anything else...
 expand_type_inner(Type) ->

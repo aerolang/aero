@@ -93,7 +93,7 @@ gen_expr({c_func, _, Args, _Result, _Where, Body}) ->
 
   cerl:ann_c_fun([], CerlArgs, CerlBody);
 
-gen_expr({c_call, _, {c_callee_remote, {c_var, _, Module}, {c_var, _, Function}}, Args}) ->
+gen_expr({c_call, _, {c_path, _, [{c_var, _, Module}, {c_var, _, Function}]}, Args}) ->
   CerlModule = cerl:add_ann([], cerl:abstract(Module)),
   CerlFunction = cerl:add_ann([], cerl:abstract(Function)),
   CerlArgs = [gen_expr(Arg) || Arg <- Args],
