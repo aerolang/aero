@@ -379,7 +379,12 @@ expand_type_inner({type_param, _, TParam}) ->
 
 %% Option and Result type macros.
 expand_type_inner({expand, _, {op, _, '_?'}, [Type]}) ->
-  Some = {c_type_tuple, [{c_type_tag, some}, expand_type_inner(Type)]},
+  SomeInner =
+    case expand_type_inner(Type) of
+      {c_type_tuple, InnerTypes} -> InnerTypes;
+      InnerType                  -> [InnerType]
+    end,
+  Some = {c_type_tuple, [{c_type_tag, some} | SomeInner]},
   None = {c_type_tag, none},
 
   {c_type_union, [Some, None]};
