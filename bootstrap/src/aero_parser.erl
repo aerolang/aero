@@ -398,10 +398,15 @@ expr_infix({op, OpMeta, Op}, Exprs, _Mode) ->
 %% When `=` and `<-` and used, their `op_args` are converted to `args` nodes
 %% which won't be translated to implicit tuples. This stops recursing after any
 %% elements are hit except these two.
+%%
+%% To allow for empty arguments in `->` in `top` expressions, tuples `()` are
+%% converted to empty arguments and explicit tuples `(())` are left alone.
 arrow_args({expand, Meta, {op, _, OpName} = Op, Exprs}) when OpName =:= '='; OpName =:= '<-' ->
   {expand, Meta, Op, lists:map(fun arrow_args/1, Exprs)};
 arrow_args({op_args, Meta, Exprs}) ->
   {args, Meta, Exprs};
+arrow_args({expand, Expr, {op, _, '(_)'}, [{args, _, []}]}) ->
+  {args, get_meta(Expr), []};
 arrow_args(Expr) ->
   {args, get_meta(Expr), [Expr]}.
 
