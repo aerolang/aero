@@ -43,6 +43,7 @@
                 | c_dict()
                 | c_func()
                 | c_call()
+                | c_apply()
                 | c_var()
                 | c_path()
                 | c_let()
@@ -93,8 +94,13 @@
 
 -type c_call_args() :: [c_expr()].
 
+%% A call to an anonymous function.
+-type c_apply() :: {c_call, meta(), c_var(), c_apply_args()}.
+
+-type c_apply_args() :: [c_expr()].
+
 %% Variables.
--type c_var()   :: {c_var, meta(), atom()}.
+-type c_var() :: {c_var, meta(), atom()}.
 
 %% Paths.
 -type c_path() :: {c_path, [], [c_var()]}.
@@ -172,7 +178,7 @@ expand_mod_def([{ident, _IdentMeta, Ident}, {block, _BlockMeta, BlockArgs}], _Mo
       end
     end, {[], []}, BlockArgs),
 
-  Module = {c_module, Meta, {c_var, [], Ident}, Attrs, lists:reverse(Defs)},
+  Module = {c_module, Meta, {c_path, [], [{c_var, [], Ident}]}, Attrs, lists:reverse(Defs)},
   [Module | lists:reverse(InnerModules)];
 expand_mod_def(_, ModuleMeta) ->
   throw({expand_error, {mod_def_invalid, ModuleMeta}}).
@@ -198,7 +204,7 @@ expand_func_def_head({expand, FuncHeadMeta, {op, _, Arrow}, [{args, _, LeftArrow
   % TODO: check when pure.
   case LeftArrowArgs of
     [{expand, _, {op, _, '_(_)'}, [{ident, _, Name}, {args, _, Args}]}] ->
-      NameVar = {c_var, [], Name},
+      Path = {c_path, [], [{c_var, [], Name}]},
       {CoreArgs, BodyEnv} =
         lists:foldl(fun(Arg, {ArgAcc, EnvAcc}) ->
           case Arg of
@@ -213,7 +219,7 @@ expand_func_def_head({expand, FuncHeadMeta, {op, _, Arrow}, [{args, _, LeftArrow
         end, {[], Env}, Args),
       ResultType = expand_type_inner(Result),
 
-      {NameVar, lists:reverse(CoreArgs), ResultType, Where, BodyEnv};
+      {Path, lists:reverse(CoreArgs), ResultType, Where, BodyEnv};
     _ ->
       throw({expand_error, {func_def_head_invalid, FuncHeadMeta}})
   end;
@@ -304,30 +310,76 @@ expand_expr({expand, _, {op, _, '#{_}'}, [{args, _, Args}]}, Env) ->
     end, Args),
   {c_dict, [], Pairs};
 
-%% Variables.
-expand_expr({ident, Meta, _} = Ident, Env) ->
-  case lookup_var(Env, Ident) of
-    undefined ->
-      throw({expand_error, {var_undefined, Meta}});
-    Var ->
-      Var
+%% Anonymous functions.
+expand_expr({expand, _, {op, _, Arrow}, [{args, _, Args}, Body]}, Env) when Arrow =:= '_->_';
+                                                                            Arrow =:= '_->>_' ->
+  % If the function is in the form `name(args) -> body`, then extract the name
+  % for a recusive anonymous function.
+  {FuncArgs, Var} =
+    case Args of
+      [{expand, _, {op, _, '_(_)'}, [{ident, _, IdentName}, {args, _, InnerArgs}]}] ->
+        {InnerArgs, {c_var, [], IdentName}};
+      _ ->
+        {Args, none}
+    end,
+  % Not allowing any types to be used in anonymous functions.
+  {CoreArgs, BodyEnv} =
+    lists:foldl(fun(Arg, {ArgAcc, EnvAcc}) ->
+      case Arg of
+        {ident, _, _} = Ident ->
+          {NewEnv, ArgVar} = register_var(EnvAcc, Ident),
+          ArgType = {c_type_param, '_'},
+
+          {[{ArgVar, ArgType} | ArgAcc], NewEnv};
+        _ ->
+          throw({expand_error, {func_arg_invalid, get_meta(Arg)}})
+      end
+    end, {[], Env}, FuncArgs),
+  CoreBody = expand_expr(Body, BodyEnv),
+  Func = {c_func, [], lists:reverse(CoreArgs), {c_type_param, '_'}, [], CoreBody},
+
+  % If recursive then wrap it into a block with a letrec.
+  case Var of
+    none -> Func;
+    _    -> {c_block, [], [{c_letrec, [], Var, {c_type_param, '_'}, Func}, Var]}
   end;
 
-%% Constructors.
-expand_expr({expand, Meta, {op, _, '_(_)'},
-                           [{expand, _, {op, _, '#_'}, [Path]}, {args, _, Args}]},
-            Env) ->
-  case Path of
-    {ident, _, ref} when length(Args) =:= 0 ->
-      % TODO: call into a type-checkable Aero function instead.
-      {c_call, [], {c_path, [], [{c_var, [], erlang}, {c_var, [], make_ref}]}, []};
-    {ident, _, list} ->
-      lists:foldr(fun(Arg, Acc) -> {c_cons, [], expand_expr(Arg, Env), Acc} end, {c_nil, []}, Args);
-    {ident, _, mbox} when length(Args) =:= 0 ->
-      % TODO: call into a type-checkable Aero function instead.
-      {c_call, [], {c_path, [], [{c_var, [], erlang}, {c_var, [], make_ref}]}, []};
+%% Function calls.
+expand_expr({expand, Meta, {op, _, '_(_)'}, [Callee, {args, _, Args}]}, Env) ->
+  case Callee of
+    % Constructors.
+    {expand, _, {op, _, '#_'}, [Path]} ->
+      case Path of
+        {ident, _, ref} when length(Args) =:= 0 ->
+          % TODO: call into a type-checkable Aero function instead.
+          {c_call, [], {c_path, [], [{c_var, [], erlang}, {c_var, [], make_ref}]}, []};
+        {ident, _, list} ->
+          lists:foldr(fun(Arg, Acc) ->
+            {c_cons, [], expand_expr(Arg, Env), Acc}
+          end, {c_nil, []}, Args);
+        {ident, _, mbox} when length(Args) =:= 0 ->
+          % TODO: call into a type-checkable Aero function instead.
+          {c_call, [], {c_path, [], [{c_var, [], erlang}, {c_var, [], make_ref}]}, []};
+        _ ->
+          throw({expand_error, {constructor_invalid, Meta}})
+      end;
+
+    % Normal function calls.
     _ ->
-      throw({expand_error, {constructor_invalid, Meta}})
+      CoreCallee = expand_expr(Callee, Env),
+      CoreArgs = [expand_expr(Arg, Env) || Arg <- Args],
+
+      case CoreCallee of
+        {c_var, _, _} -> {c_apply, [], CoreCallee, CoreArgs};
+        _             -> {c_call, [], CoreCallee, CoreArgs}
+      end
+  end;
+
+%% Variables.
+expand_expr({ident, _, Name} = Ident, Env) ->
+  case lookup_var(Env, Ident) of
+    undefined -> {c_path, [], [{c_var, [], Name}]};
+    Var       -> Var
   end;
 
 %% Logs.
@@ -378,6 +430,10 @@ expand_type_inner({expand, _, {ident, _, list}, [T]}) ->
   {c_type_list, expand_type_inner(T)};
 expand_type_inner({expand, _, {ident, _, dict}, [K, V]}) ->
   {c_type_dict, expand_type_inner(K), expand_type_inner(V)};
+
+%% Functions.
+expand_type_inner({expand, _, {op, _, '_->_'}, [{args, _, Args}, Result]}) ->
+  {c_type_func, lists:map(fun expand_type_inner/1, Args), expand_type_inner(Result)};
 
 %% Concurrent primitives.
 expand_type_inner({ident, _, wld}) ->

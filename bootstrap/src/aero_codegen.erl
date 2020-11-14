@@ -13,7 +13,7 @@ generate(CoreModule) ->
   CerlModule = gen_module(CoreModule),
   case compile:noenv_forms(CerlModule, [from_core, return_errors]) of
     {ok, _, Binary} ->
-      {c_module, _, {c_var, _, Name}, _, _} = CoreModule,
+      {c_module, _, {c_path, _, [{c_var, _, Name}]}, _, _} = CoreModule,
       {ok, Name, Binary};
     {error, Errors, _} ->
       {error, {internal_cerl_compile, Errors}}
@@ -23,7 +23,7 @@ generate(CoreModule) ->
 %% Helper Functions
 %% -----------------------------------------------------------------------------
 
-gen_module({c_module, _, {c_var, [], Name}, Attrs, Defs}) ->
+gen_module({c_module, _, {c_path, _, [{c_var, _, Name}]}, Attrs, Defs}) ->
   CerlName = cerl:c_atom(Name),
 
   CerlAttrs =
@@ -35,11 +35,11 @@ gen_module({c_module, _, {c_var, [], Name}, Attrs, Defs}) ->
   {CerlExports, CerlDefs} =
     lists:foldl(fun(Def, {AccExports, AccDefs}) ->
       case Def of
-        {{c_var, _, FuncName}, Vis, {c_func, _, _, _, _, _} = Func} ->
-          CerlDef = {cerl:c_var({FuncName, arity(Func)}), gen_expr(Func)},
+        {{c_path, _, [{c_var, _, FuncName}]}, Vis, {c_func, _, _, _, _, _} = Func} ->
+          CerlDef = {cerl:ann_c_fname([], FuncName, arity(Func)), gen_expr(Func)},
           case Vis of
             c_vis_pub ->
-              CerlExport = cerl:c_var({FuncName, arity(Func)}),
+              CerlExport = cerl:ann_c_fname([], FuncName, arity(Func)),
               {[CerlExport | AccExports], [CerlDef | AccDefs]};
             c_vis_priv ->
               {AccExports, [CerlDef | AccDefs]}
@@ -49,6 +49,18 @@ gen_module({c_module, _, {c_var, [], Name}, Attrs, Defs}) ->
 
   cerl:ann_c_module([], CerlName, lists:reverse(CerlExports), CerlAttrs, lists:reverse(CerlDefs)).
 
+gen_expr({c_block, _, [{c_letrec, _, {c_var, _, FuncName} = Var, _Type, Func}, Var]}) ->
+  % Recursive functions are handled specially: the name of the recursive
+  % function needs to also be bound inside a recursive function in Core
+  % Erlang, e.g. binding `Name` to `'Name/1'`.
+  CerlFuncName = cerl:ann_c_fname([], FuncName, arity(Func)),
+  CerlFunc = gen_expr(Func),
+  CerlFuncNew = cerl:ann_c_fun(
+    cerl:get_ann(CerlFunc),
+    cerl:fun_vars(CerlFunc),
+    cerl:c_let([cerl:c_var(FuncName)], CerlFunc, cerl:fun_body(CerlFunc))
+  ),
+  cerl:ann_c_letrec([], [{CerlFuncName, CerlFuncNew}], CerlFuncName);
 gen_expr({c_block, _, Exprs}) ->
   RevExprs = lists:reverse(Exprs),
 
@@ -99,6 +111,16 @@ gen_expr({c_call, _, {c_path, _, [{c_var, _, Module}, {c_var, _, Function}]}, Ar
   CerlArgs = [gen_expr(Arg) || Arg <- Args],
 
   cerl:ann_c_call([], CerlModule, CerlFunction, CerlArgs);
+gen_expr({c_call, _, {c_path, _, [{c_var, _, Function}]}, Args}) ->
+  CerlFunction = cerl:ann_c_fname([], Function, length(Args)),
+  CerlArgs = [gen_expr(Arg) || Arg <- Args],
+
+  cerl:ann_c_apply([], CerlFunction, CerlArgs);
+gen_expr({c_apply, _, {c_var, _, Function}, Args}) ->
+  CerlFunction = cerl:ann_c_var([], Function),
+  CerlArgs = [gen_expr(Arg) || Arg <- Args],
+
+  cerl:ann_c_apply([], CerlFunction, CerlArgs);
 
 gen_expr({c_var, _, VarName}) ->
   cerl:ann_c_var([], VarName);
