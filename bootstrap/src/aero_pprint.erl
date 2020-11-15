@@ -28,7 +28,7 @@ pprint({c_module, _, Name, _Attrs, Defs}, Level) ->
     lists:map(fun({DefName, Vis, Expr}) ->
       [pprint(Vis), " ", pprint(DefName), "\n", spaces(Level + 4), pprint(Expr, Level + 4)]
     end, Defs),
-  DefStrs = lists:join($\n, pprint_args(def, InnerDefs, Level + 2)),
+  DefStrs = lists:join($\n, pprint_args(def, InnerDefs, Level)),
   format([module, Name, [], DefStrs], Level);
 
 pprint(c_vis_pub, _Level) ->
@@ -37,7 +37,7 @@ pprint(c_vis_priv, _Level) ->
   "priv";
 
 pprint({c_block, _, Exprs}, Level) ->
-  ExprStrs = [["\n", spaces(Level + 2), pprint(Expr, Level + 4)] || Expr <- Exprs],
+  ExprStrs = pprint_args(Exprs, Level),
   format([block | ExprStrs], Level);
 
 pprint({c_bool_lit, _, Bool}, _Level) ->
@@ -55,19 +55,19 @@ pprint({c_unit, _}, _Level) ->
   "unit";
 
 pprint({c_tuple, _, Exprs}, Level) ->
-  format([tuple | Exprs], Level + 2);
+  format([tuple | Exprs], Level);
 
 pprint({c_cons, _, Head, Tail}, Level) ->
-  format([cons, Head, Tail], Level + 2);
+  format([cons, Head, Tail], Level);
 pprint({c_nil, _}, _Level) ->
   "nil";
 
 pprint({c_dict, _, Pairs}, Level) ->
   InnerPairs =
     lists:map(fun({Key, Value}) ->
-      [pprint(Key, Level + 4), " ", pprint(Value, Level + 4)]
+      [pprint(Key, Level), " ", pprint(Value, Level)]
     end, Pairs),
-  PairStrs = pprint_args(pair, InnerPairs, Level + 2),
+  PairStrs = pprint_args(pair, InnerPairs, Level),
   format([dict, PairStrs], Level);
 
 pprint({c_func, _, Args, Result, _Where, Body}, Level) ->
@@ -75,16 +75,16 @@ pprint({c_func, _, Args, Result, _Where, Body}, Level) ->
     lists:map(fun({ArgVar, ArgType}) ->
       [pprint(ArgVar), " ", pprint(ArgType)]
     end, Args),
-  ArgStrs = pprint_args(arg, InnerArgs, Level + 2),
-  ResultStr = pprint_arg(result, Result, Level + 2),
-  BodyStr = pprint_arg(body, Body, Level + 2),
+  ArgStrs = pprint_args(arg, InnerArgs, Level),
+  ResultStr = pprint_arg(result, Result, Level),
+  BodyStr = pprint_arg(body, Body, Level),
   format([func, ArgStrs, ResultStr, BodyStr], Level);
 
 pprint({c_call, _, Callee, Args}, Level) ->
-  ArgStrs = pprint_args(arg, Args, Level + 2),
+  ArgStrs = pprint_args(arg, Args, Level),
   format([call, Callee | ArgStrs], Level);
 pprint({c_apply, _, Callee, Args}, Level) ->
-  ArgStrs = pprint_args(arg, Args, Level + 2),
+  ArgStrs = pprint_args(arg, Args, Level),
   format([apply, Callee | ArgStrs], Level);
 
 pprint({c_var, _, Name}, _Level) ->
@@ -120,23 +120,23 @@ pprint(c_type_unit, _Level) ->
   "unit";
 
 pprint({c_type_tuple, TArgs}, Level) ->
-  format([tuple | TArgs], Level + 2);
+  format([tuple | TArgs], Level);
 pprint({c_type_list, T}, Level) ->
-  format([list, T], Level + 2);
+  format([list, T], Level);
 pprint({c_type_dict, K, V}, Level) ->
-  format([dict, K, V], Level + 2);
+  format([dict, K, V], Level);
 
 pprint({c_type_func, TArgs, TResult}, Level) ->
-  format([func | TArgs] ++ [TResult], Level + 2);
+  format([func | TArgs] ++ [TResult], Level);
 
 pprint(c_type_wld, _Level) ->
   "wld";
 pprint(c_type_never, _Level) ->
   "never";
 pprint({c_type_mbox, T}, Level) ->
-  format([mbox, T], Level + 2);
+  format([mbox, T], Level);
 pprint({c_type_addr, T}, Level) ->
-  format([addr, T], Level + 2);
+  format([addr, T], Level);
 
 pprint({c_type_param, Name}, _Level) ->
   [$', printable_atom(Name)];
@@ -144,15 +144,15 @@ pprint({c_type_tag, Name}, _Level) ->
   [$:, printable_atom(Name)];
 
 pprint({c_type_struct, Name, TArgs}, Level) ->
-  format([struct, Name | pprint_args(arg, TArgs, Level + 4)], Level + 2);
+  format([struct, Name | pprint_args(arg, TArgs, Level)], Level);
 pprint({c_type_proto, Name, TArgs}, Level) ->
-  format([proto, Name| pprint_args(arg, TArgs, Level + 4)], Level + 2);
+  format([proto, Name| pprint_args(arg, TArgs, Level)], Level);
 pprint({c_type_union, TArgs}, Level) ->
-  TArgStrs = [[$\n, spaces(Level + 2), pprint(TArg, Level + 4)] || TArg <- TArgs],
-  format([union | TArgStrs], Level + 2);
+  TArgStrs = pprint_args(TArgs, Level),
+  format([union | TArgStrs], Level);
 pprint({c_type_inter, TArgs}, Level) ->
-  TArgStrs = [[$\n, spaces(Level + 2), pprint(TArg, Level + 4)] || TArg <- TArgs],
-  format([inter | TArgStrs], Level + 2);
+  TArgStrs = pprint_args(TArgs, Level),
+  format([inter | TArgStrs], Level);
 
 %% Keep binaries as they are, and otherwise, turn it into a binary.
 pprint(Node, _Level) when is_list(Node) ->
@@ -162,11 +162,19 @@ pprint(Node, _Level) when is_atom(Node) ->
 pprint(Node, _Level) ->
   io_lib:fwrite("~p", [Node]).
 
+%% Print arguments each on a new line.
+pprint_args(Args, Level) ->
+  [pprint_arg(Arg, Level) || Arg <- Args].
+
+pprint_arg(Arg, Level) ->
+  ["\n", spaces(Level + 2) | pprint(Arg, Level + 2)].
+
+%% Print arguments each on a new line with a label.
 pprint_args(Label, Args, Level) ->
   [pprint_arg(Label, Arg, Level) || Arg <- Args].
 
 pprint_arg(Label, Arg, Level) ->
-  ["\n", spaces(Level) | format([Label, Arg], Level)].
+  ["\n", spaces(Level + 2) | format([Label, Arg], Level + 2)].
 
 %% S-expressions.
 format(Nodes, Level) when is_list(Nodes) ->

@@ -315,12 +315,12 @@ expand_expr({expand, _, {op, _, Arrow}, [{args, _, Args}, Body]}, Env) when Arro
                                                                             Arrow =:= '_->>_' ->
   % If the function is in the form `name(args) -> body`, then extract the name
   % for a recusive anonymous function.
-  {FuncArgs, Var} =
+  {FuncArgs, {HeadEnv, Var}} =
     case Args of
-      [{expand, _, {op, _, '_(_)'}, [{ident, _, IdentName}, {args, _, InnerArgs}]}] ->
-        {InnerArgs, {c_var, [], IdentName}};
+      [{expand, _, {op, _, '_(_)'}, [FuncIdent, {args, _, InnerArgs}]}] ->
+        {InnerArgs, register_var(Env, FuncIdent)};
       _ ->
-        {Args, none}
+        {Args, {Env, none}}
     end,
   % Not allowing any types to be used in anonymous functions.
   {CoreArgs, BodyEnv} =
@@ -334,7 +334,7 @@ expand_expr({expand, _, {op, _, Arrow}, [{args, _, Args}, Body]}, Env) when Arro
         _ ->
           throw({expand_error, {func_arg_invalid, get_meta(Arg)}})
       end
-    end, {[], Env}, FuncArgs),
+    end, {[], HeadEnv}, FuncArgs),
   CoreBody = expand_expr(Body, BodyEnv),
   Func = {c_func, [], lists:reverse(CoreArgs), {c_type_param, '_'}, [], CoreBody},
 
