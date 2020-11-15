@@ -395,13 +395,13 @@ expr_infix({op, OpMeta, Op}, Exprs, _Mode) ->
 
 %% Build the args on the left side of `->` for `top` expressions.
 %%
-%% When `=` and `<-` and used, their `op_args` are converted to `args` nodes
-%% which won't be translated to implicit tuples. This stops recursing after any
-%% elements are hit except these two.
+%% When `@` is used, its `op_args` are converted to `args` nodes which won't be
+%% translated to implicit tuples. This stops recursing after any elements are
+%% hit except more `@`s.
 %%
 %% To allow for empty arguments in `->` in `top` expressions, tuples `()` are
 %% converted to empty arguments and explicit tuples `(())` are left alone.
-arrow_args({expand, Meta, {op, _, OpName} = Op, Exprs}) when OpName =:= '='; OpName =:= '<-' ->
+arrow_args({expand, Meta, {op, _, '@'} = Op, Exprs}) ->
   {expand, Meta, Op, lists:map(fun arrow_args/1, Exprs)};
 arrow_args({op_args, Meta, Exprs}) ->
   {args, Meta, Exprs};
@@ -529,18 +529,22 @@ op(tup, infix,   '$')    -> {65,  right};  %                      tuple $
 op(top, infix,   ' ')    -> {65,  right};  %                      top (space)
 op(_,   infix,   '&')    -> {60,  left};   %  60  infix    left   &
 op(_,   infix,   '|')    -> {55,  left};   %  55  infix    left   |
-op(con, infix,   '->')   -> {50,  right};  %  50  infix    right  con ->
-op(arg, infix,   '->')   -> {50,  right};  %                      arg ->
-op(sub, infix,   '->')   -> {50,  right};  %                      sub ->
-op(con, infix,   '->>')  -> {50,  right};  %                      con ->>
-op(arg, infix,   '->>')  -> {50,  right};  %                      arg ->>
-op(sub, infix,   '->>')  -> {50,  right};  %                      sub ->>
-op(_,   infix,   ':')    -> {45,  right};  %  45  infix    right  :
-op(_,   infix,   '=')    -> {40,  right};  %  40  infix    right  =
-op(_,   infix,   '<-')   -> {40,  right};  %                      <-
+op(con, infix,   '@')    -> {50,  right};  %  50  infix    right  con @
+op(arg, infix,   '@')    -> {50,  right};  %                      arg @
+op(sub, infix,   '@')    -> {50,  right};  %                      sub @
+op(con, infix,   '->')   -> {45,  right};  %  45  infix    right  con ->
+op(arg, infix,   '->')   -> {45,  right};  %                      arg ->
+op(sub, infix,   '->')   -> {45,  right};  %                      sub ->
+op(con, infix,   '->>')  -> {45,  right};  %                      con ->>
+op(arg, infix,   '->>')  -> {45,  right};  %                      arg ->>
+op(sub, infix,   '->>')  -> {45,  right};  %                      sub ->>
+op(_,   infix,   ':')    -> {40,  right};  %  40  infix    right  :
+op(_,   infix,   '@')    -> {35,  right};  %  35  infix    right  @
 op(_,   infix,   '->')   -> {30,  right};  %  30  infix    right  ->
 op(_,   infix,   '->>')  -> {30,  right};  %                      ->>
-op(_,   infix,   '=>')   -> {30,  right};  %                      =>
+op(_,   infix,   '=')    -> {25,  right};  %  25  infix    right  =
+op(_,   infix,   '<-')   -> {25,  right};  %                      <-
+op(_,   infix,   '=>')   -> {25,  right};  %                      =>
 op(_,   infix,   'if')   -> {20,  right};  %  20  infix    right  if
 op(_,   infix,   else)   -> {20,  right};  %                      else
 op(_,   infix,   for)    -> {20,  right};  %                      for
