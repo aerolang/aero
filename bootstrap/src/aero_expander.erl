@@ -382,6 +382,66 @@ expand_expr({ident, _, Name} = Ident, Env) ->
     Var       -> Var
   end;
 
+%% Arithmetic operators.
+expand_expr({expand, _, {op, _, '+_'}, [Value]}, Env) ->
+  erl_call('erlang', '+', [expand_expr(Value, Env)]);
+expand_expr({expand, _, {op, _, '-_'}, [Value]}, Env) ->
+  erl_call('erlang', '-', [expand_expr(Value, Env)]);
+expand_expr({expand, _, {op, _, '_+_'}, [Left, Right]}, Env) ->
+  erl_call('erlang', '+', [expand_expr(Left, Env), expand_expr(Right, Env)]);
+expand_expr({expand, _, {op, _, '_-_'}, [Left, Right]}, Env) ->
+  erl_call('erlang', '-', [expand_expr(Left, Env), expand_expr(Right, Env)]);
+expand_expr({expand, _, {op, _, '_*_'}, [Left, Right]}, Env) ->
+  erl_call('erlang', '*', [expand_expr(Left, Env), expand_expr(Right, Env)]);
+expand_expr({expand, _, {op, _, '_/_'}, [_Left, _Right]}, _Env) ->
+  % TODO: implement when we have control flow for int and float division.
+  throw(unimplemented);
+expand_expr({expand, _, {op, _, '_%_'}, [Left, Right]}, Env) ->
+  erl_call('erlang', 'rem', [expand_expr(Left, Env), expand_expr(Right, Env)]);
+
+%% Bitwise operators.
+expand_expr({expand, _, {op, _, '~~~_'}, [Value]}, Env) ->
+  erl_call('erlang', 'bnot', [expand_expr(Value, Env)]);
+expand_expr({expand, _, {op, _, '_&&&_'}, [Left, Right]}, Env) ->
+  erl_call('erlang', 'band', [expand_expr(Left, Env), expand_expr(Right, Env)]);
+expand_expr({expand, _, {op, _, '_|||_'}, [Left, Right]}, Env) ->
+  erl_call('erlang', 'bor', [expand_expr(Left, Env), expand_expr(Right, Env)]);
+expand_expr({expand, _, {op, _, '_^^^_'}, [Left, Right]}, Env) ->
+  erl_call('erlang', 'bxor', [expand_expr(Left, Env), expand_expr(Right, Env)]);
+expand_expr({expand, _, {op, _, '_<<<_'}, [Left, Right]}, Env) ->
+  erl_call('erlang', 'bsl', [expand_expr(Left, Env), expand_expr(Right, Env)]);
+expand_expr({expand, _, {op, _, '_>>>_'}, [Left, Right]}, Env) ->
+  erl_call('erlang', 'bsr', [expand_expr(Left, Env), expand_expr(Right, Env)]);
+
+%% Concatenation.
+expand_expr({expand, _, {op, _, '_++_'}, [_Left, _Right]}, _Env) ->
+  % TODO: implement when we have control flow.
+  throw(unimplemented);
+
+%% Comparison operators.
+expand_expr({expand, _, {op, _, '_==_'}, [Left, Right]}, Env) ->
+  erl_call('erlang', '=:=', [expand_expr(Left, Env), expand_expr(Right, Env)]);
+expand_expr({expand, _, {op, _, '_<>_'}, [Left, Right]}, Env) ->
+  erl_call('erlang', '=/=', [expand_expr(Left, Env), expand_expr(Right, Env)]);
+expand_expr({expand, _, {op, _, '_<_'}, [Left, Right]}, Env) ->
+  erl_call('erlang', '<', [expand_expr(Left, Env), expand_expr(Right, Env)]);
+expand_expr({expand, _, {op, _, '_>_'}, [Left, Right]}, Env) ->
+  erl_call('erlang', '>', [expand_expr(Left, Env), expand_expr(Right, Env)]);
+expand_expr({expand, _, {op, _, '_<=_'}, [Left, Right]}, Env) ->
+  erl_call('erlang', '=<', [expand_expr(Left, Env), expand_expr(Right, Env)]);
+expand_expr({expand, _, {op, _, '_>=_'}, [Left, Right]}, Env) ->
+  erl_call('erlang', '>=', [expand_expr(Left, Env), expand_expr(Right, Env)]);
+
+%% Logical operators.
+expand_expr({expand, _, {op, _, 'not_'}, [Value]}, Env) ->
+  erl_call('erlang', 'not', [expand_expr(Value, Env)]);
+expand_expr({expand, _, {op, _, '_and_'}, [_Left, _Right]}, _Env) ->
+  % TODO: implement when we have control flow.
+  throw(unimplemented);
+expand_expr({expand, _, {op, _, '_or_'}, [_Left, _Right]}, _Env) ->
+  % TODO: implement when we have control flow.
+  throw(unimplemented);
+
 %% Logs.
 expand_expr({expand, _, {ident, _, log}, [Message]}, Env) ->
   % TODO: call into a type-checkable Aero function instead.
@@ -506,6 +566,10 @@ register_var(Env, {ident, _, IdentName}) ->
 
   VarName = list_to_atom(atom_to_list(IdentName) ++ "_" ++ integer_to_list(Num)),
   {Env#env{vars = [{IdentName, VarName} | Env#env.vars]}, {c_var, [], VarName}}.
+
+erl_call(Mod, Func, Args) ->
+  Callee = {c_path, [], [{c_var, [], Mod}, {c_var, [], Func}]},
+  {c_call, [], Callee, Args}.
 
 get_meta({source, Meta, _})          -> Meta;
 get_meta({integer_lit, Meta, _})     -> Meta;
