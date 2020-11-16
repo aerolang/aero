@@ -127,7 +127,21 @@ gen_expr({c_var, _, VarName}) ->
 
 % Occurs when a let is at the end of a block, binding is not used.
 gen_expr({c_let, _, _Left, _Type, Right}) ->
-  gen_expr(Right).
+  gen_expr(Right);
+
+gen_expr({c_when, _, Clauses}) ->
+  RevClauses = lists:reverse(Clauses),
+  {{c_bool_lit, _, true}, LastExpr} = hd(RevClauses),
+
+  % Checking if the condition is `true`, otherwise using a wildcard pattern to
+  % continue with a nested Core Erlang `case`.
+  lists:foldl(fun({Cond, Expr}, Inner) ->
+    CerlClauses = [
+      cerl:c_clause([cerl:abstract(true)], gen_expr(Expr)),
+      cerl:c_clause([cerl:c_var(cerl_trees:next_free_variable_name(Inner))], Inner)
+    ],
+    cerl:ann_c_case([], gen_expr(Cond), CerlClauses)
+  end, gen_expr(LastExpr), tl(RevClauses)).
 
 arity({c_func, _, Args, _, _, _}) ->
   length(Args).

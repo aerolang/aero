@@ -47,7 +47,8 @@
                 | c_var()
                 | c_path()
                 | c_let()
-                | c_letrec().
+                | c_letrec()
+                | c_when().
 
 %% A group of expressions with the last giving the value of the group.
 -type c_block() :: {c_block, meta(), [c_expr()]}.
@@ -108,6 +109,11 @@
 %% Let and letrec expressions.
 -type c_let()    :: {c_let, meta(), c_var(), c_type(), c_expr()}.
 -type c_letrec() :: {c_letrec, meta(), c_var(), c_type(), c_func()}.
+
+%% When.
+-type c_when() :: {c_when, meta(), c_when_clauses()}.
+
+-type c_when_clauses() :: [{c_expr(), c_expr()}].
 
 %% Any type in Core Aero.
 -type c_type() :: {c_type, meta(), c_type_inner(), c_type_where()}.
@@ -174,7 +180,10 @@ expand_mod_def([{ident, _IdentMeta, Ident}, {block, _BlockMeta, BlockArgs}], _Mo
         % Private functions.
         {expand, FuncMeta, {ident, _, func}, FuncArgs} ->
           Def = expand_func_def(FuncArgs, FuncMeta, c_vis_priv),
-          {[Def | Defs], InnerModules}
+          {[Def | Defs], InnerModules};
+
+        _ ->
+          throw({expand_error, {expr_invalid, get_meta(BlockArg)}})
       end
     end, {[], []}, BlockArgs),
 
@@ -351,15 +360,13 @@ expand_expr({expand, Meta, {op, _, '_(_)'}, [Callee, {args, _, Args}]}, Env) ->
     {expand, _, {op, _, '#_'}, [Path]} ->
       case Path of
         {ident, _, ref} when length(Args) =:= 0 ->
-          % TODO: call into a type-checkable Aero function instead.
-          {c_call, [], {c_path, [], [{c_var, [], erlang}, {c_var, [], make_ref}]}, []};
+          erl_call(erlang, make_ref, []);
         {ident, _, list} ->
           lists:foldr(fun(Arg, Acc) ->
             {c_cons, [], expand_expr(Arg, Env), Acc}
           end, {c_nil, []}, Args);
         {ident, _, mbox} when length(Args) =:= 0 ->
-          % TODO: call into a type-checkable Aero function instead.
-          {c_call, [], {c_path, [], [{c_var, [], erlang}, {c_var, [], make_ref}]}, []};
+          erl_call(erlang, make_ref, []);
         _ ->
           throw({expand_error, {constructor_invalid, Meta}})
       end;
@@ -435,23 +442,69 @@ expand_expr({expand, _, {op, _, '_>=_'}, [Left, Right]}, Env) ->
 %% Logical operators.
 expand_expr({expand, _, {op, _, 'not_'}, [Value]}, Env) ->
   erl_call('erlang', 'not', [expand_expr(Value, Env)]);
-expand_expr({expand, _, {op, _, '_and_'}, [_Left, _Right]}, _Env) ->
-  % TODO: implement when we have control flow.
-  throw(unimplemented);
-expand_expr({expand, _, {op, _, '_or_'}, [_Left, _Right]}, _Env) ->
-  % TODO: implement when we have control flow.
-  throw(unimplemented);
+expand_expr({expand, _, {op, _, '_and_'}, [Left, Right]}, Env) ->
+  % Manually short-circuit with `when`.
+  TrueClause = {expand_expr(Left, Env), expand_expr(Right, Env)},
+  FalseClause = {{c_bool_lit, [], true}, {c_bool_lit, [], false}},
+
+  {c_when, [], [TrueClause, FalseClause]};
+expand_expr({expand, _, {op, _, '_or_'}, [Left, Right]}, Env) ->
+  % Manually short-circuit with `when`.
+  TrueClause = {expand_expr(Left, Env), {c_bool_lit, [], true}},
+  FalseClause = {{c_bool_lit, [], true}, expand_expr(Right, Env)},
+
+  {c_when, [], [TrueClause, FalseClause]};
+
+%% `when` expression.
+expand_expr({expand, Meta, {ident, _, 'when'}, [{block, _, BlockArgs}]}, Env) ->
+  Clauses =
+    lists:map(fun
+      ({expand, _, {op, _, '_=>_'}, [Cond, Body]}) ->
+        {expand_expr(Cond, Env), expand_expr(Body, Env)};
+      (Expr) ->
+        throw({expand_error, {when_clause_invalid, get_meta(Expr)}})
+    end, BlockArgs),
+
+  case is_when_exhaustive(Clauses) of
+    true  -> {c_when, [], Clauses};
+    false -> throw({expand_error, {when_inexhaustive, Meta}})
+  end;
+expand_expr({expand, Meta, {ident, _, 'when'}, _}, _Env) ->
+  throw({expand_error, {when_invalid, Meta}});
+
+%% `if` expression.
+expand_expr({expand, Meta, {ident, _, 'if'}, [Cond, Next]}, Env) ->
+  case Next of
+    % With else block.
+    {expand, _, {op, _, '_else_'}, [{block, _, _} = Then, {block, _, _} = Else]} ->
+      TrueClause = {expand_expr(Cond, Env), expand_expr(Then, Env)},
+      FalseClause = {{c_bool_lit, [], true}, expand_expr(Else, Env)},
+
+      {c_when, [], [TrueClause, FalseClause]};
+
+    % No else block, so wrapping with optional.
+    {block, _, _} = Then ->
+      TrueClause = {expand_expr(Cond, Env), {c_tuple, [], [
+        {c_atom_lit, [], some}, expand_expr(Then, Env)
+      ]}},
+      FalseClause = {{c_bool_lit, [], true}, {c_atom_lit, [], none}},
+
+      {c_when, [], [TrueClause, FalseClause]};
+
+    _ ->
+      throw({expand_error, {if_invalid, Meta}})
+  end;
+
+expand_expr({expand, Meta, {ident, _, 'if'}, _}, _Env) ->
+  throw({expand_error, {if_invalid, Meta}});
 
 %% Logs.
 expand_expr({expand, _, {ident, _, log}, [Message]}, Env) ->
-  % TODO: call into a type-checkable Aero function instead.
-  Callee = {c_path, [], [{c_var, [], io}, {c_var, [], put_chars}]},
   Args = [
     {c_atom_lit, [], standard_io},
     {c_cons, [], expand_expr(Message, Env), {c_cons, [], {c_int_lit, [], $\n}, {c_nil, []}}}
   ],
-
-  {c_call, [], Callee, Args};
+  erl_call(io, put_chars, Args);
 
 %% Anything else...
 expand_expr(Expr, _Env) ->
@@ -586,3 +639,11 @@ get_meta({args, Meta, _})            -> Meta;
 get_meta({tag, Meta, _, _})          -> Meta;
 get_meta({attribute, Meta, _, _})    -> Meta;
 get_meta({inner_attribute, Meta, _}) -> Meta.
+
+is_when_exhaustive([]) ->
+  false;
+is_when_exhaustive(Clauses) ->
+  case lists:last(Clauses) of
+    {{c_bool_lit, _, true}, _} -> true;
+    _                          -> false
+  end.

@@ -37,8 +37,7 @@ pprint(c_vis_priv, _Level) ->
   "priv";
 
 pprint({c_block, _, Exprs}, Level) ->
-  ExprStrs = pprint_args(Exprs, Level),
-  format([block | ExprStrs], Level);
+  format([block | pprint_args(Exprs, Level)], Level);
 
 pprint({c_bool_lit, _, Bool}, _Level) ->
   atom_to_list(Bool);
@@ -63,41 +62,34 @@ pprint({c_nil, _}, _Level) ->
   "nil";
 
 pprint({c_dict, _, Pairs}, Level) ->
-  InnerPairs =
-    lists:map(fun({Key, Value}) ->
-      [pprint(Key, Level), " ", pprint(Value, Level)]
-    end, Pairs),
-  PairStrs = pprint_args(pair, InnerPairs, Level),
+  PairStrs = pprint_args(pair, format_inner(Pairs, Level), Level),
   format([dict, PairStrs], Level);
 
 pprint({c_func, _, Args, Result, _Where, Body}, Level) ->
-  InnerArgs =
-    lists:map(fun({ArgVar, ArgType}) ->
-      [pprint(ArgVar), " ", pprint(ArgType)]
-    end, Args),
-  ArgStrs = pprint_args(arg, InnerArgs, Level),
+  ArgStrs = pprint_args(arg, format_inner(Args, Level), Level),
   ResultStr = pprint_arg(result, Result, Level),
   BodyStr = pprint_arg(body, Body, Level),
   format([func, ArgStrs, ResultStr, BodyStr], Level);
 
 pprint({c_call, _, Callee, Args}, Level) ->
-  ArgStrs = pprint_args(arg, Args, Level),
-  format([call, Callee | ArgStrs], Level);
+  format([call, Callee | pprint_args(arg, Args, Level)], Level);
 pprint({c_apply, _, Callee, Args}, Level) ->
-  ArgStrs = pprint_args(arg, Args, Level),
-  format([apply, Callee | ArgStrs], Level);
+  format([apply, Callee | pprint_args(arg, Args, Level)], Level);
 
 pprint({c_var, _, Name}, _Level) ->
   [$%, printable_atom(Name)];
 
 pprint({c_path, _, Segments}, _Level) ->
-  SegmentStrs = [printable_atom(Name) || {c_var, _, Name} <- Segments],
-  [$$ | lists:join("::", SegmentStrs)]; 
+  [$$ | lists:join("::", [printable_atom(Name) || {c_var, _, Name} <- Segments])];
 
 pprint({c_let, _, Left, Type, Right}, Level) ->
   format(['let', Left, Type, Right], Level);
 pprint({c_letrec, _, Left, Type, Right}, Level) ->
   format([letrec, Left, Type, Right], Level);
+
+pprint({c_when, _, Clauses}, Level) ->
+  ClauseStrs = pprint_args(clause, [pprint_args(Clause, Level + 2) || Clause <- Clauses], Level),
+  format(['when' | ClauseStrs], Level);
 
 pprint(c_type_bool, _Level) ->
   "bool";
@@ -148,11 +140,9 @@ pprint({c_type_struct, Name, TArgs}, Level) ->
 pprint({c_type_proto, Name, TArgs}, Level) ->
   format([proto, Name| pprint_args(arg, TArgs, Level)], Level);
 pprint({c_type_union, TArgs}, Level) ->
-  TArgStrs = pprint_args(TArgs, Level),
-  format([union | TArgStrs], Level);
+  format([union | pprint_args(TArgs, Level)], Level);
 pprint({c_type_inter, TArgs}, Level) ->
-  TArgStrs = pprint_args(TArgs, Level),
-  format([inter | TArgStrs], Level);
+  format([inter | pprint_args(TArgs, Level)], Level);
 
 %% Keep binaries as they are, and otherwise, turn it into a binary.
 pprint(Node, _Level) when is_list(Node) ->
@@ -163,6 +153,8 @@ pprint(Node, _Level) ->
   io_lib:fwrite("~p", [Node]).
 
 %% Print arguments each on a new line.
+pprint_args(Args, Level) when is_tuple(Args) ->
+  pprint_args(tuple_to_list(Args), Level);
 pprint_args(Args, Level) ->
   [pprint_arg(Arg, Level) || Arg <- Args].
 
@@ -170,6 +162,8 @@ pprint_arg(Arg, Level) ->
   ["\n", spaces(Level + 2) | pprint(Arg, Level + 2)].
 
 %% Print arguments each on a new line with a label.
+pprint_args(Label, Args, Level) when is_tuple(Args) ->
+  pprint_args(Label, tuple_to_list(Args), Level);
 pprint_args(Label, Args, Level) ->
   [pprint_arg(Label, Arg, Level) || Arg <- Args].
 
@@ -180,6 +174,10 @@ pprint_arg(Label, Arg, Level) ->
 format(Nodes, Level) when is_list(Nodes) ->
   Formatted = [pprint(Node, Level) || Node <- Nodes],
   ["(", lists:join(" ", Formatted), ")"].
+
+%% Print inner tuples expressions to be formatted inside an S-expression.
+format_inner(Nodes, Level) ->
+  [lists:join(" ", [pprint(E, Level + 2) || E <- tuple_to_list(Node)]) || Node <- Nodes].
 
 spaces(Level) ->
   lists:duplicate(Level, " ").
