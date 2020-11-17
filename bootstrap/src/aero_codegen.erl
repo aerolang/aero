@@ -23,6 +23,8 @@ generate(CoreModule) ->
 %% Helper Functions
 %% -----------------------------------------------------------------------------
 
+%% Definitions.
+
 gen_module({c_module, _, {c_path, _, [{c_var, _, Name}]}, Attrs, Defs}) ->
   CerlName = cerl:c_atom(Name),
 
@@ -48,6 +50,8 @@ gen_module({c_module, _, {c_path, _, [{c_var, _, Name}]}, Attrs, Defs}) ->
     end, {[], []}, Defs),
 
   cerl:c_module(CerlName, lists:reverse(CerlExports), CerlAttrs, lists:reverse(CerlDefs)).
+
+%% Expressions.
 
 gen_expr({c_block, _, [{c_letrec, _, {c_var, _, FuncName} = Var, _Type, Func}, Var]}) ->
   % Recursive functions are handled specially: the name of the recursive
@@ -127,19 +131,49 @@ gen_expr({c_var, _, VarName}) ->
 gen_expr({c_let, _, _Left, _Type, Right}) ->
   gen_expr(Right);
 
-gen_expr({c_when, _, Clauses}) ->
-  RevClauses = lists:reverse(Clauses),
-  {{c_bool_lit, _, true}, LastExpr} = hd(RevClauses),
+gen_expr({c_match, _, Expr, Cases}) ->
+  CerlClauses =
+    lists:map(fun({Pat, Body}) ->
+      cerl:c_clause([gen_pat(Pat)], gen_expr(Body))
+    end, Cases),
+  
+  cerl:c_case(gen_expr(Expr), CerlClauses).
 
-  % Checking if the condition is `true`, otherwise using a wildcard pattern to
-  % continue with a nested Core Erlang `case`.
-  lists:foldl(fun({Cond, Expr}, Inner) ->
-    CerlClauses = [
-      cerl:c_clause([cerl:abstract(true)], gen_expr(Expr)),
-      cerl:c_clause([cerl:c_var(cerl_trees:next_free_variable_name(Inner))], Inner)
-    ],
-    cerl:c_case(gen_expr(Cond), CerlClauses)
-  end, gen_expr(LastExpr), tl(RevClauses)).
+%% Patterns.
+
+gen_pat({c_pat_bool, _, Bool}) ->
+  cerl:abstract(Bool);
+gen_pat({c_pat_int, _, Integer}) ->
+  cerl:abstract(Integer);
+gen_pat({c_pat_float, _, Float}) ->
+  cerl:abstract(Float);
+gen_pat({c_pat_atom, _, Atom}) ->
+  cerl:abstract(Atom);
+gen_pat({c_pat_str, _, String}) ->
+  cerl:abstract(String);
+
+gen_pat({c_pat_unit, _}) ->
+  cerl:abstract(ok);
+
+gen_pat({c_pat_tuple, _, Exprs}) ->
+  cerl:c_tuple([gen_pat(Expr) || Expr <- Exprs]);
+
+gen_pat({c_pat_cons, _, Head, Tail}) ->
+  cerl:c_cons(gen_pat(Head), gen_pat(Tail));
+gen_pat({c_pat_nil, _}) ->
+  cerl:c_nil();
+
+gen_pat({c_pat_dict, _, Pairs}) ->
+  CerlPairs =
+    lists:map(fun({Key, Value}) ->
+      cerl:c_map_pair(gen_pat(Key), gen_pat(Value))
+    end, Pairs),
+  cerl:c_map(CerlPairs);
+
+gen_pat({c_pat_var, _, VarName}) ->
+  cerl:c_var(VarName).
+
+%% Utilities.
 
 arity({c_func, _, Args, _, _, _}) ->
   length(Args).

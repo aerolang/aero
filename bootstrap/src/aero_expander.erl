@@ -21,6 +21,7 @@
 %% Any Core Aero syntax element.
 -type c_any() :: c_module()
                | c_expr()
+               | c_pat()
                | c_type().
 
 %% Top-level of Core Aero, represents a whole module.
@@ -48,7 +49,7 @@
                 | c_path()
                 | c_let()
                 | c_letrec()
-                | c_when().
+                | c_match().
 
 %% A group of expressions with the last giving the value of the group.
 -type c_block() :: {c_block, meta(), [c_expr()]}.
@@ -61,7 +62,7 @@
                    | c_str_lit().
 
 %% Literals.
--type c_bool_lit()  :: {c_bool_lit, meta(), atom()}.
+-type c_bool_lit()  :: {c_bool_lit, meta(), boolean()}.
 -type c_int_lit()   :: {c_int_lit, meta(), integer()}.
 -type c_float_lit() :: {c_float_lit, meta(), float()}.
 -type c_atom_lit()  :: {c_atom_lit, meta(), atom()}.
@@ -110,10 +111,23 @@
 -type c_let()    :: {c_let, meta(), c_var(), c_type(), c_expr()}.
 -type c_letrec() :: {c_letrec, meta(), c_var(), c_type(), c_func()}.
 
-%% When.
--type c_when() :: {c_when, meta(), c_when_clauses()}.
+%% Match.
+-type c_match() :: {c_match, meta(), c_match_cases()}.
 
--type c_when_clauses() :: [{c_expr(), c_expr()}].
+-type c_match_cases() :: [{c_pat(), c_expr()}].
+
+%% Patterns that may or may not match.
+-type c_pat() :: {c_pat_bool, meta(), boolean()}
+               | {c_pat_int, meta(), integer()}
+               | {c_pat_float, meta(), float()}
+               | {c_pat_atom, meta(), atom()}
+               | {c_pat_str, meta(), binary()}
+               | {c_pat_unit, meta()}
+               | {c_pat_tuple, meta(), [c_pat()]}
+               | {c_pat_cons, meta(), c_pat(), [c_pat()]}
+               | {c_pat_nil, meta()}
+               | {c_pat_dict, meta(), [{c_pat(), c_pat()}]}
+               | {c_pat_var, meta(), atom()}.
 
 %% Any type in Core Aero.
 -type c_type() :: {c_type, meta(), c_type_inner(), c_type_where()}.
@@ -443,17 +457,50 @@ expand_expr({expand, _, {op, _, '_>=_'}, [Left, Right]}, Env) ->
 expand_expr({expand, _, {op, _, 'not_'}, [Value]}, Env) ->
   erl_call('erlang', 'not', [expand_expr(Value, Env)]);
 expand_expr({expand, _, {op, _, '_and_'}, [Left, Right]}, Env) ->
-  % Manually short-circuit with `when`.
-  TrueClause = {expand_expr(Left, Env), expand_expr(Right, Env)},
-  FalseClause = {{c_bool_lit, [], true}, {c_bool_lit, [], false}},
+  % Manually short-circuit with `match`.
+  Cases = [
+    {{c_pat_bool, [], true}, expand_expr(Right, Env)},
+    {register_pat_wildcard(Env), {c_bool_lit, [], false}}
+  ],
+  {c_match, [], expand_expr(Left, Env), Cases};
 
-  {c_when, [], [TrueClause, FalseClause]};
 expand_expr({expand, _, {op, _, '_or_'}, [Left, Right]}, Env) ->
-  % Manually short-circuit with `when`.
-  TrueClause = {expand_expr(Left, Env), {c_bool_lit, [], true}},
-  FalseClause = {{c_bool_lit, [], true}, expand_expr(Right, Env)},
+  % Manually short-circuit with `match`.
+  Cases = [
+    {{c_pat_bool, [], true}, {c_bool_lit, [], true}},
+    {register_pat_wildcard(Env), expand_expr(Right, Env)}
+  ],
+  {c_match, [], expand_expr(Left, Env), Cases};
 
-  {c_when, [], [TrueClause, FalseClause]};
+%% `match` expression.
+expand_expr({expand, Meta, {ident, _, 'match'}, Args}, _Env) when length(Args) < 2 ->
+  throw({expand_error, {match_invalid, Meta}});
+expand_expr({expand, Meta, {ident, _, 'match'}, Args}, Env) ->
+  case lists:last(Args) of
+    {block, _, BlockArgs} ->
+      % Be permissive with multiple arguments before a block: they are
+      % converted into a tuple (even though they really shouldn't be) for
+      % ergonomic reasons.
+      CoreExpr =
+        case lists:droplast(Args) of
+          [Expr] -> expand_expr(Expr, Env);
+          Exprs  -> {c_tuple, [], [expand_expr(Expr, Env) || Expr <- Exprs]}
+        end,
+      Cases =
+        lists:map(fun
+          ({expand, _, {op, _, '_=>_'}, [Pat, Body]}) ->
+            {CorePat, PatEnv} = expand_pat(Pat, Env),
+            CoreBody = expand_expr(Body, PatEnv),
+
+            {CorePat, CoreBody};
+          (CaseExpr) ->
+            throw({expand_error, {match_case_invalid, get_meta(CaseExpr)}})
+        end, BlockArgs),
+
+      {c_match, [], CoreExpr, Cases};
+    _ ->
+      throw({expand_error, {match_invalid, Meta}})
+  end;
 
 %% `when` expression.
 expand_expr({expand, Meta, {ident, _, 'when'}, [{block, _, BlockArgs}]}, Env) ->
@@ -466,8 +513,18 @@ expand_expr({expand, Meta, {ident, _, 'when'}, [{block, _, BlockArgs}]}, Env) ->
     end, BlockArgs),
 
   case is_when_exhaustive(Clauses) of
-    true  -> {c_when, [], Clauses};
-    false -> throw({expand_error, {when_inexhaustive, Meta}})
+    true ->
+      RevClauses = lists:reverse(Clauses),
+      {_, LastExpr} = hd(RevClauses),
+
+      % Checking if the condition is `true`, otherwise using a wildcard pattern to
+      % continue with a nested `match`.
+      lists:foldl(fun({Cond, Expr}, Inner) ->
+        {c_match, [], Cond, [{{c_pat_bool, [], true}, Expr}, {register_pat_wildcard(Env), Inner}]}
+      end, LastExpr, tl(RevClauses));
+
+    false ->
+      throw({expand_error, {when_inexhaustive, Meta}})
   end;
 expand_expr({expand, Meta, {ident, _, 'when'}, _}, _Env) ->
   throw({expand_error, {when_invalid, Meta}});
@@ -477,19 +534,19 @@ expand_expr({expand, Meta, {ident, _, 'if'}, [Cond, Next]}, Env) ->
   case Next of
     % With else block.
     {expand, _, {op, _, '_else_'}, [{block, _, _} = Then, {block, _, _} = Else]} ->
-      TrueClause = {expand_expr(Cond, Env), expand_expr(Then, Env)},
-      FalseClause = {{c_bool_lit, [], true}, expand_expr(Else, Env)},
-
-      {c_when, [], [TrueClause, FalseClause]};
+      Cases = [
+        {{c_pat_bool, [], true}, expand_expr(Then, Env)},
+        {register_pat_wildcard(Env), expand_expr(Else, Env)}
+      ],
+      {c_match, [], expand_expr(Cond, Env), Cases};
 
     % No else block, so wrapping with optional.
     {block, _, _} = Then ->
-      TrueClause = {expand_expr(Cond, Env), {c_tuple, [], [
-        {c_atom_lit, [], some}, expand_expr(Then, Env)
-      ]}},
-      FalseClause = {{c_bool_lit, [], true}, {c_atom_lit, [], none}},
-
-      {c_when, [], [TrueClause, FalseClause]};
+      Cases = [
+        {{c_pat_bool, [], true}, {c_tuple, [], [{c_atom_lit, [], some}, expand_expr(Then, Env)]}},
+        {register_pat_wildcard(Env), {c_atom_lit, [], none}}
+      ],
+      {c_match, [], expand_expr(Cond, Env), Cases};
 
     _ ->
       throw({expand_error, {if_invalid, Meta}})
@@ -509,6 +566,87 @@ expand_expr({expand, _, {ident, _, log}, [Message]}, Env) ->
 %% Anything else...
 expand_expr(Expr, _Env) ->
   throw({expand_error, {expr_invalid, get_meta(Expr)}}).
+
+%% -----------------------------------------------------------------------------
+%% Pattern Expanding
+%% -----------------------------------------------------------------------------
+
+%% Patterns.
+expand_pat(Ast, Env) ->
+  % Patterns store the variables bound during this pattern to prevent them 
+  {Pat, PatEnv} = expand_pat_inner(Ast, Env),
+  {Pat, clear_pat_vars(PatEnv)}.
+
+%% Pattern literals.
+expand_pat_inner({ident, _, Bool}, Env) when Bool =:= true; Bool =:= false ->
+  {{c_pat_bool, [], Bool}, Env};
+expand_pat_inner({integer_lit, _, Integer}, Env) ->
+  {{c_pat_int, [], Integer}, Env};
+expand_pat_inner({float_lit, _, Float}, Env) ->
+  {{c_pat_float, [], Float}, Env};
+expand_pat_inner({atom_lit, _, Atom}, Env) ->
+  {{c_pat_atom, [], Atom}, Env};
+expand_pat_inner({string_lit, _, String}, Env) ->
+  {{c_pat_str, [], String}, Env};
+
+%% Unit pattern.
+expand_pat_inner({expand, _, {op, _, '(_)'}, [{args, _, []}]}, Env) ->
+  {{c_pat_unit, []}, Env};
+
+%% Tuple pattern.
+expand_pat_inner({expand, _, {op, _, '(_)'}, [{args, _, Args}]}, Env) when length(Args) > 1 ->
+  {Elems, PatEnv} =
+    lists:foldl(fun(Arg, {Acc, AccEnv}) ->
+      {Elem, NewEnv} = expand_pat_inner(Arg, AccEnv),
+      {[Elem | Acc], NewEnv}
+    end, {[], Env}, Args),
+
+  {{c_pat_tuple, [], lists:reverse(Elems)}, PatEnv};
+
+%% Cons and nil pattern.
+expand_pat_inner({expand, _, {op, _, '_::_'}, [Head, Tail]}, Env) ->
+  {HeadPat, HeadEnv} = expand_pat_inner(Head, Env),
+  {TailPat, TailEnv} = expand_pat_inner(Tail, HeadEnv),
+
+  {{c_pat_cons, [], HeadPat, TailPat}, TailEnv};
+expand_pat_inner({ident, _, nil}, Env) ->
+  {{c_pat_nil, []}, Env};
+
+%% Dictionary pattern.
+expand_pat_inner({expand, _, {op, _, '#{_}'}, [{args, _, Args}]}, Env) ->
+  {Pairs, PatEnv} =
+    lists:foldl(fun(Arg, {Acc, AccEnv}) ->
+      case Arg of
+        {expand, _, {op, _, '_=>_'}, [Key, Value]} ->
+          {KeyPat, KeyEnv} = expand_pat_inner(Key, AccEnv),
+          {ValuePat, ValueEnv} = expand_pat_inner(Value, KeyEnv),
+
+          {[{KeyPat, ValuePat} | Acc], ValueEnv};
+
+        % We can have a tag in a dictionary pattern for #{ atom: pat } syntax.
+        % Needing to corece the left side into an atom.
+        {tag, _, {ident, _, Key}, Value} ->
+          KeyPat = {c_pat_atom, [], Key},
+          {ValuePat, ValueEnv} = expand_pat_inner(Value, AccEnv),
+
+          {[{KeyPat, ValuePat} | Acc], ValueEnv}
+      end
+    end, {[], Env}, Args),
+
+  {{c_pat_dict, [], lists:reverse(Pairs)}, PatEnv};
+
+%% Pattern variable.
+expand_pat_inner({ident, _, _} = Ident, Env) ->
+  {NewEnv, PatVar} = register_pat_var(Env, Ident),
+  {PatVar, NewEnv};
+
+%% Wildcard.
+expand_pat_inner({blank, _}, Env) ->
+  {register_pat_wildcard(Env), Env};
+
+%% Anything else...
+expand_pat_inner(Pat, _Env) ->
+  throw({expand_error, {pattern_invalid, get_meta(Pat)}}).
 
 %% -----------------------------------------------------------------------------
 %% Type Expanding
@@ -599,17 +737,17 @@ expand_type_where(Where) ->
 %% -----------------------------------------------------------------------------
 
 %% Variable environment.
--record(env, {vars, counter}).
+-record(env, {vars, pat_vars, counter}).
 
 %% Empty expression environment.
 new_env() ->
-  #env{vars = [], counter = counters:new(1, [])}.
+  #env{vars = [], pat_vars = [], counter = counters:new(1, [])}.
 
 %% Get a variable by its name.
 lookup_var(Env, {ident, _, IdentName}) ->
   case proplists:get_value(IdentName, Env#env.vars) of
     undefined -> undefined;
-    VarName   -> {c_var, [], VarName}
+    Var       -> Var
   end.
 
 %% Create a fresh variable name from an identifier and save it to the env.
@@ -617,8 +755,27 @@ register_var(Env, {ident, _, IdentName}) ->
   counters:add(Env#env.counter, 1, 1),
   Num = counters:get(Env#env.counter, 1),
 
-  VarName = list_to_atom(atom_to_list(IdentName) ++ "_" ++ integer_to_list(Num)),
-  {Env#env{vars = [{IdentName, VarName} | Env#env.vars]}, {c_var, [], VarName}}.
+  Var = {c_var, [], list_to_atom(atom_to_list(IdentName) ++ "_" ++ integer_to_list(Num))},
+  {Env#env{vars = [{IdentName, Var} | Env#env.vars]}, Var}.
+
+%% Create a fresh pattern variable.
+register_pat_var(Env, {ident, Meta, IdentName} = Ident) ->
+  case proplists:is_defined(IdentName, Env#env.pat_vars) of
+    true ->
+      throw({expand_error, {pat_var_duplicate, Meta}});
+    false ->
+      {VarEnv, {c_var, Meta, VarName} = Var} = register_var(Env, Ident),
+      PatVar = {c_pat_var, Meta, VarName},
+      {VarEnv#env{pat_vars = [{IdentName, Var} | VarEnv#env.pat_vars]}, PatVar}
+  end.
+
+register_pat_wildcard(Env) ->
+  {_, PatVar} = register_pat_var(Env, {ident, [], ''}),
+  PatVar.
+
+%% Remove pattern variables for once patterns are done parsing.
+clear_pat_vars(Env) ->
+  Env#env{pat_vars = []}.
 
 erl_call(Mod, Func, Args) ->
   Callee = {c_path, [], [{c_var, [], Mod}, {c_var, [], Func}]},

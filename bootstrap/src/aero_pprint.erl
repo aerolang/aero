@@ -23,6 +23,8 @@ pprint_core_aero(CoreAero) ->
 pprint(Node) ->
   pprint(Node, 0).
 
+%% Definitions.
+
 pprint({c_module, _, Name, _Attrs, Defs}, Level) ->
   InnerDefs =
     lists:map(fun({DefName, Vis, Expr}) ->
@@ -35,6 +37,8 @@ pprint(c_vis_pub, _Level) ->
   "pub";
 pprint(c_vis_priv, _Level) ->
   "priv";
+
+%% Expressions.
 
 pprint({c_block, _, Exprs}, Level) ->
   format([block | pprint_args(Exprs, Level)], Level);
@@ -87,9 +91,43 @@ pprint({c_let, _, Left, Type, Right}, Level) ->
 pprint({c_letrec, _, Left, Type, Right}, Level) ->
   format([letrec, Left, Type, Right], Level);
 
-pprint({c_when, _, Clauses}, Level) ->
-  ClauseStrs = pprint_args(clause, [pprint_args(Clause, Level + 2) || Clause <- Clauses], Level),
-  format(['when' | ClauseStrs], Level);
+pprint({c_match, _, Expr, Cases}, Level) ->
+  ExprStr = pprint_arg(expr, Expr, Level),
+  CaseStrs = pprint_args('case', [pprint_args(Case, Level + 2) || Case <- Cases], Level),
+  format([match, ExprStr | CaseStrs], Level);
+
+%% Patterns.
+
+pprint({c_pat_bool, _, Bool}, _Level) ->
+  atom_to_list(Bool);
+pprint({c_pat_int, _, Integer}, _Level) ->
+  integer_to_list(Integer);
+pprint({c_pat_float, _, Float}, _Level) ->
+  float_to_list(Float);
+pprint({c_pat_atom, _, Atom}, _Level) ->
+  [$:, printable_atom(Atom)];
+pprint({c_pat_str, _, String}, _Level) ->
+  [$", printable_string(String), $"];
+
+pprint({c_pat_unit, _}, _Level) ->
+  "unit";
+
+pprint({c_pat_tuple, _, Pats}, Level) ->
+  format([tuple | Pats], Level);
+
+pprint({c_pat_cons, _, Head, Tail}, Level) ->
+  format([cons, Head, Tail], Level);
+pprint({c_pat_nil, _}, _Level) ->
+  "nil";
+
+pprint({c_pat_dict, _, Pairs}, Level) ->
+  PairStrs = pprint_args(pair, format_inner(Pairs, Level), Level),
+  format([dict, PairStrs], Level);
+
+pprint({c_pat_var, _, Name}, _Level) ->
+  [$%, printable_atom(Name)];
+
+%% Types.
 
 pprint(c_type_bool, _Level) ->
   "bool";
@@ -144,6 +182,8 @@ pprint({c_type_union, TArgs}, Level) ->
 pprint({c_type_inter, TArgs}, Level) ->
   format([inter | pprint_args(TArgs, Level)], Level);
 
+%% Utilities.
+
 %% Keep binaries as they are, and otherwise, turn it into a binary.
 pprint(Node, _Level) when is_list(Node) ->
   Node;
@@ -180,7 +220,7 @@ format_inner(Nodes, Level) ->
   [lists:join(" ", [pprint(E, Level + 2) || E <- tuple_to_list(Node)]) || Node <- Nodes].
 
 spaces(Level) ->
-  lists:duplicate(Level, " ").
+  lists:duplicate(Level, $\s).
 
 printable_atom(Atom) ->
   Str = atom_to_list(Atom),
