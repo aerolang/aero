@@ -133,11 +133,18 @@ gen_expr({c_let, _, _Left, _Type, Right}) ->
 
 gen_expr({c_match, _, Expr, Cases}) ->
   CerlClauses =
-    lists:map(fun({Pat, Body}) ->
-      cerl:c_clause([gen_pat(Pat)], gen_expr(Body))
+    lists:map(fun
+      ({{c_pat_args, _, Pats}, Body}) ->
+        cerl:c_clause([gen_pat(Pat) || Pat <- Pats], gen_expr(Body));
+      ({Pat, Body}) ->
+        cerl:c_clause([gen_pat(Pat)], gen_expr(Body))
     end, Cases),
-  
-  cerl:c_case(gen_expr(Expr), CerlClauses).
+  case Expr of
+    {c_args, _, Args} ->
+      cerl:c_case(cerl:c_values([gen_expr(Arg) || Arg <- Args]), CerlClauses);
+    _ ->
+      cerl:c_case(gen_expr(Expr), CerlClauses)
+  end.
 
 %% Patterns.
 

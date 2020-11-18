@@ -96,7 +96,13 @@ pprint({c_match, _, Expr, Cases}, Level) ->
   CaseStrs = pprint_args('case', [pprint_args(Case, Level + 2) || Case <- Cases], Level),
   format([match, ExprStr | CaseStrs], Level);
 
+pprint({c_args, _, Args}, Level) ->
+  format([args | Args], Level);
+
 %% Patterns.
+
+pprint({c_pat_args, _, PatArgs}, Level) ->
+  format([args | PatArgs], Level);
 
 pprint({c_pat_bool, _, Bool}, _Level) ->
   atom_to_list(Bool);

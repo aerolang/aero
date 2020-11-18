@@ -112,22 +112,32 @@
 -type c_letrec() :: {c_letrec, meta(), c_var(), c_type(), c_func()}.
 
 %% Match.
--type c_match() :: {c_match, meta(), c_match_cases()}.
+-type c_match() :: {c_match, meta(), c_match_expr(), c_match_cases()}.
 
+-type c_match_expr()  :: c_expr()
+                       | c_args().
 -type c_match_cases() :: [{c_pat(), c_expr()}].
 
+%% A list of expressions from function arguments.
+-type c_args() :: {c_args, meta(), [c_expr()]}.
+
 %% Patterns that may or may not match.
--type c_pat() :: {c_pat_bool, meta(), boolean()}
-               | {c_pat_int, meta(), integer()}
-               | {c_pat_float, meta(), float()}
-               | {c_pat_atom, meta(), atom()}
-               | {c_pat_str, meta(), binary()}
-               | {c_pat_unit, meta()}
-               | {c_pat_tuple, meta(), [c_pat()]}
-               | {c_pat_cons, meta(), c_pat(), [c_pat()]}
-               | {c_pat_nil, meta()}
-               | {c_pat_dict, meta(), [{c_pat(), c_pat()}]}
-               | {c_pat_var, meta(), atom()}.
+-type c_pat() :: c_pat_outer()
+               | c_pat_inner().
+
+-type c_pat_outer() :: {c_pat_args, meta(), c_pat_inner()}.
+
+-type c_pat_inner() :: {c_pat_bool, meta(), boolean()}
+                     | {c_pat_int, meta(), integer()}
+                     | {c_pat_float, meta(), float()}
+                     | {c_pat_atom, meta(), atom()}
+                     | {c_pat_str, meta(), binary()}
+                     | {c_pat_unit, meta()}
+                     | {c_pat_tuple, meta(), [c_pat()]}
+                     | {c_pat_cons, meta(), c_pat(), [c_pat()]}
+                     | {c_pat_nil, meta()}
+                     | {c_pat_dict, meta(), [{c_pat(), c_pat()}]}
+                     | {c_pat_var, meta(), atom()}.
 
 %% Any type in Core Aero.
 -type c_type() :: {c_type, meta(), c_type_inner(), c_type_where()}.
@@ -261,6 +271,56 @@ expand_func_def_body(FuncBody, _Env) ->
 %% Blocks.
 expand_expr({block, _, []}, _Env) ->
   {c_unit, []};
+expand_expr({block, _, [{expand, _, {op, _, '_->_'}, _} | _] = BlockExprs}, Env) ->
+  % When the first entry in the block is a function, this whole thing is treated
+  % as an anonymous function with like a `match`. If the there's only one case
+  % and it's only using variables or wildcards we'll treat it as a normal
+  % function still.
+  NormalFunc =
+    case BlockExprs of
+      [{expand, _, {op, _, '_->_'}, [{args, _, Args}, _]}] ->
+        lists:all(fun
+          ({ident, _, _}) -> true;
+          ({blank, _})    -> true;
+          (_)             -> false
+        end, Args);
+      _ ->
+        false
+    end,
+  case NormalFunc of
+    true ->
+      expand_expr(hd(BlockExprs), Env);
+    false ->
+      FuncCases =
+        lists:map(fun
+          ({expand, _, {op, _, '_->_'}, [Pat, Expr]}) ->
+            {CorePat, CoreEnv} = expand_pat(Pat, Env),
+            CoreExpr = expand_expr(Expr, CoreEnv),
+
+            {CorePat, CoreExpr};
+          (Arg) ->
+            throw({expand_error, {block_func_case_invalid, get_meta(Arg)}})
+        end, BlockExprs),
+      
+      % Get the arity from the first case.
+      {{c_pat_args, _, FirstPatArgs}, _} = hd(FuncCases),
+      Arity = length(FirstPatArgs),
+
+      % Assert the arity is the same for each case.
+      lists:foreach(fun
+        ({{c_pat_args, _, CasePatArgs}, _}) when length(CasePatArgs) =:= Arity ->
+          ok;
+        ({{c_pat_args, Meta, _}, _}) ->
+          throw({expand_error, {block_func_arity_mismatch, Meta}})
+      end, tl(FuncCases)),
+
+      % Create a function which just has a match inside.
+      Vars = [element(2, register_var(Env, {ident, [], ''})) || _ <- lists:seq(1, Arity)],
+      FuncVars = [{Var, {c_type_param, '_'}} || Var <- Vars],
+      Match = {c_match, [], {c_args, [], Vars}, FuncCases},
+
+      {c_func, [], FuncVars, {c_type_param, '_'}, [], Match}
+  end;
 expand_expr({block, _, BlockExprs}, Env) ->
   {Exprs, _} =
     lists:foldl(fun(BlockExpr, {ExprAcc, EnvAcc}) ->
@@ -573,9 +633,23 @@ expand_expr(Expr, _Env) ->
 
 %% Patterns.
 expand_pat(Ast, Env) ->
-  % Patterns store the variables bound during this pattern to prevent them 
-  {Pat, PatEnv} = expand_pat_inner(Ast, Env),
+  % Patterns store the variables bound during this pattern to prevent them from
+  % being repeating.
+  {Pat, PatEnv} = expand_pat_outer(Ast, Env),
   {Pat, clear_pat_vars(PatEnv)}.
+
+%% Args pattern.
+expand_pat_outer({args, _, Args}, Env) ->
+  {PatArgs, PatEnv} =
+    lists:foldl(fun(Arg, {Acc, AccEnv}) ->
+      {PatArg, NewEnv} = expand_pat_inner(Arg, AccEnv),
+      {[PatArg | Acc], NewEnv}
+    end, {[], Env}, Args),
+
+  {{c_pat_args, [], lists:reverse(PatArgs)}, PatEnv};
+
+expand_pat_outer(Pat, Env) ->
+  expand_pat_inner(Pat, Env).
 
 %% Pattern literals.
 expand_pat_inner({ident, _, Bool}, Env) when Bool =:= true; Bool =:= false ->
@@ -764,8 +838,8 @@ register_pat_var(Env, {ident, Meta, IdentName} = Ident) ->
     true ->
       throw({expand_error, {pat_var_duplicate, Meta}});
     false ->
-      {VarEnv, {c_var, Meta, VarName} = Var} = register_var(Env, Ident),
-      PatVar = {c_pat_var, Meta, VarName},
+      {VarEnv, {c_var, VarMeta, VarName} = Var} = register_var(Env, Ident),
+      PatVar = {c_pat_var, VarMeta, VarName},
       {VarEnv#env{pat_vars = [{IdentName, Var} | VarEnv#env.pat_vars]}, PatVar}
   end.
 
