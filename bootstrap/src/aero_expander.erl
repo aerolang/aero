@@ -216,7 +216,36 @@ expand_mod_def([{ident, _IdentMeta, Ident}, {block, _BlockMeta, BlockArgs}], _Mo
 expand_mod_def(_, ModuleMeta) ->
   throw({expand_error, {mod_def_invalid, ModuleMeta}}).
 
+expand_func_def([{expand, _, {op, _, '_=_'}, [FuncHead, FuncBody]}], FuncMeta, Vis) ->
+  % Function definition variant with assignment to an anonymous function on the right.
+  Meta = [],
+  Where = [],
+  case FuncHead of
+    {tag, _, {ident, _, Name}, {expand, _, {op, _, Arrow}, [{args, _, LeftArrowArgs}, Result]}}
+        when Arrow =:= '_->_'; Arrow =:= '_->>_' ->
+      % For function head.
+      Path = {c_path, [], [{c_var, [], Name}]},
+      ArgTypes = [expand_type_inner(Arg) || Arg <- LeftArrowArgs],
+      ResultType = expand_type_inner(Result),
+
+      % Expanding body and ensuring it gives a function.
+      case expand_expr(FuncBody, new_env()) of
+        {c_func, _, ExprArgs, _, _, ExprBody} when length(ExprArgs) =:= length(ArgTypes) ->
+          ExprVars = [element(1, Arg) || Arg <- ExprArgs],
+          NewArgs = lists:zip(ExprVars, ArgTypes),
+
+          Func = {c_func, Meta, NewArgs, ResultType, Where, ExprBody},
+          {Path, Vis, Func};
+        {c_func, _, _, _, _, _} ->
+          throw({expand_error, {func_def_eq_arity_mismatch, FuncMeta}});
+        _ ->
+          throw({expand_error, {func_def_eq_body_invalid, get_meta(FuncBody)}})
+      end;
+    _ ->
+      throw({expand_error, {func_def_eq_head_invalid, get_meta(FuncHead)}})
+  end;
 expand_func_def([FuncHead, FuncBody], _FuncMeta, Vis) ->
+  % Function definition variant with assignment to an anonymous function on the right.
   Meta = [],
   {Name, Args, Result, Where, Env} = expand_func_def_head(FuncHead, new_env()),
   Body = expand_func_def_body(FuncBody, Env),
