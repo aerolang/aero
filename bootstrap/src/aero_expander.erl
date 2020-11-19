@@ -494,57 +494,80 @@ expand_expr({ident, _, Name} = Ident, Env) ->
 
 %% Arithmetic operators.
 expand_expr({expand, _, {op, _, '+_'}, [Value]}, Env) ->
-  erl_call('erlang', '+', [expand_expr(Value, Env)]);
+  erl_call(erlang, '+', [expand_expr(Value, Env)]);
 expand_expr({expand, _, {op, _, '-_'}, [Value]}, Env) ->
-  erl_call('erlang', '-', [expand_expr(Value, Env)]);
+  erl_call(erlang, '-', [expand_expr(Value, Env)]);
 expand_expr({expand, _, {op, _, '_+_'}, [Left, Right]}, Env) ->
-  erl_call('erlang', '+', [expand_expr(Left, Env), expand_expr(Right, Env)]);
+  erl_call(erlang, '+', [expand_expr(Left, Env), expand_expr(Right, Env)]);
 expand_expr({expand, _, {op, _, '_-_'}, [Left, Right]}, Env) ->
-  erl_call('erlang', '-', [expand_expr(Left, Env), expand_expr(Right, Env)]);
+  erl_call(erlang, '-', [expand_expr(Left, Env), expand_expr(Right, Env)]);
 expand_expr({expand, _, {op, _, '_*_'}, [Left, Right]}, Env) ->
-  erl_call('erlang', '*', [expand_expr(Left, Env), expand_expr(Right, Env)]);
-expand_expr({expand, _, {op, _, '_/_'}, [_Left, _Right]}, _Env) ->
-  % TODO: implement when we have control flow for int and float division.
-  throw(unimplemented);
+  erl_call(erlang, '*', [expand_expr(Left, Env), expand_expr(Right, Env)]);
+expand_expr({expand, _, {op, _, '_/_'}, [Left, Right]}, Env) ->
+  % Choosing between integer and float division.
+  LeftVar = element(2, register_var(Env, {ident, [], ''})),
+  RightVar = element(2, register_var(Env, {ident, [], ''})),
+
+  LeftExpr = expand_expr(Left, Env),
+  RightExpr = expand_expr(Right, Env),
+
+  IsLeftInt = erl_call(erlang, is_integer, [LeftVar]),
+  IsRightInt = erl_call(erlang, is_integer, [RightVar]),
+
+  IntDiv = erl_call(erlang, 'div', [LeftVar, RightVar]),
+  FloatDiv = erl_call(erlang, '/', [LeftVar, RightVar]),
+
+  {c_block, [], [
+    {c_let, [], LeftVar, {c_type_param, '_'}, LeftExpr},
+    {c_let, [], RightVar, {c_type_param, '_'}, RightExpr},
+    {c_match, [], IsLeftInt, [
+      {{c_pat_bool, [], true}, {c_match, [], IsRightInt, [
+        {{c_pat_bool, [], true}, IntDiv},
+        {register_pat_wildcard(Env), FloatDiv}
+      ]}},
+      {register_pat_wildcard(Env), FloatDiv}
+    ]}
+  ]};
 expand_expr({expand, _, {op, _, '_%_'}, [Left, Right]}, Env) ->
-  erl_call('erlang', 'rem', [expand_expr(Left, Env), expand_expr(Right, Env)]);
+  erl_call(erlang, 'rem', [expand_expr(Left, Env), expand_expr(Right, Env)]);
 
 %% Bitwise operators.
 expand_expr({expand, _, {op, _, '~~~_'}, [Value]}, Env) ->
-  erl_call('erlang', 'bnot', [expand_expr(Value, Env)]);
+  erl_call(erlang, 'bnot', [expand_expr(Value, Env)]);
 expand_expr({expand, _, {op, _, '_&&&_'}, [Left, Right]}, Env) ->
-  erl_call('erlang', 'band', [expand_expr(Left, Env), expand_expr(Right, Env)]);
+  erl_call(erlang, 'band', [expand_expr(Left, Env), expand_expr(Right, Env)]);
 expand_expr({expand, _, {op, _, '_|||_'}, [Left, Right]}, Env) ->
-  erl_call('erlang', 'bor', [expand_expr(Left, Env), expand_expr(Right, Env)]);
+  erl_call(erlang, 'bor', [expand_expr(Left, Env), expand_expr(Right, Env)]);
 expand_expr({expand, _, {op, _, '_^^^_'}, [Left, Right]}, Env) ->
-  erl_call('erlang', 'bxor', [expand_expr(Left, Env), expand_expr(Right, Env)]);
+  erl_call(erlang, 'bxor', [expand_expr(Left, Env), expand_expr(Right, Env)]);
 expand_expr({expand, _, {op, _, '_<<<_'}, [Left, Right]}, Env) ->
-  erl_call('erlang', 'bsl', [expand_expr(Left, Env), expand_expr(Right, Env)]);
+  erl_call(erlang, 'bsl', [expand_expr(Left, Env), expand_expr(Right, Env)]);
 expand_expr({expand, _, {op, _, '_>>>_'}, [Left, Right]}, Env) ->
-  erl_call('erlang', 'bsr', [expand_expr(Left, Env), expand_expr(Right, Env)]);
+  erl_call(erlang, 'bsr', [expand_expr(Left, Env), expand_expr(Right, Env)]);
 
 %% Concatenation.
-expand_expr({expand, _, {op, _, '_++_'}, [_Left, _Right]}, _Env) ->
-  % TODO: implement when we have control flow.
-  throw(unimplemented);
+expand_expr({expand, _, {op, _, '_++_'}, [Left, Right]}, Env) ->
+  % TODO: Choose between list and binary concatenation when we have binary
+  %       constructors we can use for concatenation.
+  erl_call(erlang, '++', [expand_expr(Left, Env), expand_expr(Right, Env)]);
 
 %% Comparison operators.
 expand_expr({expand, _, {op, _, '_==_'}, [Left, Right]}, Env) ->
-  erl_call('erlang', '=:=', [expand_expr(Left, Env), expand_expr(Right, Env)]);
+  erl_call(erlang, '=:=', [expand_expr(Left, Env), expand_expr(Right, Env)]);
 expand_expr({expand, _, {op, _, '_<>_'}, [Left, Right]}, Env) ->
-  erl_call('erlang', '=/=', [expand_expr(Left, Env), expand_expr(Right, Env)]);
+  erl_call(erlang, '=/=', [expand_expr(Left, Env), expand_expr(Right, Env)]);
 expand_expr({expand, _, {op, _, '_<_'}, [Left, Right]}, Env) ->
-  erl_call('erlang', '<', [expand_expr(Left, Env), expand_expr(Right, Env)]);
+  erl_call(erlang, '<', [expand_expr(Left, Env), expand_expr(Right, Env)]);
 expand_expr({expand, _, {op, _, '_>_'}, [Left, Right]}, Env) ->
-  erl_call('erlang', '>', [expand_expr(Left, Env), expand_expr(Right, Env)]);
+  erl_call(erlang, '>', [expand_expr(Left, Env), expand_expr(Right, Env)]);
 expand_expr({expand, _, {op, _, '_<=_'}, [Left, Right]}, Env) ->
-  erl_call('erlang', '=<', [expand_expr(Left, Env), expand_expr(Right, Env)]);
+  erl_call(erlang, '=<', [expand_expr(Left, Env), expand_expr(Right, Env)]);
 expand_expr({expand, _, {op, _, '_>=_'}, [Left, Right]}, Env) ->
-  erl_call('erlang', '>=', [expand_expr(Left, Env), expand_expr(Right, Env)]);
+  erl_call(erlang, '>=', [expand_expr(Left, Env), expand_expr(Right, Env)]);
 
 %% Logical operators.
 expand_expr({expand, _, {op, _, 'not_'}, [Value]}, Env) ->
-  erl_call('erlang', 'not', [expand_expr(Value, Env)]);
+  erl_call(erlang, 'not', [expand_expr(Value, Env)]);
 expand_expr({expand, _, {op, _, '_and_'}, [Left, Right]}, Env) ->
   % Manually short-circuit with `match`.
   Cases = [
