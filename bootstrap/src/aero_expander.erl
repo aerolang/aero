@@ -97,7 +97,7 @@
 -type c_call_args() :: [c_expr()].
 
 %% A call to an anonymous function.
--type c_apply() :: {c_call, meta(), c_var(), c_apply_args()}.
+-type c_apply() :: {c_apply, meta(), c_var(), c_apply_args()}.
 
 -type c_apply_args() :: [c_expr()].
 
@@ -229,12 +229,13 @@ expand_func_def([{expand, _, {op, _, '_=_'}, [FuncHead, FuncBody]}], FuncMeta, V
       ResultType = expand_type_inner(Result),
 
       % Expanding body and ensuring it gives a function.
-      case expand_expr(FuncBody, new_env()) of
+      Env = new_env(),
+      case expand_expr(FuncBody, Env) of
         {c_func, _, ExprArgs, _, _, ExprBody} when length(ExprArgs) =:= length(ArgTypes) ->
           ExprVars = [element(1, Arg) || Arg <- ExprArgs],
           NewArgs = lists:zip(ExprVars, ArgTypes),
 
-          Func = {c_func, Meta, NewArgs, ResultType, Where, ExprBody},
+          Func = {c_func, Meta, NewArgs, ResultType, Where, lift(ExprBody, Env)},
           {Path, Vis, Func};
         {c_func, _, _, _, _, _} ->
           throw({expand_error, {func_def_eq_arity_mismatch, FuncMeta}});
@@ -289,7 +290,7 @@ expand_func_def_head(FuncHead, _, _Env) ->
   throw({expand_error, {func_def_head_invalid, get_meta(FuncHead)}}).
 
 expand_func_def_body({block, _, _} = Block, Env) ->
-  expand_expr(Block, Env);
+  lift(expand_expr(Block, Env), Env);
 expand_func_def_body(FuncBody, _Env) ->
   throw({expand_error, {func_def_body_invalid, get_meta(FuncBody)}}).
 
@@ -344,11 +345,11 @@ expand_expr({block, _, [{expand, _, {op, _, '_->_'}, _} | _] = BlockExprs}, Env)
       end, tl(FuncCases)),
 
       % Create a function which just has a match inside.
-      Vars = [element(2, register_var(Env, {ident, [], ''})) || _ <- lists:seq(1, Arity)],
-      FuncVars = [{Var, {c_type_param, '_'}} || Var <- Vars],
+      Vars = [register_tmp(Env) || _ <- lists:seq(1, Arity)],
+      FuncVars = [{Var, inferred_type()} || Var <- Vars],
       Match = {c_match, [], {c_args, [], Vars}, FuncCases},
 
-      {c_func, [], FuncVars, {c_type_param, '_'}, [], Match}
+      {c_func, [], FuncVars, inferred_type(), [], Match}
   end;
 expand_expr({block, _, BlockExprs}, Env) ->
   {Exprs, _} =
@@ -356,7 +357,7 @@ expand_expr({block, _, BlockExprs}, Env) ->
       case BlockExpr of
         {expand, _, {op, _, '_=_'}, [Ident, RightExpr]} ->
           {NewEnv, Var} = register_var(EnvAcc, Ident),
-          LetExpr = {c_let, [], Var, {c_type_param, '_'}, expand_expr(RightExpr, Env)},
+          LetExpr = {c_let, [], Var, inferred_type(), expand_expr(RightExpr, Env)},
 
           {[LetExpr | ExprAcc], NewEnv};
         _ ->
@@ -375,7 +376,7 @@ expand_expr({block, _, BlockExprs}, Env) ->
             Expr;
           _ ->
             Var = element(2, register_var(Env, {ident, [], '_'})),
-            {c_let, [], Var, {c_type_param, '_'}, Expr}
+            {c_let, [], Var, inferred_type(), Expr}
         end
       end, tl(Exprs))) ++ [hd(Exprs)]}
   end;
@@ -440,7 +441,7 @@ expand_expr({expand, _, {op, _, Arrow}, [{args, _, Args}, Body]}, Env) when Arro
       case Arg of
         {ident, _, _} = Ident ->
           {NewEnv, ArgVar} = register_var(EnvAcc, Ident),
-          ArgType = {c_type_param, '_'},
+          ArgType = inferred_type(),
 
           {[{ArgVar, ArgType} | ArgAcc], NewEnv};
         _ ->
@@ -448,12 +449,12 @@ expand_expr({expand, _, {op, _, Arrow}, [{args, _, Args}, Body]}, Env) when Arro
       end
     end, {[], HeadEnv}, FuncArgs),
   CoreBody = expand_expr(Body, BodyEnv),
-  Func = {c_func, [], lists:reverse(CoreArgs), {c_type_param, '_'}, [], CoreBody},
+  Func = {c_func, [], lists:reverse(CoreArgs), inferred_type(), [], CoreBody},
 
   % If recursive then wrap it into a block with a letrec.
   case Var of
     none -> Func;
-    _    -> {c_block, [], [{c_letrec, [], Var, {c_type_param, '_'}, Func}, Var]}
+    _    -> {c_block, [], [{c_letrec, [], Var, inferred_type(), Func}, Var]}
   end;
 
 %% Function calls.
@@ -505,8 +506,8 @@ expand_expr({expand, _, {op, _, '_*_'}, [Left, Right]}, Env) ->
   erl_call(erlang, '*', [expand_expr(Left, Env), expand_expr(Right, Env)]);
 expand_expr({expand, _, {op, _, '_/_'}, [Left, Right]}, Env) ->
   % Choosing between integer and float division.
-  LeftVar = element(2, register_var(Env, {ident, [], ''})),
-  RightVar = element(2, register_var(Env, {ident, [], ''})),
+  LeftVar = register_tmp(Env),
+  RightVar = register_tmp(Env),
 
   LeftExpr = expand_expr(Left, Env),
   RightExpr = expand_expr(Right, Env),
@@ -518,8 +519,8 @@ expand_expr({expand, _, {op, _, '_/_'}, [Left, Right]}, Env) ->
   FloatDiv = erl_call(erlang, '/', [LeftVar, RightVar]),
 
   {c_block, [], [
-    {c_let, [], LeftVar, {c_type_param, '_'}, LeftExpr},
-    {c_let, [], RightVar, {c_type_param, '_'}, RightExpr},
+    {c_let, [], LeftVar, inferred_type(), LeftExpr},
+    {c_let, [], RightVar, inferred_type(), RightExpr},
     {c_match, [], IsLeftInt, [
       {{c_pat_bool, [], true}, {c_match, [], IsRightInt, [
         {{c_pat_bool, [], true}, IntDiv},
@@ -884,6 +885,10 @@ register_var(Env, {ident, _, IdentName}) ->
   Var = {c_var, [], list_to_atom(atom_to_list(IdentName) ++ "_" ++ integer_to_list(Num))},
   {Env#env{vars = [{IdentName, Var} | Env#env.vars]}, Var}.
 
+register_tmp(Env) ->
+  {_, Var} = register_var(Env, {ident, [], ''}),
+  Var.
+
 %% Create a fresh pattern variable.
 register_pat_var(Env, {ident, Meta, IdentName} = Ident) ->
   case proplists:is_defined(IdentName, Env#env.pat_vars) of
@@ -903,9 +908,174 @@ register_pat_wildcard(Env) ->
 clear_pat_vars(Env) ->
   Env#env{pat_vars = []}.
 
+%% Type without any bounds.
+inferred_type() ->
+  {c_type_param, '_'}.
+
 erl_call(Mod, Func, Args) ->
   Callee = {c_path, [], [{c_var, [], Mod}, {c_var, [], Func}]},
   {c_call, [], Callee, Args}.
+
+lift({c_block, Meta, Exprs}, Env) ->
+  {c_block, Meta, [lift(Expr, Env) || Expr <- Exprs]};
+lift({c_tuple, Meta, Exprs}, Env) ->
+  {Lets, NewExprs} =
+    lists:foldl(fun(Expr, {AccLets, AccExprs}) ->
+      LiftedExpr = lift(Expr, Env),
+      case is_simple(LiftedExpr) of
+        true ->
+          {AccLets, [LiftedExpr | AccExprs]};
+        false ->
+          Var = register_tmp(Env),
+          Let = {c_let, [], Var, inferred_type(), LiftedExpr},
+
+          {[Let | AccLets], [Var | AccExprs]}
+      end
+    end, {[], []}, Exprs),
+  case Lets of
+    [] -> {c_tuple, Meta, lists:reverse(NewExprs)};
+    _  -> {c_block, Meta, lists:reverse([{c_tuple, Meta, lists:reverse(NewExprs)} | Lets])}
+  end;
+lift({c_cons, Meta, Head, Tail}, Env) ->
+  LiftedHead = lift(Head, Env),
+  LiftedTail = lift(Tail, Env),
+  case {is_simple(LiftedHead), is_simple(LiftedTail)} of
+    % Both simple.
+    {true, true} ->
+      {c_cons, Meta, LiftedHead, LiftedTail};
+
+    % Only head is simple.
+    {true, false} ->
+      Var = register_tmp(Env),
+      Let = {c_let, [], Var, inferred_type(), LiftedTail},
+
+      {c_block, Meta, [Let, {c_cons, Meta, LiftedHead, Var}]};
+
+    % Only tail is simple.
+    {false, true} ->
+      Var = register_tmp(Env),
+      Let = {c_let, [], Var, inferred_type(), LiftedHead},
+
+      {c_block, Meta, [Let, {c_cons, Meta, Var, LiftedTail}]};
+
+    % Neither are simple.
+    {false, false} ->
+      HeadVar = register_tmp(Env),
+      TailVar = register_tmp(Env),
+      HeadLet = {c_let, [], HeadVar, inferred_type(), LiftedHead},
+      TailLet = {c_let, [], TailVar, inferred_type(), LiftedTail},
+
+      {c_block, Meta, [HeadLet, TailLet, {c_cons, Meta, HeadVar, TailVar}]}
+  end;
+lift({c_dict, Meta, Pairs}, Env) ->
+  {Lets, NewPairs} =
+    lists:foldl(fun({Key, Value}, {AccLets, AccPairs}) ->
+      LiftedKey = lift(Key, Env),
+      LiftedValue = lift(Value, Env),
+      case {is_simple(LiftedKey), is_simple(LiftedValue)} of
+        % Both simple.
+        {true, true} ->
+          {AccLets, [{LiftedKey, LiftedValue} | AccPairs]};
+
+        % Only key is simple.
+        {true, false} ->
+          Var = register_tmp(Env),
+          Let = {c_let, [], Var, inferred_type(), LiftedValue},
+
+          {[Let | AccLets], [{LiftedKey, Var} | AccPairs]};
+
+        % Only value is simple.
+        {false, true} ->
+          Var = register_tmp(Env),
+          Let = {c_let, [], Var, inferred_type(), LiftedKey},
+
+          {[Let | AccLets], [{Var, LiftedKey} | AccPairs]};
+
+        % Neither are simple.
+        {false, false} ->
+          KeyVar = register_tmp(Env),
+          ValueVar = register_tmp(Env),
+          KeyLet = {c_let, [], KeyVar, inferred_type(), LiftedKey},
+          ValueLet = {c_let, [], ValueVar, inferred_type(), LiftedValue},
+
+          {[KeyLet, ValueLet | AccLets], [{KeyVar, ValueVar} | AccPairs]}
+      end
+    end, {[], []}, Pairs),
+  case Lets of
+    [] -> {c_dict, Meta, lists:reverse(NewPairs)};
+    _  -> {c_block, Meta, lists:reverse([{c_dict, Meta, lists:reverse(NewPairs)} | Lets])}
+  end;
+lift({c_func, Meta, Args, Result, Where, Body}, Env) ->
+  {c_func, Meta, Args, Result, Where, lift(Body, Env)};
+lift({Call, Meta, Path, Args}, Env) when Call =:= c_call; Call =:= c_apply ->
+  {Lets, NewArgs} =
+    lists:foldl(fun(Arg, {AccLets, AccArgs}) ->
+      LiftedArg = lift(Arg, Env),
+      case is_simple(LiftedArg) of
+        true ->
+          {AccLets, [LiftedArg | AccArgs]};
+        false ->
+          Var = register_tmp(Env),
+          Let = {c_let, [], Var, inferred_type(), LiftedArg},
+
+          {[Let | AccLets], [Var | AccArgs]}
+      end
+    end, {[], []}, Args),
+  case Lets of
+    [] -> {Call, Meta, Path, lists:reverse(NewArgs)};
+    _  -> {c_block, Meta, lists:reverse([{Call, Meta, Path, lists:reverse(NewArgs)} | Lets])}
+  end;
+lift({c_let, Meta, Var, Type, Expr}, Env) ->
+  {c_let, Meta, Var, Type, lift(Expr, Env)};
+lift({c_letrec, Meta, Var, Type, Func}, Env) ->
+  {c_letrec, Meta, Var, Type, lift(Func, Env)};
+lift({c_match, Meta, Expr, Cases}, Env) ->
+  LiftedExpr = lift(Expr, Env),
+  LiftedCases = lists:map(fun({Pat, Body}) -> {Pat, lift(Body, Env)} end, Cases),
+  case is_simple(LiftedExpr) of
+    true ->
+      {c_match, Meta, LiftedExpr, LiftedCases};
+    false ->
+      Var = register_tmp(Env),
+      Let = {c_let, [], Var, inferred_type(), LiftedExpr},
+
+      {c_block, Meta, [Let, {c_match, Meta, Var, LiftedCases}]}
+  end;
+lift(Expr, _Env) ->
+  Expr.
+
+%% Expressions without any nested expressions to evaluate inside.
+is_simple({c_tuple, _, Exprs}) ->
+  lists:all(fun is_literal/1, Exprs);
+is_simple({c_cons, _, Head, Tail}) ->
+  is_simple(Head) andalso is_literal(Tail);
+is_simple({c_dict, _, Pairs}) ->
+  lists:all(fun(K, V) -> is_literal(K) andalso is_literal(V) end, Pairs);
+is_simple({c_args, _, Exprs}) ->
+  lists:all(fun is_simple/1, Exprs);
+is_simple(Expr) ->
+  is_literal(Expr) orelse is_var(Expr).
+
+is_literal({c_bool_lit, _, _})  -> true;
+is_literal({c_int_lit, _, _})   -> true;
+is_literal({c_float_lit, _, _}) -> true;
+is_literal({c_atom_lit, _, _})  -> true;
+is_literal({c_str_lit, _, _})   -> true;
+is_literal({c_nil, _})          -> true;
+is_literal({c_unit, _})         -> true;
+is_literal(_)                   -> false.
+
+is_var({c_var, _, _})  -> true;
+is_var({c_path, _, _}) -> true;
+is_var(_)              -> false.
+
+is_when_exhaustive([]) ->
+  false;
+is_when_exhaustive(Clauses) ->
+  case lists:last(Clauses) of
+    {{c_bool_lit, _, true}, _} -> true;
+    _                          -> false
+  end.
 
 get_meta({source, Meta, _})          -> Meta;
 get_meta({integer_lit, Meta, _})     -> Meta;
@@ -922,11 +1092,3 @@ get_meta({args, Meta, _})            -> Meta;
 get_meta({tag, Meta, _, _})          -> Meta;
 get_meta({attribute, Meta, _, _})    -> Meta;
 get_meta({inner_attribute, Meta, _}) -> Meta.
-
-is_when_exhaustive([]) ->
-  false;
-is_when_exhaustive(Clauses) ->
-  case lists:last(Clauses) of
-    {{c_bool_lit, _, true}, _} -> true;
-    _                          -> false
-  end.
