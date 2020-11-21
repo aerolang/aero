@@ -3,14 +3,12 @@ defmodule Aero.LexerTest do
 
   lexer_test "empty string",
     source: "",
-    lines: 1,
     tokens: [
       {:eof, [line: 1, column: 1, span: :aero_span.new(0, 0)]}
     ]
 
   lexer_test "whitespace is classified as newlines and spaces",
     source: "\r\n  t_1 t_2\tt_3 \nt_4\r\nt_5 \n \n t_6 ",
-    lines: 6,
     tokens: [
       {:newline, [line: 1, column: 1,  span: :aero_span.new(0,  4)]},
       {:ident,   [line: 2, column: 3,  span: :aero_span.new(4,  7)], :t_1},
@@ -30,7 +28,6 @@ defmodule Aero.LexerTest do
 
   lexer_test "semicolons act as newlines",
     source: "t_1;t_2 ; t_3\n;t_4 t_5;;",
-    lines: 2,
     tokens: [
       {:ident,   [line: 1, column: 1,  span: :aero_span.new(0,  3)], :t_1},
       {:newline, [line: 1, column: 4,  span: :aero_span.new(3,  4)]},
@@ -47,7 +44,6 @@ defmodule Aero.LexerTest do
 
   lexer_test "newlines are tokenized after comments",
     source: "// comment\nt_1// comment ",
-    lines: 2,
     tokens: [
       {:newline, [line: 1, column: 1,  span: :aero_span.new(0,  11)]},
       {:ident,   [line: 2, column: 1,  span: :aero_span.new(11, 14)], :t_1},
@@ -57,7 +53,6 @@ defmodule Aero.LexerTest do
 
   lexer_test "basic string",
     source: "\"test\"",
-    lines: 1,
     tokens: [
       {:string_lit, [line: 1, column: 1, span: :aero_span.new(0, 6)], "test"},
       {:eof,        [line: 1, column: 7, span: :aero_span.new(6, 6)]}
@@ -65,7 +60,6 @@ defmodule Aero.LexerTest do
 
   lexer_test "identifiers",
     source: "test Test __TEST__ test_1 Test1 __TEST_1__",
-    lines: 1,
     tokens: [
       {:ident, [line: 1, column: 1,  span: :aero_span.new(0,  4)], :test},
       {:space, [line: 1, column: 5,  span: :aero_span.new(4,  5)]},
@@ -83,7 +77,6 @@ defmodule Aero.LexerTest do
 
   lexer_test "basic atoms",
     source: ":test :test_1",
-    lines: 1,
     tokens: [
       {:atom_lit, [line: 1, column: 1,  span: :aero_span.new(0,  5)], :test},
       {:space,    [line: 1, column: 6,  span: :aero_span.new(5,  6)]},
@@ -93,7 +86,6 @@ defmodule Aero.LexerTest do
 
   lexer_test "escaped atoms",
     source: ":\"Test\" :\"& ,#\"",
-    lines: 1,
     tokens: [
       {:atom_lit, [line: 1, column: 1,  span: :aero_span.new(0,  7)], :Test},
       {:space,    [line: 1, column: 8,  span: :aero_span.new(7,  8)]},

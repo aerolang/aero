@@ -24,13 +24,8 @@ compile(InputFile, Options) ->
 
 %% Wrappers to allow for a compile pipeline operation.
 
-tokenize({ok, Input}) ->
-  case aero_lexer:tokenize(Input) of
-    {ok, Tokens, _EndLine} -> {ok, Tokens};
-    {error, _} = Error -> Error
-  end;
-tokenize({error, _} = Error) ->
-  Error.
+tokenize({ok, Input})        -> aero_lexer:tokenize(Input);
+tokenize({error, _} = Error) -> Error.
 
 parse({ok, Tokens})       -> aero_parser:parse(Tokens);
 parse({error, _} = Error) -> Error.

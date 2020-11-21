@@ -21,7 +21,7 @@
 
 -type meta() :: [term()].
 
--spec tokenize(binary()) -> {ok, [token()], pos_integer()} | {error, term()}.
+-spec tokenize(binary()) -> {ok, [token()]} | {error, term()}.
 tokenize(Input) ->
   tokenize(string:to_graphemes(Input), {0, 1, 1}, []).
 
@@ -57,9 +57,9 @@ tokenize(Input) ->
 
 tokenize(Input, Pos, Tokens) ->
   case next_token(Input, Pos) of
-    {token, Rest, NewPos, Token}        -> tokenize(Rest, NewPos, [Token | Tokens]);
-    {end_token, {_, EndLine, _}, Token} -> {ok, lists:reverse([Token | Tokens]), EndLine};
-    {error, Error}                      -> {error, Error}
+    {token, Rest, NewPos, Token} -> tokenize(Rest, NewPos, [Token | Tokens]);
+    {end_token, _, Token}        -> {ok, lists:reverse([Token | Tokens])};
+    {error, Error}               -> {error, Error}
   end.
 
 %% Numeric literals.
