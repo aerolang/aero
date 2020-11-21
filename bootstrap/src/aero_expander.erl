@@ -49,7 +49,8 @@
                 | c_path()
                 | c_let()
                 | c_letrec()
-                | c_match().
+                | c_match()
+                | c_args().
 
 %% A group of expressions with the last giving the value of the group.
 -type c_block() :: {c_block, meta(), [c_expr()]}.
@@ -112,10 +113,8 @@
 -type c_letrec() :: {c_letrec, meta(), c_var(), c_type(), c_func()}.
 
 %% Match.
--type c_match() :: {c_match, meta(), c_match_expr(), c_match_cases()}.
+-type c_match() :: {c_match, meta(), c_expr(), c_match_cases()}.
 
--type c_match_expr()  :: c_expr()
-                       | c_args().
 -type c_match_cases() :: [{c_pat(), c_expr()}].
 
 %% A list of expressions from function arguments.
@@ -989,7 +988,7 @@ lift({c_dict, Meta, Pairs}, Env) ->
           Var = register_tmp(Env),
           Let = {c_let, [], Var, inferred_type(), LiftedKey},
 
-          {[Let | AccLets], [{Var, LiftedKey} | AccPairs]};
+          {[Let | AccLets], [{Var, LiftedValue} | AccPairs]};
 
         % Neither are simple.
         {false, false} ->
