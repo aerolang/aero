@@ -36,20 +36,29 @@ gen_module({c_module, _, {c_path, _, [{c_var, _, Name}]}, Attrs, Defs}) ->
 
   {CerlExports, CerlDefs} =
     lists:foldl(fun(Def, {AccExports, AccDefs}) ->
-      case Def of
-        {{c_path, _, [{c_var, _, FuncName}]}, Vis, {c_func, _, _, _, _, _} = Func} ->
-          CerlDef = {cerl:c_fname(FuncName, arity(Func)), gen_expr(Func)},
-          case Vis of
-            c_vis_pub ->
-              CerlExport = cerl:c_fname(FuncName, arity(Func)),
-              {[CerlExport | AccExports], [CerlDef | AccDefs]};
-            c_vis_priv ->
-              {AccExports, [CerlDef | AccDefs]}
-          end
+      case gen_def(Def) of
+        {no_export, CerlDef}          -> {AccExports, [CerlDef | AccDefs]};
+        {export, CerlExport, CerlDef} -> {[CerlExport | AccExports], [CerlDef | AccDefs]}
       end
     end, {[], []}, Defs),
 
   cerl:c_module(CerlName, lists:reverse(CerlExports), CerlAttrs, lists:reverse(CerlDefs)).
+
+gen_def({c_def_func, _, {c_path, _, [{c_var, _, FuncName}]}, Vis, Func}) ->
+  FName = cerl:c_fname(FuncName, arity(Func)),
+  Def = {FName, gen_expr(Func)},
+  case Vis of
+    c_vis_pub  -> {export, FName, Def};
+    c_vis_priv -> {no_export, Def}
+  end;
+
+gen_def({c_def_const, _, {c_path, _, [{c_var, _, FuncName}]}, Vis, _Type, Expr}) ->
+  FName = cerl:c_fname(FuncName, 0),
+  Def = {FName, cerl:c_fun([], gen_expr(Expr))},
+  case Vis of
+    c_vis_pub  -> {export, FName, Def};
+    c_vis_priv -> {no_export, Def}
+  end.
 
 %% Expressions.
 

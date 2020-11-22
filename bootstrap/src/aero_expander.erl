@@ -1,42 +1,39 @@
 %%% Converts the Aero AST down to Core Aero.
 %%%
-%%% This format is made to resemble Core Erlang, with variables renamed,
-%%% macros expanded, and with type information checked, giving a simple core
-%%% language.
+%%% This format is made to resemble Core Erlang with variables renamed and
+%%% macros expanded giving a simple core language.
 %%%
 %%% For now we don't really have macros, so they're just manually expanded here.
 
 -module(aero_expander).
 
 -export([expand/2]).
-
--export_type([c_any/0, c_module/0, c_vis/0, c_expr/0, c_block/0]).
--export_type([c_literal/0, c_bool_lit/0, c_int_lit/0, c_float_lit/0, c_atom_lit/0, c_str_lit/0]).
--export_type([c_func/0, c_var/0, c_type/0]).
+-export_type([c_module/0]).
 
 %% -----------------------------------------------------------------------------
 %% Public API
 %% -----------------------------------------------------------------------------
 
-%% Any Core Aero syntax element.
--type c_any() :: c_module()
-               | c_expr()
-               | c_pat()
-               | c_type().
-
 %% Top-level of Core Aero, represents a whole module.
--type c_module() :: {c_module, meta(), c_var(), c_module_attrs(), c_module_defs()}.
+-type c_module() :: {c_module, meta(), c_path(), c_module_attrs(), [c_def()]}.
 
--type c_module_attrs() :: [{c_atom_lit(), c_literal()}].
--type c_module_defs()  :: [{c_var(), c_vis(), c_func()}].
+-type c_module_attrs() :: [{c_atom_lit(), c_expr()}].
 
-% Definition visibility.
+%% Definitions.
+-type c_def() :: {c_def_func, meta(), c_path(), c_vis(), c_func()}
+               | {c_def_const, meta(), c_path(), c_vis(), c_type_inner(), c_expr()}.
+
+%% Definition visibility.
 -type c_vis() :: c_vis_pub
                | c_vis_priv.
 
-%% Any expression, excludes non-expression parts of Core Aero.
+%% Any expression in Core Aero.
 -type c_expr() :: c_block()
-                | c_literal()
+                | c_bool_lit()
+                | c_int_lit()
+                | c_float_lit()
+                | c_atom_lit()
+                | c_str_lit()
                 | c_unit()
                 | c_tuple()
                 | c_cons()
@@ -54,13 +51,6 @@
 
 %% A group of expressions with the last giving the value of the group.
 -type c_block() :: {c_block, meta(), [c_expr()]}.
-
-%% A constant literal value at compile time.
--type c_literal() :: c_bool_lit()
-                   | c_int_lit()
-                   | c_float_lit()
-                   | c_atom_lit()
-                   | c_str_lit().
 
 %% Literals.
 -type c_bool_lit()  :: {c_bool_lit, meta(), boolean()}.
@@ -205,6 +195,16 @@ expand_mod_def([{ident, _IdentMeta, Ident}, {block, _BlockMeta, BlockArgs}], _Mo
           Def = expand_func_def(FuncArgs, FuncMeta, c_vis_priv),
           {[Def | Defs], InnerModules};
 
+        % Public constants.
+        {expand, ConstMeta, {ident, _, pub}, [{expand, _, {ident, _, const}, ConstArgs}]} ->
+          Def = expand_const_def(ConstArgs, ConstMeta, c_vis_pub),
+          {[Def | Defs], InnerModules};
+
+        % Private constants.
+        {expand, ConstMeta, {ident, _, const}, ConstArgs} ->
+          Def = expand_const_def(ConstArgs, ConstMeta, c_vis_priv),
+          {[Def | Defs], InnerModules};
+
         _ ->
           throw({expand_error, {expr_invalid, get_meta(BlockArg)}})
       end
@@ -217,7 +217,6 @@ expand_mod_def(_, ModuleMeta) ->
 
 expand_func_def([{expand, _, {op, _, '_=_'}, [FuncHead, FuncBody]}], FuncMeta, Vis) ->
   % Function definition variant with assignment to an anonymous function on the right.
-  Meta = [],
   Where = [],
   case FuncHead of
     {tag, _, {ident, _, Name}, {expand, _, {op, _, Arrow}, [{args, _, LeftArrowArgs}, Result]}}
@@ -234,8 +233,8 @@ expand_func_def([{expand, _, {op, _, '_=_'}, [FuncHead, FuncBody]}], FuncMeta, V
           ExprVars = [element(1, Arg) || Arg <- ExprArgs],
           NewArgs = lists:zip(ExprVars, ArgTypes),
 
-          Func = {c_func, Meta, NewArgs, ResultType, Where, lift(ExprBody, Env)},
-          {Path, Vis, Func};
+          Func = {c_func, [], NewArgs, ResultType, Where, lift(ExprBody, Env)},
+          {c_def_func, [], Path, Vis, Func};
         {c_func, _, _, _, _, _} ->
           throw({expand_error, {func_def_eq_arity_mismatch, FuncMeta}});
         _ ->
@@ -246,12 +245,11 @@ expand_func_def([{expand, _, {op, _, '_=_'}, [FuncHead, FuncBody]}], FuncMeta, V
   end;
 expand_func_def([FuncHead, FuncBody], _FuncMeta, Vis) ->
   % Function definition variant with assignment to an anonymous function on the right.
-  Meta = [],
-  {Name, Args, Result, Where, Env} = expand_func_def_head(FuncHead, new_env()),
+  {Path, Args, Result, Where, Env} = expand_func_def_head(FuncHead, new_env()),
   Body = expand_func_def_body(FuncBody, Env),
 
-  Func = {c_func, Meta, Args, Result, Where, Body},
-  {Name, Vis, Func};
+  Func = {c_func, [], Args, Result, Where, Body},
+  {c_def_func, [], Path, Vis, Func};
 expand_func_def(_, FuncMeta, _) ->
   throw({expand_error, {func_def_invalid, FuncMeta}}).
 
@@ -292,6 +290,17 @@ expand_func_def_body({block, _, _} = Block, Env) ->
   lift(expand_expr(Block, Env), Env);
 expand_func_def_body(FuncBody, _Env) ->
   throw({expand_error, {func_def_body_invalid, get_meta(FuncBody)}}).
+
+expand_const_def([{expand, _, {op, _, '_=_'}, [{tag, _, {ident, _, Name}, TagType}, ConstExpr]}],
+                 _ConstMeta,
+                 Vis) ->
+  Path = {c_path, [], [{c_var, [], Name}]},
+  Type = expand_type_inner(TagType),
+  Expr = expand_expr(ConstExpr, new_env()),
+
+  {c_def_const, [], Path, Vis, Type, Expr};
+expand_const_def(_, ConstMeta, _) ->
+  throw({expand_error, {const_def_invalid, ConstMeta}}).
 
 %% -----------------------------------------------------------------------------
 %% Expression Expanding
@@ -912,7 +921,7 @@ inferred_type() ->
   {c_type_param, '_'}.
 
 erl_call(Mod, Func, Args) ->
-  Callee = {c_path, [], [{c_var, [], Mod}, {c_var, [], Func}]},
+  Callee = {c_path, [erl_path], [{c_var, [], Mod}, {c_var, [], Func}]},
   {c_call, [], Callee, Args}.
 
 lift({c_block, Meta, Exprs}, Env) ->

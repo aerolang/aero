@@ -26,12 +26,13 @@ pprint(Node) ->
 %% Definitions.
 
 pprint({c_module, _, Name, _Attrs, Defs}, Level) ->
-  InnerDefs =
-    lists:map(fun({DefName, Vis, Expr}) ->
-      [pprint(Vis), " ", pprint(DefName), "\n", spaces(Level + 4), pprint(Expr, Level + 4)]
-    end, Defs),
-  DefStrs = lists:join($\n, pprint_args(def, InnerDefs, Level)),
+  DefStrs = lists:join($\n, pprint_args(Defs, Level)),
   format([module, Name, [], DefStrs], Level);
+
+pprint({c_def_func, _, Path, Vis, Func}, Level) ->
+  format([def, Vis, func, Path, pprint_arg(Func, Level)], Level);
+pprint({c_def_const, _, Path, Vis, Type, Expr}, Level) ->
+  format([def, Vis, const, Path, pprint_arg(Type, Level), pprint_arg(Expr, Level)], Level);
 
 pprint(c_vis_pub, _Level) ->
   "pub";

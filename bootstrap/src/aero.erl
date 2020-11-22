@@ -13,6 +13,7 @@ compile(InputFile, Options) ->
     {fun aero_lexer:tokenize/1, []},
     {fun aero_parser:parse/1, []},
     {fun aero_expander:expand/2, [aero_context:new(InputFile)]},
+    {fun aero_resolver:resolve/1, []},
 
     case proplists:get_bool(core, Options) of
       false -> {fun write_beam/1, []};
