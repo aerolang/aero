@@ -49,7 +49,7 @@ resolve_expr({c_path, Meta, _} = Path, Index) ->
         % Replacing a constant reference with a call to it like a zero-arity
         % function. Constants aren't computed during compiling while bootstrapping.
         {NewPath, c_def_const} ->
-          {c_call, Meta, NewPath, []};
+          {c_call, [const_call | Meta], NewPath, []};
 
         none ->
           throw({resolve_error, {path_not_found, Meta, Path}})

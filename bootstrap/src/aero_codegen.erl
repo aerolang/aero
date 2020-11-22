@@ -53,7 +53,7 @@ gen_def({c_def_func, _, {c_path, _, [{c_var, _, FuncName}]}, Vis, Func}) ->
   end;
 
 gen_def({c_def_const, _, {c_path, _, [{c_var, _, FuncName}]}, Vis, _Type, Expr}) ->
-  FName = cerl:c_fname(FuncName, 0),
+  FName = cerl:c_fname(const_name(FuncName), 0),
   Def = {FName, cerl:c_fun([], gen_expr(Expr))},
   case Vis of
     c_vis_pub  -> {export, FName, Def};
@@ -116,14 +116,22 @@ gen_expr({c_func, _, Args, _Result, _Where, Body}) ->
 
   cerl:c_fun(CerlArgs, CerlBody);
 
-gen_expr({c_call, _, {c_path, _, [{c_var, _, Module}, {c_var, _, Function}]}, Args}) ->
+gen_expr({c_call, Meta, {c_path, _, [{c_var, _, Module}, {c_var, _, Function}]}, Args}) ->
   CerlModule = cerl:abstract(Module),
-  CerlFunction = cerl:abstract(Function),
+  CerlFunction =
+    case proplists:get_bool(const_call, Meta) of
+      false -> cerl:abstract(Function);
+      true  -> cerl:abstract(const_name(Function))
+    end,
   CerlArgs = [gen_expr(Arg) || Arg <- Args],
 
   cerl:c_call(CerlModule, CerlFunction, CerlArgs);
-gen_expr({c_call, _, {c_path, _, [{c_var, _, Function}]}, Args}) ->
-  CerlFunction = cerl:c_fname(Function, length(Args)),
+gen_expr({c_call, Meta, {c_path, _, [{c_var, _, Function}]}, Args}) ->
+  CerlFunction =
+    case proplists:get_bool(const_call, Meta) of
+      false -> cerl:c_fname(Function, length(Args));
+      true  -> cerl:c_fname(const_name(Function), length(Args))
+    end,
   CerlArgs = [gen_expr(Arg) || Arg <- Args],
 
   cerl:c_apply(CerlFunction, CerlArgs);
@@ -190,6 +198,9 @@ gen_pat({c_pat_var, _, VarName}) ->
   cerl:c_var(VarName).
 
 %% Utilities.
+
+const_name(FuncName) ->
+  list_to_atom("const@" ++ atom_to_list(FuncName)).
 
 arity({c_func, _, Args, _, _, _}) ->
   length(Args).
