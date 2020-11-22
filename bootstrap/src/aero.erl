@@ -9,66 +9,64 @@
 %% -----------------------------------------------------------------------------
 
 compile(InputFile, Options) ->
-  InputResult = file:read_file(InputFile),
-  TokensResult = tokenize(InputResult),
-  AstResult = parse(TokensResult),
-  ExpandResult = expand(AstResult, InputFile),
-  case proplists:get_bool(core, Options) of
-    false -> codegen(ExpandResult);
-    true  -> write_core(ExpandResult)
-  end.
+  Passes = [
+    {fun aero_lexer:tokenize/1, []},
+    {fun aero_parser:parse/1, []},
+    {fun aero_expander:expand/2, [aero_context:new(InputFile)]},
+
+    case proplists:get_bool(core, Options) of
+      false -> {fun write_beam/1, []};
+      true  -> {fun write_core/1, []}
+    end
+  ],
+  transform(file:read_file(InputFile), Passes).
 
 %% -----------------------------------------------------------------------------
 %% Helper Functions
 %% -----------------------------------------------------------------------------
 
-%% Wrappers to allow for a compile pipeline operation.
+transform({ok, _} = Result, [])             -> Result;
+transform({ok, Data}, [{Fun, Args} | Tail]) -> transform(apply(Fun, [Data | Args]), Tail);
+transform({error, _} = Error, _)            -> Error.
 
-tokenize({ok, Input})        -> aero_lexer:tokenize(Input);
-tokenize({error, _} = Error) -> Error.
-
-parse({ok, Tokens})       -> aero_parser:parse(Tokens);
-parse({error, _} = Error) -> Error.
-
-expand({ok, Ast}, InputFile)  -> aero_expander:expand(Ast, aero_context:new(InputFile));
-expand({error, _} = Error, _) -> Error.
-
-codegen({ok, CoreModules}) ->
+%% Write BEAM files to the output directory.
+write_beam(CoreModules) ->
   BeamDir = filename:join([aero_session:out_dir(), <<"ebin">>]),
-  case filelib:ensure_dir(filename:join([BeamDir, <<".">>])) of
-    ok                 -> codegen(CoreModules, BeamDir, 0);
-    {error, _} = Error -> Error
-  end;
-codegen({error, _} = Error) ->
-  Error.
 
-codegen([], _, Acc) ->
+  case filelib:ensure_dir(filename:join([BeamDir, <<".">>])) of
+    ok                 -> write_beam(CoreModules, BeamDir, 0);
+    {error, _} = Error -> Error
+  end.
+
+write_beam([], _, Acc) ->
   {ok, Acc};
-codegen([H | T], BeamDir, Acc) ->
+write_beam([H | T], BeamDir, Acc) ->
   case aero_codegen:generate(H) of
     {ok, Name, Module} ->
       Filename = filename:join([BeamDir, atom_to_list(Name) ++ ".beam"]),
+
       case file:write_file(Filename, Module) of
-        ok                 -> codegen(T, BeamDir, Acc + 1);
+        ok                 -> write_beam(T, BeamDir, Acc + 1);
         {error, _} = Error -> Error
       end;
     {error, _} = Error -> Error
   end.
 
-write_core({ok, CoreModules}) ->
+%% Write Core Aero into the output directory instead if requested.
+write_core(CoreModules) ->
   BeamDir = filename:join([aero_session:out_dir(), <<"core">>]),
+
   case filelib:ensure_dir(filename:join([BeamDir, <<".">>])) of
     ok                 -> write_core(CoreModules, BeamDir, 0);
     {error, _} = Error -> Error
-  end;
-write_core({error, _} = Error) ->
-  Error.
+  end.
 
 write_core([], _, Acc) ->
   {ok, Acc};
 write_core([{c_module, _, {c_path, _, [{c_var, _, Name}]}, _, _} = H | T], BeamDir, Acc) ->
   String = aero_pprint:pprint_core_aero(H),
   Filename = filename:join([BeamDir, atom_to_list(Name) ++ ".c-aero"]),
+
   case file:write_file(Filename, <<String/binary, "\n">>) of
     ok                 -> write_core(T, BeamDir, Acc + 1);
     {error, _} = Error -> Error
