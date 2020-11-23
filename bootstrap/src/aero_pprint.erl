@@ -44,15 +44,15 @@ pprint(c_vis_priv, _Level) ->
 pprint({c_block, _, Exprs}, Level) ->
   format([block | pprint_args(Exprs, Level)], Level);
 
-pprint({c_bool_lit, _, Bool}, _Level) ->
+pprint({c_bool, _, Bool}, _Level) ->
   atom_to_list(Bool);
-pprint({c_int_lit, _, Integer}, _Level) ->
+pprint({c_int, _, Integer}, _Level) ->
   integer_to_list(Integer);
-pprint({c_float_lit, _, Float}, _Level) ->
+pprint({c_float, _, Float}, _Level) ->
   float_to_list(Float);
-pprint({c_atom_lit, _, Atom}, _Level) ->
+pprint({c_atom, _, Atom}, _Level) ->
   [$:, printable_atom(Atom)];
-pprint({c_str_lit, _, String}, _Level) ->
+pprint({c_str, _, String}, _Level) ->
   [$", printable_string(String), $"];
 
 pprint({c_unit, _}, _Level) ->

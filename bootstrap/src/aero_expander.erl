@@ -17,7 +17,7 @@
 %% Top-level of Core Aero, represents a whole module.
 -type c_module() :: {c_module, meta(), c_path(), c_module_attrs(), [c_def()]}.
 
--type c_module_attrs() :: [{c_atom_lit(), c_expr()}].
+-type c_module_attrs() :: [{c_atom(), c_expr()}].
 
 %% Definitions.
 -type c_def() :: {c_def_func, meta(), c_path(), c_vis(), c_func()}
@@ -29,11 +29,11 @@
 
 %% Any expression in Core Aero.
 -type c_expr() :: c_block()
-                | c_bool_lit()
-                | c_int_lit()
-                | c_float_lit()
-                | c_atom_lit()
-                | c_str_lit()
+                | c_bool()
+                | c_int()
+                | c_float()
+                | c_atom()
+                | c_str()
                 | c_unit()
                 | c_tuple()
                 | c_cons()
@@ -53,11 +53,11 @@
 -type c_block() :: {c_block, meta(), [c_expr()]}.
 
 %% Literals.
--type c_bool_lit()  :: {c_bool_lit, meta(), boolean()}.
--type c_int_lit()   :: {c_int_lit, meta(), integer()}.
--type c_float_lit() :: {c_float_lit, meta(), float()}.
--type c_atom_lit()  :: {c_atom_lit, meta(), atom()}.
--type c_str_lit()   :: {c_str_lit, meta(), binary()}.
+-type c_bool()  :: {c_bool, meta(), boolean()}.
+-type c_int()   :: {c_int, meta(), integer()}.
+-type c_float() :: {c_float, meta(), float()}.
+-type c_atom()  :: {c_atom, meta(), atom()}.
+-type c_str()   :: {c_str, meta(), binary()}.
 
 %% Unit value.
 -type c_unit() :: {c_unit, meta()}.
@@ -391,15 +391,15 @@ expand_expr({block, _, BlockExprs}, Env) ->
 
 %% Literals.
 expand_expr({ident, _, Bool}, _Env) when Bool =:= true; Bool =:= false ->
-  {c_bool_lit, [], Bool};
+  {c_bool, [], Bool};
 expand_expr({integer_lit, _, Integer}, _Env) ->
-  {c_int_lit, [], Integer};
+  {c_int, [], Integer};
 expand_expr({float_lit, _, Float}, _Env) ->
-  {c_float_lit, [], Float};
+  {c_float, [], Float};
 expand_expr({atom_lit, _, Atom}, _Env) ->
-  {c_atom_lit, [], Atom};
+  {c_atom, [], Atom};
 expand_expr({string_lit, _, String}, _Env) ->
-  {c_str_lit, [], String};
+  {c_str, [], String};
 
 %% Unit value.
 expand_expr({expand, _, {op, _, '(_)'}, [{args, _, []}]}, _Env) ->
@@ -426,7 +426,7 @@ expand_expr({expand, _, {op, _, '#{_}'}, [{args, _, Args}]}, Env) ->
         % We can have a tag in a dictionary for #{ atom: expr } syntax.
         % Needing to corece the left side into an atom.
         {tag, _, {ident, _, Key}, Value} ->
-          {{c_atom_lit, [], Key}, expand_expr(Value, Env)}
+          {{c_atom, [], Key}, expand_expr(Value, Env)}
       end
     end, Args),
   {c_dict, [], Pairs};
@@ -581,14 +581,14 @@ expand_expr({expand, _, {op, _, '_and_'}, [Left, Right]}, Env) ->
   % Manually short-circuit with `match`.
   Cases = [
     {{c_pat_bool, [], true}, expand_expr(Right, Env)},
-    {register_pat_wildcard(Env), {c_bool_lit, [], false}}
+    {register_pat_wildcard(Env), {c_bool, [], false}}
   ],
   {c_match, [], expand_expr(Left, Env), Cases};
 
 expand_expr({expand, _, {op, _, '_or_'}, [Left, Right]}, Env) ->
   % Manually short-circuit with `match`.
   Cases = [
-    {{c_pat_bool, [], true}, {c_bool_lit, [], true}},
+    {{c_pat_bool, [], true}, {c_bool, [], true}},
     {register_pat_wildcard(Env), expand_expr(Right, Env)}
   ],
   {c_match, [], expand_expr(Left, Env), Cases};
@@ -664,8 +664,8 @@ expand_expr({expand, Meta, {ident, _, 'if'}, [Cond, Next]}, Env) ->
     % No else block, so wrapping with optional.
     {block, _, _} = Then ->
       Cases = [
-        {{c_pat_bool, [], true}, {c_tuple, [], [{c_atom_lit, [], some}, expand_expr(Then, Env)]}},
-        {register_pat_wildcard(Env), {c_atom_lit, [], none}}
+        {{c_pat_bool, [], true}, {c_tuple, [], [{c_atom, [], some}, expand_expr(Then, Env)]}},
+        {register_pat_wildcard(Env), {c_atom, [], none}}
       ],
       {c_match, [], expand_expr(Cond, Env), Cases};
 
@@ -679,8 +679,8 @@ expand_expr({expand, Meta, {ident, _, 'if'}, _}, _Env) ->
 %% Logs.
 expand_expr({expand, _, {ident, _, log}, [Message]}, Env) ->
   Args = [
-    {c_atom_lit, [], standard_io},
-    {c_cons, [], expand_expr(Message, Env), {c_cons, [], {c_int_lit, [], $\n}, {c_nil, []}}}
+    {c_atom, [], standard_io},
+    {c_cons, [], expand_expr(Message, Env), {c_cons, [], {c_int, [], $\n}, {c_nil, []}}}
   ],
   erl_call(io, put_chars, Args);
 
@@ -1064,14 +1064,14 @@ is_simple({c_args, _, Exprs}) ->
 is_simple(Expr) ->
   is_literal(Expr) orelse is_var(Expr).
 
-is_literal({c_bool_lit, _, _})  -> true;
-is_literal({c_int_lit, _, _})   -> true;
-is_literal({c_float_lit, _, _}) -> true;
-is_literal({c_atom_lit, _, _})  -> true;
-is_literal({c_str_lit, _, _})   -> true;
-is_literal({c_nil, _})          -> true;
-is_literal({c_unit, _})         -> true;
-is_literal(_)                   -> false.
+is_literal({c_bool, _, _})  -> true;
+is_literal({c_int, _, _})   -> true;
+is_literal({c_float, _, _}) -> true;
+is_literal({c_atom, _, _})  -> true;
+is_literal({c_str, _, _})   -> true;
+is_literal({c_nil, _})      -> true;
+is_literal({c_unit, _})     -> true;
+is_literal(_)               -> false.
 
 is_var({c_var, _, _})  -> true;
 is_var({c_path, _, _}) -> true;
@@ -1081,8 +1081,8 @@ is_when_exhaustive([]) ->
   false;
 is_when_exhaustive(Clauses) ->
   case lists:last(Clauses) of
-    {{c_bool_lit, _, true}, _} -> true;
-    _                          -> false
+    {{c_bool, _, true}, _} -> true;
+    _                      -> false
   end.
 
 get_meta({source, Meta, _})          -> Meta;

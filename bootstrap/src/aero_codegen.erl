@@ -81,15 +81,15 @@ gen_expr({c_block, _, Exprs}) ->
     cerl:c_let([gen_expr(Left)], gen_expr(Right), Inner)
   end, gen_expr(hd(RevExprs)), tl(RevExprs));
 
-gen_expr({c_bool_lit, _, Bool}) ->
+gen_expr({c_bool, _, Bool}) ->
   cerl:abstract(Bool);
-gen_expr({c_int_lit, _, Integer}) ->
+gen_expr({c_int, _, Integer}) ->
   cerl:abstract(Integer);
-gen_expr({c_float_lit, _, Float}) ->
+gen_expr({c_float, _, Float}) ->
   cerl:abstract(Float);
-gen_expr({c_atom_lit, _, Atom}) ->
+gen_expr({c_atom, _, Atom}) ->
   cerl:abstract(Atom);
-gen_expr({c_str_lit, _, String}) ->
+gen_expr({c_str, _, String}) ->
   cerl:abstract(String);
 
 gen_expr({c_unit, _}) ->
