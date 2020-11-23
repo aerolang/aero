@@ -18,20 +18,21 @@ main([<<"compile">> | Args]) ->
           show_usage({missing_input, "Input file is required"});
         _ ->
           OutDir = proplists:get_value(out_dir, Options),
+          Escript = proplists:get_bool(escript, Options),
           Pkg =
             case proplists:get_bool(pkg, Options) of
-              true ->
-                binary_to_atom(filename:basename(Input, <<".aero">>), utf8);
-              false ->
-                aero
+              true  -> binary_to_atom(filename:basename(Input, <<".aero">>), utf8);
+              false -> aero
             end,
           Core = proplists:get_bool(core, Options),
-          %% Configure global environment.
+
+          %% Configure the global environment.
           code:add_pathsa(proplists:get_all_values(path, Options)),
           aero_session:configure(Input, OutDir, Pkg),
-          %% Compile the root. Local modules that are dependents will be
-          %% compiled during macro expansion.
-          write_output(aero:compile(Input, [{core, Core}]))
+
+          %% Compile the root. Local modules that are dependents will be added
+          %% during expansion.
+          write_output(aero:compile(Input, [{escript, Escript}, {core, Core}]))
       end;
     {error, {Reason, Data}} ->
       show_usage({Reason, Data})
@@ -69,6 +70,7 @@ show_usage({Reason, Data}) ->
 getopt_spec() ->
   [
     {out_dir, $o, "out-dir", {binary, <<"out">>}, "Output folder"},
+    {escript, undefined, "escript", boolean, "Compile to an executable escript"},
     {path, $P, "add-path", binary, "Prepends a path to the Erlang code path"},
     {pkg, undefined, "pkg", boolean, "Compile as a package"},
     {core, undefined, "core", boolean, "Compile to Core Aero"},

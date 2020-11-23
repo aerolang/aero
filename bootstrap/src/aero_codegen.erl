@@ -1,27 +1,55 @@
-%%% Generates Core Erlang code from the Aero AST.
+%%% Generates Core Erlang code from Core Aero.
 
 -module(aero_codegen).
 
--export([generate/1]).
+-export([generate/1, generate_entry_point/1]).
 
 %% -----------------------------------------------------------------------------
 %% Public API
 %% -----------------------------------------------------------------------------
 
--spec generate(aero_expander:c_module()) -> {ok, binary()} | {error, term()}.
-generate(CoreModule) ->
-  CerlModule = gen_module(CoreModule),
-  case compile:noenv_forms(CerlModule, [from_core, return_errors]) of
-    {ok, _, Binary} ->
-      {c_module, _, {c_path, _, [{c_var, _, Name}]}, _, _} = CoreModule,
-      {ok, Name, Binary};
-    {error, Errors, _} ->
-      {error, {internal_cerl_compile, Errors}}
-  end.
+%% Generate BEAM files from Core Aero.
+-spec generate([aero_expander:c_module()]) -> {ok, [{atom(), binary()}]} | {error, term()}.
+generate(CoreModules) ->
+  generate(CoreModules, []).
+
+%% Create an escript entry point for the root.
+-spec generate_entry_point(atom()) -> {atom(), binary()}.
+generate_entry_point(Main) ->
+  ModStr = atom_to_list(Main),
+  Source = [
+    "-module(entrypoint).\n",
+    "-export([main/1]).\n",
+    "main(Args) ->\n"
+    "  io:setopts([{encoding, unicode}]),\n"
+    "  code:ensure_loaded('" ++ ModStr ++ "'),\n"
+    "  case {erlang:function_exported('" ++ ModStr ++ "', main, 0),\n"
+    "          erlang:function_exported('" ++ ModStr ++ "', main, 1)} of\n"
+    "    {true, _} -> '" ++ ModStr ++ "':main();\n"
+    "    {_, true} -> '" ++ ModStr ++ "':main(lists:map(fun list_to_binary/1, Args));\n"
+    "    _         -> io:format(standard_error, \"crit: main function not found.\\n\", []),\n"
+    "                 halt(1)\n"
+    "  end.\n"
+  ],
+  Tokens = [element(2, erl_scan:string(Str)) || Str <- Source],
+  Forms = [element(2, erl_parse:parse_form(FormTokens)) || FormTokens <- Tokens],
+
+  {ok, _, Beam} = compile:noenv_forms(Forms, []),
+  {entrypoint, Beam}.
 
 %% -----------------------------------------------------------------------------
 %% Helper Functions
 %% -----------------------------------------------------------------------------
+
+generate([{c_module, _, {c_path, _, [{c_var, _, Name}]}, _, _} = CoreModule | Tail], Acc) ->
+  CerlModule = gen_module(CoreModule),
+
+  case compile:noenv_forms(CerlModule, [from_core, return_errors]) of
+    {ok, _, Beam}      -> generate(Tail, [{Name, Beam} | Acc]);
+    {error, Errors, _} -> {error, {internal_cerl_compile, Errors}}
+  end;
+generate([], Acc) ->
+  {ok, lists:reverse(Acc)}.
 
 %% Definitions.
 
@@ -42,7 +70,9 @@ gen_module({c_module, _, {c_path, _, [{c_var, _, Name}]}, Attrs, Defs}) ->
       end
     end, {[], []}, Defs),
 
-  cerl:c_module(CerlName, lists:reverse(CerlExports), CerlAttrs, lists:reverse(CerlDefs)).
+  add_module_info(
+    cerl:c_module(CerlName, lists:reverse(CerlExports), CerlAttrs, lists:reverse(CerlDefs))
+  ).
 
 gen_def({c_def_func, _, {c_path, _, [{c_var, _, FuncName}]}, Vis, Func}) ->
   FName = cerl:c_fname(FuncName, arity(Func)),
@@ -204,3 +234,36 @@ const_name(FuncName) ->
 
 arity({c_func, _, Args, _, _, _}) ->
   length(Args).
+
+% Add standard module_info/0,1 functions.
+add_module_info(CerlModule) ->
+  ModuleInfoExports = [
+    cerl:c_fname(module_info, 0),
+    cerl:c_fname(module_info, 1)
+  ],
+  ModuleInfoDefs = [
+    {cerl:c_fname(module_info, 0), cerl:c_fun(
+      [],
+      cerl:c_call(
+        cerl:abstract(erlang),
+        cerl:abstract(get_module_info),
+        [cerl:module_name(CerlModule)]
+      )
+    )},
+    {cerl:c_fname(module_info, 1), cerl:c_fun(
+      [cerl:c_var('_0')],
+      cerl:c_call(
+        cerl:abstract(erlang),
+        cerl:abstract(get_module_info),
+        [cerl:module_name(CerlModule), cerl:c_var('_0')]
+      )
+    )}
+  ],
+
+  cerl:update_c_module(
+    CerlModule,
+    cerl:module_name(CerlModule),
+    cerl:module_exports(CerlModule) ++ ModuleInfoExports,
+    cerl:module_attrs(CerlModule),
+    cerl:module_defs(CerlModule) ++ ModuleInfoDefs
+  ).
