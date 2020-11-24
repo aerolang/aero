@@ -18,18 +18,19 @@ generate(CoreModules) ->
 generate_entry_point(Main) ->
   ModStr = atom_to_list(Main),
   Source = [
-    "-module(entrypoint).\n",
-    "-export([main/1]).\n",
-    "main(Args) ->\n"
-    "  io:setopts([{encoding, unicode}]),\n"
-    "  code:ensure_loaded('" ++ ModStr ++ "'),\n"
-    "  case {erlang:function_exported('" ++ ModStr ++ "', main, 0),\n"
-    "          erlang:function_exported('" ++ ModStr ++ "', main, 1)} of\n"
-    "    {true, _} -> '" ++ ModStr ++ "':main();\n"
-    "    {_, true} -> '" ++ ModStr ++ "':main(lists:map(fun list_to_binary/1, Args));\n"
-    "    _         -> io:format(standard_error, \"crit: main function not found.\\n\", []),\n"
-    "                 halt(1)\n"
-    "  end.\n"
+    "-module(entrypoint).",
+    "-export([main/1]).",
+    "main(Args) ->
+       ok = io:setopts([{encoding, unicode}]),
+       case lists:keyfind(main, 1, '" ++ ModStr ++ "':module_info(exports)) of
+         {main, 0} ->
+           '" ++ ModStr ++ "':main();
+         {main, 1} ->
+           '" ++ ModStr ++ "':main(lists:map(fun unicode:characters_to_binary/1, Args));
+         _ ->
+           io:format(standard_error, \"crit: main function not found.\\n\", []),
+           halt(1)
+       end."
   ],
   Tokens = [element(2, erl_scan:string(Str)) || Str <- Source],
   Forms = [element(2, erl_parse:parse_form(FormTokens)) || FormTokens <- Tokens],
