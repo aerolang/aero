@@ -309,14 +309,15 @@ expand_const_def(_, ConstMeta, _) ->
 %% Blocks.
 expand_expr({block, _, []}, _Env) ->
   {c_unit, []};
-expand_expr({block, _, [{expand, _, {op, _, '_->_'}, _} | _] = BlockExprs}, Env) ->
+expand_expr({block, _, [{expand, _, {op, _, Arrow}, _} | _] = BlockExprs}, Env)
+    when Arrow =:= '_->_'; Arrow =:= '_->>_' ->
   % When the first entry in the block is a function, this whole thing is treated
   % as an anonymous function with like a `match`. If the there's only one case
   % and it's only using variables or wildcards we'll treat it as a normal
-  % function still.
+  % function still. All the arrows have to match too.
   NormalFunc =
     case BlockExprs of
-      [{expand, _, {op, _, '_->_'}, [{args, _, Args}, _]}] ->
+      [{expand, _, {op, _, Arrow}, [{args, _, Args}, _]}] ->
         lists:all(fun
           ({ident, _, _}) -> true;
           ({blank, _})    -> true;
@@ -331,7 +332,7 @@ expand_expr({block, _, [{expand, _, {op, _, '_->_'}, _} | _] = BlockExprs}, Env)
     false ->
       FuncCases =
         lists:map(fun
-          ({expand, _, {op, _, '_->_'}, [Pat, Expr]}) ->
+          ({expand, _, {op, _, A}, [Pat, Expr]}) when A =:= Arrow ->
             {CorePat, CoreEnv} = expand_pat(Pat, Env),
             CoreExpr = expand_expr(Expr, CoreEnv),
 
@@ -818,7 +819,8 @@ expand_type_inner({expand, _, {ident, _, dict}, [K, V]}) ->
   {c_type_dict, expand_type_inner(K), expand_type_inner(V)};
 
 %% Functions.
-expand_type_inner({expand, _, {op, _, '_->_'}, [{args, _, Args}, Result]}) ->
+expand_type_inner({expand, _, {op, _, Arrow}, [{args, _, Args}, Result]})
+    when Arrow =:= '_->_'; Arrow =:= '_->>_' ->
   {c_type_func, lists:map(fun expand_type_inner/1, Args), expand_type_inner(Result)};
 
 %% Concurrent primitives.
