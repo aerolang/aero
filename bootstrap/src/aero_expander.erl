@@ -780,9 +780,23 @@ expand_pat_inner({ident, _, _} = Ident, Env) ->
 expand_pat_inner({blank, _}, Env) ->
   {register_pat_wildcard(Env), Env};
 
+%% Constructor patterns.
+expand_pat_inner({expand, Meta, {op, _, '_(_)'},
+                                [{expand, _, {op, _, '#_'}, [Path]}, {args, _, Args}]},
+                 Env) ->
+  case Path of
+    {ident, _, list} ->
+      lists:foldr(fun(Arg, {Acc, AccEnv}) ->
+        {Head, NewEnv} = expand_pat_inner(Arg, AccEnv),
+        {{c_pat_cons, [], Head, Acc}, NewEnv}
+      end, {{c_pat_nil, []}, Env}, Args);
+    _ ->
+      throw({expand_error, {pat_constructor_invalid, Meta}})
+  end;
+
 %% Anything else...
 expand_pat_inner(Pat, _Env) ->
-  throw({expand_error, {pattern_invalid, get_meta(Pat)}}).
+  throw({expand_error, {pat_invalid, get_meta(Pat)}}).
 
 %% -----------------------------------------------------------------------------
 %% Type Expanding
