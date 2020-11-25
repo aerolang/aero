@@ -3,7 +3,6 @@
 
 -export([start_link/0, stop/0]).
 -export([configure/3, root/0, out_dir/0, pkg/0, visible_pkgs/0]).
--export([local_path/1]).
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2, terminate/2, code_change/3]).
 
 %% -----------------------------------------------------------------------------
@@ -39,25 +38,6 @@ pkg() ->
 %% Map between available packages and their entrypoint modules.
 visible_pkgs() ->
   gen_server:call(?MODULE, visible_pkgs).
-
-%% Localize path to a file from the root directory.
-local_path(Filename) ->
-  case filename:extension(Filename) of
-    <<".aero">> ->
-      case root() of
-        nil ->
-          nil;
-        Root ->
-          remainder_filename(Filename, filename:dirname(Root))
-      end;
-    <<".ex">> ->
-      case out_dir() of
-        nil ->
-          nil;
-        OutDir ->
-          remainder_filename(Filename, filename:join(OutDir, "ex"))
-      end
-  end.
 
 %% gen_server callbacks.
 
@@ -161,20 +141,6 @@ visible_pkg(CurrPkg, Module) ->
     _ ->
       nil
   end.
-
-%% Return part of input filename which doesn't match the root directory.
-remainder_filename(Filename, RootDir) ->
-  filename:join(
-    remainder_filename_split(
-      filename:split(filename:absname(Filename)),
-      filename:split(filename:absname(RootDir))
-    )
-  ).
-
-remainder_filename_split([Head | FilenameTail], [Head | RootDirTail]) ->
-  remainder_filename_split(FilenameTail, RootDirTail);
-remainder_filename_split(Filename, _) ->
-  Filename.
 
 %% Lookup a key in ETS.
 fetch(Table, Key) ->
