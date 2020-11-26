@@ -91,18 +91,20 @@ write_escript(Modules) ->
   end.
 
 %% Write Core Aero into the output directory instead if requested.
-write_core(CoreModules) ->
+write_core({c_pkg, _, _, CoreModules} = Package) ->
   CoreDir = filename:join([aero_session:out_dir(), <<"core">>]),
+  Names = [Name || {c_mod, _, {c_path, _, [{c_var, _, Name}]}, _, _} <- CoreModules],
+  Strings = aero_pprint:pprint_core_aero(Package),
+  Modules = lists:zip(Names, Strings),
 
   case filelib:ensure_dir(filename:join([CoreDir, <<".">>])) of
-    ok                 -> write_core(CoreModules, CoreDir, 0);
+    ok                 -> write_core(Modules, CoreDir, 0);
     {error, _} = Error -> Error
   end.
 
 write_core([], _, Acc) ->
   {ok, Acc};
-write_core([{c_module, _, {c_path, _, [{c_var, _, Name}]}, _, _} = H | T], CoreDir, Acc) ->
-  String = aero_pprint:pprint_core_aero(H),
+write_core([{Name, String} | T], CoreDir, Acc) ->
   Filename = filename:join([CoreDir, atom_to_list(Name) ++ ".c-aero"]),
 
   case file:write_file(Filename, <<String/binary, "\n">>) of

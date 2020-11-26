@@ -8,16 +8,17 @@
 -module(aero_expander).
 
 -export([expand/2]).
--export_type([c_module/0]).
+-export_type([c_pkg/0]).
 
 %% -----------------------------------------------------------------------------
 %% Public API
 %% -----------------------------------------------------------------------------
 
-%% Top-level of Core Aero, represents a whole module.
--type c_module() :: {c_module, meta(), c_path(), c_module_attrs(), [c_def()]}.
+%% Top-level of Core Aero, represents a whole package.
+-type c_pkg() :: {c_pkg, meta(), atom(), [c_mod()]}.
 
--type c_module_attrs() :: [{c_atom(), c_expr()}].
+-type c_mod()       :: {c_mod, meta(), c_path(), c_mod_attrs(), [c_def()]}.
+-type c_mod_attrs() :: [{c_atom(), c_expr()}].
 
 %% Definitions.
 -type c_def() :: {c_def_func, meta(), c_path(), c_vis(), c_func()}
@@ -160,12 +161,10 @@
 
 -type meta() :: [term()].
 
--spec expand(aero_parser:ast(), aero_context:context()) -> {ok, [c_module()]} | {error, term()}.
+-spec expand(aero_parser:ast(), aero_context:context()) -> {ok, c_pkg()} | {error, term()}.
 expand(Source, Context) ->
-  Filename = aero_context:filename(Context),
-  ModuleName = binary_to_atom(filename:basename(Filename, ".aero"), utf8),
-  try expand_source(Source, ModuleName) of
-    Modules -> {ok, Modules}
+  try expand_source(Source, Context) of
+    Package -> {ok, Package}
   catch
     throw:{expand_error, Reason} -> {error, Reason}
   end.
@@ -174,46 +173,46 @@ expand(Source, Context) ->
 %% Definition Expanding
 %% -----------------------------------------------------------------------------
 
-expand_source({source, Meta, SourceArgs}, ModuleName) ->
-  expand_mod_def([{ident, [], ModuleName}, {block, Meta, SourceArgs}], []);
+expand_source({source, _, SourceArgs}, Context) ->
+  PkgName = aero_session:pkg(),
+  ModName =
+    case aero_session:pkg() of
+      aero -> binary_to_atom(filename:basename(aero_context:filename(Context), ".aero"), utf8);
+      Pkg  -> Pkg
+    end,
+
+  {Defs, InnerModules} =
+    lists:foldl(fun(SourceArg, {Defs, InnerModules}) ->
+      {[expand_def(SourceArg, Context) | Defs], InnerModules}
+    end, {[], []}, SourceArgs),
+
+  ModulePath = {c_path, [], [{c_var, [], ModName}]},
+  Module = {c_mod, [], ModulePath, [], lists:reverse(Defs)},
+
+  {c_pkg, [], PkgName, [Module | lists:reverse(InnerModules)]};
 expand_source(_, _) ->
   throw({expand_error, no_source}).
 
-expand_mod_def([{ident, _IdentMeta, Ident}, {block, _BlockMeta, BlockArgs}], _ModuleMeta) ->
-  Meta = [],
-  Attrs = [],
-  {Defs, InnerModules} =
-    lists:foldl(fun(BlockArg, {Defs, InnerModules}) ->
-      case BlockArg of
-        % Public functions.
-        {expand, FuncMeta, {ident, _, pub}, [{expand, _, {ident, _, func}, FuncArgs}]} ->
-          Def = expand_func_def(FuncArgs, FuncMeta, c_vis_pub),
-          {[Def | Defs], InnerModules};
+%% Private definitions.
+expand_def({expand, Meta, {ident, _, func}, Args}, _Context) ->
+  expand_func_def(Args, Meta, c_vis_priv);
+expand_def({expand, Meta, {ident, _, const}, Args}, _Context) ->
+  expand_const_def(Args, Meta, c_vis_priv);
 
-        % Private functions.
-        {expand, FuncMeta, {ident, _, func}, FuncArgs} ->
-          Def = expand_func_def(FuncArgs, FuncMeta, c_vis_priv),
-          {[Def | Defs], InnerModules};
+%% Public definitions.
+expand_def({expand, Meta, {ident, _, pub}, PubArgs}, _Context) ->
+  case PubArgs of
+    [{expand, _, {ident, _, func}, Args}] ->
+      expand_func_def(Args, Meta, c_vis_pub);
+    [{expand, _, {ident, _, const}, Args}] ->
+      expand_const_def(Args, Meta, c_vis_pub);
+    _ ->
+      throw({expand_error, {pub_invalid, get_meta(Meta)}})
+  end;
 
-        % Public constants.
-        {expand, ConstMeta, {ident, _, pub}, [{expand, _, {ident, _, const}, ConstArgs}]} ->
-          Def = expand_const_def(ConstArgs, ConstMeta, c_vis_pub),
-          {[Def | Defs], InnerModules};
-
-        % Private constants.
-        {expand, ConstMeta, {ident, _, const}, ConstArgs} ->
-          Def = expand_const_def(ConstArgs, ConstMeta, c_vis_priv),
-          {[Def | Defs], InnerModules};
-
-        _ ->
-          throw({expand_error, {expr_invalid, get_meta(BlockArg)}})
-      end
-    end, {[], []}, BlockArgs),
-
-  Module = {c_module, Meta, {c_path, [], [{c_var, [], Ident}]}, Attrs, lists:reverse(Defs)},
-  [Module | lists:reverse(InnerModules)];
-expand_mod_def(_, ModuleMeta) ->
-  throw({expand_error, {mod_def_invalid, ModuleMeta}}).
+%% Anything else...
+expand_def(Def, _Context) ->
+  throw({expand_error, {def_invalid, get_meta(Def)}}).
 
 expand_func_def([{expand, _, {op, _, '_=_'}, [FuncHead, FuncBody]}], FuncMeta, Vis) ->
   % Function definition variant with assignment to an anonymous function on the right.

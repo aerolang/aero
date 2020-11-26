@@ -11,12 +11,12 @@
 %% Public API
 %% -----------------------------------------------------------------------------
 
--spec resolve([aero_expander:c_module()]) -> {ok, [aero_expander:c_module()]} | {error, term()}.
-resolve(CoreModules) ->
-  Index = index(CoreModules),
+-spec resolve(aero_expander:c_pkg()) -> {ok, aero_expander:c_pkg()} | {error, term()}.
+resolve(Package) ->
+  Index = index(Package),
 
-  try [resolve_module(Mod, Index) || Mod <- CoreModules] of
-    Resolved -> {ok, Resolved}
+  try [resolve_module(Mod, Index) || Mod <- element(4, Package)] of
+    Resolved -> {ok, setelement(4, Package, Resolved)}
   catch
     throw:{resolve_error, Reason} -> {error, Reason}
   end.
@@ -25,8 +25,8 @@ resolve(CoreModules) ->
 %% Helper Functions
 %% -----------------------------------------------------------------------------
 
-resolve_module({c_module, Meta, Path, Attrs, Defs}, Index) ->
-  {c_module, Meta, Path, Attrs, [resolve_def(Def, set_path(Index, Path)) || Def <- Defs]}.
+resolve_module({c_mod, Meta, Path, Attrs, Defs}, Index) ->
+  {c_mod, Meta, Path, Attrs, [resolve_def(Def, set_path(Index, Path)) || Def <- Defs]}.
 
 resolve_def({c_def_func, Meta, Path, Vis, Func}, Index) ->
   {c_def_func, Meta, Path, Vis, resolve_expr(Func, Index)};
@@ -94,15 +94,15 @@ resolve_expr(Expr, _Index) ->
 -record(index, {members, module}).
 
 %% Produce an index of all module members for searching.
-index(CoreModules) ->
-  List = lists:flatmap(fun({c_module, _, ModPath, _, Defs}) ->
+index({c_pkg, _, _, Modules}) ->
+  List = lists:flatmap(fun({c_mod, _, ModPath, _, Defs}) ->
     lists:map(fun
       ({c_def_func, _, FuncPath, Vis, _}) ->
         {path_key([ModPath, FuncPath]), {Vis, c_def_func}};
       ({c_def_const, _, ConstPath, Vis, _, _}) ->
         {path_key([ModPath, ConstPath]), {Vis, c_def_const}}
     end, Defs)  
-  end, CoreModules),
+  end, Modules),
 
   #index{members = maps:from_list(List)}.
 

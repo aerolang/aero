@@ -11,10 +11,9 @@
 %% Public API
 %% -----------------------------------------------------------------------------
 
--spec pprint_core_aero(aero_expander:c_any()) -> binary().
-pprint_core_aero(CoreAero) ->
-  String = pprint(CoreAero),
-  re:replace(String, " +\\n", "\n", [global, {return, binary}]).
+-spec pprint_core_aero(aero_expander:c_pkg()) -> binary().
+pprint_core_aero({c_pkg, _, _, Modules}) ->
+  [re:replace(pprint(Module), " +\\n", "\n", [global, {return, binary}]) || Module <- Modules].
 
 %% -----------------------------------------------------------------------------
 %% Helper Functions
@@ -25,7 +24,7 @@ pprint(Node) ->
 
 %% Definitions.
 
-pprint({c_module, _, Name, _Attrs, Defs}, Level) ->
+pprint({c_mod, _, Name, _Attrs, Defs}, Level) ->
   DefStrs = lists:join($\n, pprint_args(Defs, Level)),
   format([module, Name, [], DefStrs], Level);
 

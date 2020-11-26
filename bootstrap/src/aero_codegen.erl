@@ -9,9 +9,9 @@
 %% -----------------------------------------------------------------------------
 
 %% Generate BEAM files from Core Aero.
--spec generate([aero_expander:c_module()]) -> {ok, [{atom(), binary()}]} | {error, term()}.
-generate(CoreModules) ->
-  generate(CoreModules, []).
+-spec generate(aero_expander:c_pkg()) -> {ok, [{atom(), binary()}]} | {error, term()}.
+generate({c_pkg, _, Name, Modules}) ->
+  generate(Name, Modules, []).
 
 %% Create an escript entry point for the root.
 -spec generate_entry_point(atom()) -> {atom(), binary()}.
@@ -42,19 +42,21 @@ generate_entry_point(Main) ->
 %% Helper Functions
 %% -----------------------------------------------------------------------------
 
-generate([{c_module, _, {c_path, _, [{c_var, _, Name}]}, _, _} = CoreModule | Tail], Acc) ->
-  CerlModule = gen_module(CoreModule),
+generate(PkgName, [CoreModule | Tail], Acc) ->
+  {c_mod, _, {c_path, _, [{c_var, _, Name}]}, _, _} = CoreModule,
+  CerlName = list_to_atom(atom_to_list(PkgName) ++ "." ++ atom_to_list(Name)),
+  CerlModule = gen_module(CerlName, CoreModule),
 
   case compile:noenv_forms(CerlModule, [from_core, return_errors]) of
-    {ok, _, Beam}      -> generate(Tail, [{Name, Beam} | Acc]);
+    {ok, _, Beam}      -> generate(PkgName, Tail, [{CerlName, Beam} | Acc]);
     {error, Errors, _} -> {error, {internal_cerl_compile, Errors}}
   end;
-generate([], Acc) ->
+generate(_PkgName, [], Acc) ->
   {ok, lists:reverse(Acc)}.
 
 %% Definitions.
 
-gen_module({c_module, _, {c_path, _, [{c_var, _, Name}]}, Attrs, Defs}) ->
+gen_module(Name, {c_mod, _, _, Attrs, Defs}) ->
   CerlName = cerl:c_atom(Name),
 
   CerlAttrs =
