@@ -54,7 +54,7 @@ defmodule Aero.LexerTest do
   lexer_test "basic string",
     source: "\"test\"",
     tokens: [
-      {:string_lit, [line: 1, column: 1, span: :aero_span.new(0, 6)], "test"},
+      {:str_lit, [line: 1, column: 1, span: :aero_span.new(0, 6)], "test"},
       {:eof,        [line: 1, column: 7, span: :aero_span.new(6, 6)]}
     ]
 

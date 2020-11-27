@@ -161,7 +161,7 @@
 
 -type meta() :: [term()].
 
--spec expand(aero_parser:ast(), aero_context:context()) -> {ok, c_pkg()} | {error, term()}.
+-spec expand(aero_ast:ast(), aero_context:context()) -> {ok, c_pkg()} | {error, term()}.
 expand(Source, Context) ->
   try expand_source(Source, Context) of
     Package -> {ok, Package}
@@ -207,12 +207,12 @@ expand_def({expand, Meta, {ident, _, pub}, PubArgs}, _Context) ->
     [{expand, _, {ident, _, const}, Args}] ->
       expand_const_def(Args, Meta, c_vis_pub);
     _ ->
-      throw({expand_error, {pub_invalid, get_meta(Meta)}})
+      throw({expand_error, {pub_invalid, aero_ast:meta(Meta)}})
   end;
 
 %% Anything else...
 expand_def(Def, _Context) ->
-  throw({expand_error, {def_invalid, get_meta(Def)}}).
+  throw({expand_error, {def_invalid, aero_ast:meta(Def)}}).
 
 expand_func_def([{expand, _, {op, _, '_=_'}, [FuncHead, FuncBody]}], FuncMeta, Vis) ->
   % Function definition variant with assignment to an anonymous function on the right.
@@ -237,10 +237,10 @@ expand_func_def([{expand, _, {op, _, '_=_'}, [FuncHead, FuncBody]}], FuncMeta, V
         {c_func, _, _, _, _, _} ->
           throw({expand_error, {func_def_eq_arity_mismatch, FuncMeta}});
         _ ->
-          throw({expand_error, {func_def_eq_body_invalid, get_meta(FuncBody)}})
+          throw({expand_error, {func_def_eq_body_invalid, aero_ast:meta(FuncBody)}})
       end;
     _ ->
-      throw({expand_error, {func_def_eq_head_invalid, get_meta(FuncHead)}})
+      throw({expand_error, {func_def_eq_head_invalid, aero_ast:meta(FuncHead)}})
   end;
 expand_func_def([FuncHead, FuncBody], _FuncMeta, Vis) ->
   % Function definition variant with assignment to an anonymous function on the right.
@@ -273,7 +273,7 @@ expand_func_def_head({expand, FuncHeadMeta, {op, _, Arrow}, [{args, _, LeftArrow
 
               {[{ArgVar, ArgType} | ArgAcc], NewEnv};
             _ ->
-              throw({expand_error, {func_def_arg_invalid, get_meta(Arg)}})
+              throw({expand_error, {func_def_arg_invalid, aero_ast:meta(Arg)}})
           end
         end, {[], Env}, Args),
       ResultType = expand_type_inner(Result),
@@ -283,12 +283,12 @@ expand_func_def_head({expand, FuncHeadMeta, {op, _, Arrow}, [{args, _, LeftArrow
       throw({expand_error, {func_def_head_invalid, FuncHeadMeta}})
   end;
 expand_func_def_head(FuncHead, _, _Env) ->
-  throw({expand_error, {func_def_head_invalid, get_meta(FuncHead)}}).
+  throw({expand_error, {func_def_head_invalid, aero_ast:meta(FuncHead)}}).
 
 expand_func_def_body({block, _, _} = Block, Env) ->
   lift(expand_expr(Block, Env), Env);
 expand_func_def_body(FuncBody, _Env) ->
-  throw({expand_error, {func_def_body_invalid, get_meta(FuncBody)}}).
+  throw({expand_error, {func_def_body_invalid, aero_ast:meta(FuncBody)}}).
 
 expand_const_def([{expand, _, {op, _, '_=_'}, [{tag, _, {ident, _, Name}, TagType}, ConstExpr]}],
                  _ConstMeta,
@@ -337,7 +337,7 @@ expand_expr({block, _, [{expand, _, {op, _, Arrow}, _} | _] = BlockExprs}, Env)
 
             {CorePat, CoreExpr};
           (Arg) ->
-            throw({expand_error, {block_func_case_invalid, get_meta(Arg)}})
+            throw({expand_error, {block_func_case_invalid, aero_ast:meta(Arg)}})
         end, BlockExprs),
       
       % Get the arity from the first case.
@@ -392,13 +392,13 @@ expand_expr({block, _, BlockExprs}, Env) ->
 %% Literals.
 expand_expr({ident, _, Bool}, _Env) when Bool =:= true; Bool =:= false ->
   {c_bool, [], Bool};
-expand_expr({integer_lit, _, Integer}, _Env) ->
+expand_expr({int_lit, _, Integer}, _Env) ->
   {c_int, [], Integer};
 expand_expr({float_lit, _, Float}, _Env) ->
   {c_float, [], Float};
 expand_expr({atom_lit, _, Atom}, _Env) ->
   {c_atom, [], Atom};
-expand_expr({string_lit, _, String}, _Env) ->
+expand_expr({str_lit, _, String}, _Env) ->
   {c_str, [], String};
 
 %% Unit value.
@@ -453,7 +453,7 @@ expand_expr({expand, _, {op, _, Arrow}, [{args, _, Args}, Body]}, Env) when Arro
 
           {[{ArgVar, ArgType} | ArgAcc], NewEnv};
         _ ->
-          throw({expand_error, {func_arg_invalid, get_meta(Arg)}})
+          throw({expand_error, {func_arg_invalid, aero_ast:meta(Arg)}})
       end
     end, {[], HeadEnv}, FuncArgs),
   CoreBody = expand_expr(Body, BodyEnv),
@@ -615,7 +615,7 @@ expand_expr({expand, Meta, {ident, _, 'match'}, Args}, Env) ->
 
             {CorePat, CoreBody};
           (CaseExpr) ->
-            throw({expand_error, {match_case_invalid, get_meta(CaseExpr)}})
+            throw({expand_error, {match_case_invalid, aero_ast:meta(CaseExpr)}})
         end, BlockArgs),
 
       {c_match, [], CoreExpr, Cases};
@@ -630,7 +630,7 @@ expand_expr({expand, Meta, {ident, _, 'when'}, [{block, _, BlockArgs}]}, Env) ->
       ({expand, _, {op, _, '_=>_'}, [Cond, Body]}) ->
         {expand_expr(Cond, Env), expand_expr(Body, Env)};
       (Expr) ->
-        throw({expand_error, {when_clause_invalid, get_meta(Expr)}})
+        throw({expand_error, {when_clause_invalid, aero_ast:meta(Expr)}})
     end, BlockArgs),
 
   case is_when_exhaustive(Clauses) of
@@ -686,7 +686,7 @@ expand_expr({expand, _, {ident, _, log}, [Message]}, Env) ->
 
 %% Anything else...
 expand_expr(Expr, _Env) ->
-  throw({expand_error, {expr_invalid, get_meta(Expr)}}).
+  throw({expand_error, {expr_invalid, aero_ast:meta(Expr)}}).
 
 %% -----------------------------------------------------------------------------
 %% Pattern Expanding
@@ -715,13 +715,13 @@ expand_pat_outer(Pat, Env) ->
 %% Pattern literals.
 expand_pat_inner({ident, _, Bool}, Env) when Bool =:= true; Bool =:= false ->
   {{c_pat_bool, [], Bool}, Env};
-expand_pat_inner({integer_lit, _, Integer}, Env) ->
+expand_pat_inner({int_lit, _, Integer}, Env) ->
   {{c_pat_int, [], Integer}, Env};
 expand_pat_inner({float_lit, _, Float}, Env) ->
   {{c_pat_float, [], Float}, Env};
 expand_pat_inner({atom_lit, _, Atom}, Env) ->
   {{c_pat_atom, [], Atom}, Env};
-expand_pat_inner({string_lit, _, String}, Env) ->
+expand_pat_inner({str_lit, _, String}, Env) ->
   {{c_pat_str, [], String}, Env};
 
 %% Unit pattern.
@@ -795,7 +795,7 @@ expand_pat_inner({expand, Meta, {op, _, '_(_)'},
 
 %% Anything else...
 expand_pat_inner(Pat, _Env) ->
-  throw({expand_error, {pat_invalid, get_meta(Pat)}}).
+  throw({expand_error, {pat_invalid, aero_ast:meta(Pat)}}).
 
 %% -----------------------------------------------------------------------------
 %% Type Expanding
@@ -875,12 +875,12 @@ expand_type_inner({expand, _, {op, _, '_!'}, [Type]}) ->
 
 %% Anything else...
 expand_type_inner(Type) ->
-  throw({expand_error, {type_invalid, get_meta(Type)}}).
+  throw({expand_error, {type_invalid, aero_ast:meta(Type)}}).
 
 %% Where clauses.
 %% TODO: implement.
 expand_type_where(Where) ->
-  throw({expand_error, {type_where_invalid, get_meta(Where)}}).
+  throw({expand_error, {type_where_invalid, aero_ast:meta(Where)}}).
 
 %% -----------------------------------------------------------------------------
 %% Utilities
@@ -1099,19 +1099,3 @@ is_when_exhaustive(Clauses) ->
     {{c_bool, _, true}, _} -> true;
     _                      -> false
   end.
-
-get_meta({source, Meta, _})          -> Meta;
-get_meta({integer_lit, Meta, _})     -> Meta;
-get_meta({float_lit, Meta, _})       -> Meta;
-get_meta({atom_lit, Meta, _})        -> Meta;
-get_meta({string_lit, Meta, _})      -> Meta;
-get_meta({ident, Meta, _})           -> Meta;
-get_meta({type_param, Meta, _})      -> Meta;
-get_meta({blank, Meta})              -> Meta;
-get_meta({op, Meta, _})              -> Meta;
-get_meta({block, Meta, _})           -> Meta;
-get_meta({expand, Meta, _, _})       -> Meta;
-get_meta({args, Meta, _})            -> Meta;
-get_meta({tag, Meta, _, _})          -> Meta;
-get_meta({attribute, Meta, _, _})    -> Meta;
-get_meta({inner_attribute, Meta, _}) -> Meta.

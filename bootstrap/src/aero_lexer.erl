@@ -1,27 +1,12 @@
 -module(aero_lexer).
 
 -export([tokenize/1]).
--export_type([token/0]).
 
 %% -----------------------------------------------------------------------------
 %% Public API
 %% -----------------------------------------------------------------------------
 
--type token() :: {integer_lit, meta(), integer()}
-               | {float_lit, meta(), float()}
-               | {atom_lit, meta(), atom()}
-               | {string_lit, meta(), binary()}
-               | {ident, meta(), atom()}
-               | {type_param, meta(), atom()}
-               | {blank, meta()}
-               | {op, meta(), atom()}
-               | {space, meta()}
-               | {newline, meta()}
-               | {eof, meta()}.
-
--type meta() :: [term()].
-
--spec tokenize(binary()) -> {ok, [token()]} | {error, term()}.
+-spec tokenize(binary()) -> {ok, [aero_token:token()]} | {error, term()}.
 tokenize(Input) ->
   tokenize(string:to_graphemes(Input), {0, 1, 1}, []).
 
@@ -141,7 +126,7 @@ integer_token(Rest, Pos, Source, Base, Prefix) ->
       % No numbers after underscore, unexpected alpha, or number out of range.
       {error, {unexpected_char, unicode:characters_to_binary([hd(Rest)]), NewPos}};
     Filtered ->
-      {token, Rest, NewPos, {integer_lit, meta(Pos, Length), list_to_integer(Filtered, Base)}}
+      {token, Rest, NewPos, {int_lit, meta(Pos, Length), list_to_integer(Filtered, Base)}}
   end.
 
 float_token([$. | Cont], Pos, IntSource) ->
@@ -197,7 +182,7 @@ float_token(Rest, Pos, IntSource, FractSource, SignSource) ->
   end.
 
 atom_token([$: | Cont], Pos) when hd(Cont) =:= $" ->
-  {token, Rest, NewPos, {string_lit, Meta, String}} = string_token(Cont, shift(Pos, 1, 0, 1)),
+  {token, Rest, NewPos, {str_lit, Meta, String}} = string_token(Cont, shift(Pos, 1, 0, 1)),
   {token, Rest, NewPos, {atom_lit, meta(Pos, span_size(Meta) + 1), binary_to_atom(String, utf8)}};
 atom_token([$: | Cont], Pos) ->
   {token, Rest, NewPos, {ident, Meta, Ident}} = ident_token(Cont, shift(Pos, 1, 0, 1)),
@@ -211,7 +196,7 @@ string_token(Input, {Index, _, _} = Pos, {StartIndex, _, _} = StartPos, Acc) ->
     [$" | Rest] ->
       NewPos = shift(Pos, 1, 0, 1),
       Meta = meta(StartPos, Index + 1 - StartIndex),
-      {token, Rest, NewPos, {string_lit, Meta, unicode:characters_to_binary(lists:reverse(Acc))}};
+      {token, Rest, NewPos, {str_lit, Meta, unicode:characters_to_binary(lists:reverse(Acc))}};
     [$\\, $x, S3, S4 | Cont] when ?is_hex(S3), ?is_hex(S4) ->
       case escape_unicode([S3, S4]) of
         none      -> {error, {invalid_str_escape, <<"x">>, shift(Pos, 1, 0, 1)}};

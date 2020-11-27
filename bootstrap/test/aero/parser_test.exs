@@ -20,7 +20,7 @@ defmodule Aero.ParserTest do
           [line: 1, column: 1, span: :aero_span.new(0, 19)],
           {:ident, [line: 1, column: 1, span: :aero_span.new(0, 3)], :log},
           [
-            {:string_lit, [line: 1, column: 5, span: :aero_span.new(4, 19)], "Hello, World!"}
+            {:str_lit, [line: 1, column: 5, span: :aero_span.new(4, 19)], "Hello, World!"}
           ]
         }
       ]

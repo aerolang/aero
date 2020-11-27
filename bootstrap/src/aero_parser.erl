@@ -7,32 +7,13 @@
 -module(aero_parser).
 
 -export([parse/1]).
--export_type([ast/0]).
 
 %% -----------------------------------------------------------------------------
 %% Public API
 %% -----------------------------------------------------------------------------
 
--type ast() :: {source, meta(), [ast()]}
-             | {integer_lit, meta(), integer()}
-             | {float_lit, meta(), float()}
-             | {atom_lit, meta(), atom()}
-             | {string_lit, meta(), binary()}
-             | {ident, meta(), atom()}
-             | {type_param, meta(), atom()}
-             | {blank, meta()}
-             | {op, meta(), atom()}
-             | {block, meta(), [ast()]}
-             | {expand, meta(), ast(), [ast()]}
-             | {args, meta(), [ast()]}
-             | {tag, meta(), ast(), ast()}
-             | {attribute, meta(), ast(), ast()}
-             | {inner_attribute, meta(), ast()}.
-
--type meta() :: [term()].
-
 %% Parse tokens into the Aero AST.
--spec parse([aero_lexer:token()]) -> {ok, ast()} | {error, term(), integer()}.
+-spec parse([aero_token:token()]) -> {ok, aero_ast:source()} | {error, term()}.
 parse([]) ->
   {error, no_tokens};
 parse(Tokens) ->
@@ -49,7 +30,7 @@ parse(Tokens) ->
 %% Continuously parse expressions in the source until EOF.
 source(Tokens) ->
   {[{eof, EofMeta}], Exprs} = group(Tokens, eof, top),
-  Meta = merge_meta([get_meta(hd(Tokens)), EofMeta]),
+  Meta = merge_meta([aero_token:meta(hd(Tokens)), EofMeta]),
   process_tuples({source, Meta, Exprs}).
 
 %% Parse newline-separated expressions until an end token.
@@ -114,8 +95,8 @@ container(Tokens, EndToken, BP, InnerMode, OuterMode, exprs) ->
     {Tokens2, _} ->
       {Tokens3, Exprs, T} = container(Tokens2, EndToken, BP, InnerMode, OuterMode, expr),
       case Exprs of
-        [{op_args, _, InnerExprs}] -> {Tokens3, InnerExprs, T};
-        _                          -> {Tokens3, Exprs, T}
+        [{expand, [op_args | _], _, [{args, _, InnerExprs}]}] -> {Tokens3, InnerExprs, T};
+        _                                                     -> {Tokens3, Exprs, T}
       end
   end;
 container(Tokens, EndToken, BP, InnerMode, OuterMode, infix) ->
@@ -248,10 +229,10 @@ expr_single({blank, Meta}, _Mode) ->
   {blank, Meta};
 expr_single({atom_lit, Meta, Atom}, _Mode) ->
   {atom_lit, Meta, Atom};
-expr_single({string_lit, Meta, String}, _Mode) ->
-  {string_lit, Meta, String};
-expr_single({integer_lit, Meta, Integer}, _Mode) ->
-  {integer_lit, Meta, Integer};
+expr_single({str_lit, Meta, String}, _Mode) ->
+  {str_lit, Meta, String};
+expr_single({int_lit, Meta, Integer}, _Mode) ->
+  {int_lit, Meta, Integer};
 expr_single({float_lit, Meta, Float}, _Mode) ->
   {float_lit, Meta, Float}.
 
@@ -261,7 +242,7 @@ expr_prefix({op, OpMeta, Op}, Exprs, _Mode) ->
   % To distinguish a prefix operator, an underscore is appended.
   OpBinary = atom_to_binary(Op, utf8),
   PrefixOp = binary_to_atom(<<OpBinary/binary, "_">>, utf8),
-  Meta = merge_meta([OpMeta | get_meta(Exprs)]),
+  Meta = merge_meta([OpMeta | aero_ast:metas(Exprs)]),
 
   {expand, Meta, {op, OpMeta, PrefixOp}, Exprs}.
 
@@ -272,7 +253,7 @@ expr_prefix({op, LeftMeta, '('},
   % Prevents unwrapping on the left side of `->`.
   Meta = merge_meta([LeftMeta, RightMeta]),
 
-  {explicit_tuple, Meta, InnerExprs};
+  {expand, [explicit_tuple | Meta], {op, Meta, '(_)'}, InnerExprs};
 expr_prefix({op, _, '('}, {op, _, ')'}, [InnerExpr], _Mode) ->
   % One item in parens gives back the inside without wrapping.
   InnerExpr;
@@ -282,7 +263,7 @@ expr_prefix({op, LeftMeta, '{'}, {op, RightMeta, '}'}, InnerExprs, _Mode) ->
   {block, Meta, InnerExprs};
 expr_prefix({op, LeftMeta, '#['},
             {op, RightMeta, ']'},
-            [RightExpr, {op_args, InnerMeta, InnerExprs}],
+            [RightExpr, {expand, [op_args | InnerMeta], _, [{args, _, InnerExprs}]}],
             _Mode) ->
   Meta = merge_meta([LeftMeta, RightMeta]),
 
@@ -290,10 +271,10 @@ expr_prefix({op, LeftMeta, '#['},
 expr_prefix({op, LeftMeta, '#['}, {op, RightMeta, ']'}, [RightExpr, InnerExprs], _Mode) ->
   Meta = merge_meta([LeftMeta, RightMeta]),
 
-  {attribute, Meta, {args, merge_meta(get_meta(InnerExprs)), InnerExprs}, RightExpr};
+  {attribute, Meta, {args, merge_meta(aero_ast:metas(InnerExprs)), InnerExprs}, RightExpr};
 expr_prefix({op, LeftMeta, '#!['},
             {op, RightMeta, ']'},
-            [{op_args, InnerMeta, InnerExprs}],
+            [{expand, [op_args | InnerMeta], _, [{args, _, InnerExprs}]}],
             _Mode) ->
   Meta = merge_meta([LeftMeta, RightMeta]),
 
@@ -301,12 +282,12 @@ expr_prefix({op, LeftMeta, '#!['},
 expr_prefix({op, LeftMeta, '#!['}, {op, RightMeta, ']'}, InnerExprs, _Mode) ->
   Meta = merge_meta([LeftMeta, RightMeta]),
 
-  {inner_attribute, Meta, {args, merge_meta(get_meta(InnerExprs)), InnerExprs}};
+  {inner_attribute, Meta, {args, merge_meta(aero_ast:metas(InnerExprs)), InnerExprs}};
 expr_prefix({op, LeftMeta, LeftOp}, {op, RightMeta, RightOp}, InnerExprs, _Mode) ->
   LeftOpBinary = atom_to_binary(LeftOp, utf8),
   RightOpBinary = atom_to_binary(RightOp, utf8),
   ContainerOp = binary_to_atom(<<LeftOpBinary/binary, "_", RightOpBinary/binary>>, utf8),
-  Exprs = [{args, merge_meta(get_meta(InnerExprs)), InnerExprs}],
+  Exprs = [{args, merge_meta(aero_ast:metas(InnerExprs)), InnerExprs}],
   Meta = merge_meta([LeftMeta, RightMeta]),
 
   {expand, Meta, {op, Meta, ContainerOp}, Exprs}.
@@ -317,7 +298,7 @@ expr_postfix({op, OpMeta, Op}, Exprs, _Mode) ->
   % To distinguish a postfix operator, an underscore is prepended.
   OpBinary = atom_to_binary(Op, utf8),
   PostfixOp = binary_to_atom(<<"_", OpBinary/binary>>, utf8),
-  Meta = merge_meta([OpMeta | get_meta(Exprs)]),
+  Meta = merge_meta([OpMeta | aero_ast:metas(Exprs)]),
 
   {expand, Meta, {op, OpMeta, PostfixOp}, Exprs}.
 
@@ -325,33 +306,33 @@ expr_postfix({op, LeftMeta, LeftOp}, {op, RightMeta, RightOp}, [LeftExpr | Inner
   LeftOpBinary = atom_to_binary(LeftOp, utf8),
   RightOpBinary = atom_to_binary(RightOp, utf8),
   ContainerOp = binary_to_atom(<<"_", LeftOpBinary/binary, "_", RightOpBinary/binary>>, utf8),
-  Exprs = [LeftExpr, {args, merge_meta(get_meta(InnerExprs)), InnerExprs}],
-  Meta = merge_meta([get_meta(LeftExpr), RightMeta]),
+  Exprs = [LeftExpr, {args, merge_meta(aero_ast:metas(InnerExprs)), InnerExprs}],
+  Meta = merge_meta([aero_ast:meta(LeftExpr), RightMeta]),
 
   {expand, Meta, {op, merge_meta([LeftMeta, RightMeta]), ContainerOp}, Exprs}.
 
 %% Parse expressions that need both the previous and next expressions.
 expr_infix({op, _, '->'} = T,
-           [{expand, Meta, {op, _, '(_)'}, [{args, _, LeftExprs}]}, RightExpr],
-           Mode) when Mode =/= top ->
+           [{expand, Meta, {op, _, '(_)'} = Op, LeftArgs}, RightExpr],
+           Mode) when Mode =/= top, hd(Meta) =/= explicit_tuple, hd(Meta) =/= op_args ->
   % `->`, except at the top level, unwraps regular tuples and turns them back
   % to `op_args`. This is transformed again in the general `->` case.
-  expr_infix(T, [{op_args, Meta, LeftExprs}, RightExpr], Mode);
+  expr_infix(T, [{expand, [op_args | Meta], Op, LeftArgs}, RightExpr], Mode);
 expr_infix({op, OpMeta, '->'}, [LeftExpr, RightExpr], _Mode) ->
-  Meta = merge_meta(get_meta([LeftExpr, RightExpr])),
+  Meta = merge_meta(aero_ast:metas([LeftExpr, RightExpr])),
 
   {expand, Meta, {op, OpMeta, '_->_'}, [arrow_args(LeftExpr), RightExpr]};
 expr_infix({op, _, '->>'} = T,
-           [{expand, Meta, {op, _, '(_)'}, [{args, _, LeftExprs}]}, RightExpr],
-           Mode) when Mode =/= top ->
+           [{expand, Meta, {op, _, '(_)'} = Op, LeftArgs}, RightExpr],
+           Mode) when Mode =/= top, hd(Meta) =/= explicit_tuple, hd(Meta) =/= op_args ->
   % Same special cases for `->>`.
-  expr_infix(T, [{op_args, Meta, LeftExprs}, RightExpr], Mode);
+  expr_infix(T, [{expand, [op_args | Meta], Op, LeftArgs}, RightExpr], Mode);
 expr_infix({op, OpMeta, '->>'}, [LeftExpr, RightExpr], _Mode) ->
-  Meta = merge_meta(get_meta([LeftExpr, RightExpr])),
+  Meta = merge_meta(aero_ast:metas([LeftExpr, RightExpr])),
 
   {expand, Meta, {op, OpMeta, '_->>_'}, [arrow_args(LeftExpr), RightExpr]};
 expr_infix({op, _, ':'}, [LeftExpr, RightExpr], _Mode) ->
-  Meta = merge_meta(get_meta([LeftExpr, RightExpr])),
+  Meta = merge_meta(aero_ast:metas([LeftExpr, RightExpr])),
 
   {tag, Meta, LeftExpr, RightExpr};
 expr_infix({op, _, ','}, [LeftExpr, RightExpr], arg) ->
@@ -389,7 +370,7 @@ expr_infix({op, OpMeta, Op}, Exprs, _Mode) ->
   % To distinguish an infix operator, underscores are placed on both sides.
   OpBinary = atom_to_binary(Op, utf8),
   InfixOp = binary_to_atom(<<"_", OpBinary/binary, "_">>, utf8),
-  Meta = merge_meta(get_meta(Exprs)),
+  Meta = merge_meta(aero_ast:metas(Exprs)),
 
   {expand, Meta, {op, OpMeta, InfixOp}, Exprs}.
 
@@ -403,46 +384,50 @@ expr_infix({op, OpMeta, Op}, Exprs, _Mode) ->
 %% converted to empty arguments and explicit tuples `(())` are left alone.
 arrow_args({expand, Meta, {op, _, '@'} = Op, Exprs}) ->
   {expand, Meta, Op, lists:map(fun arrow_args/1, Exprs)};
-arrow_args({op_args, Meta, Exprs}) ->
+arrow_args({expand, [explicit_tuple | Meta], _, _} = Expr) ->
+  {args, Meta, [Expr]};
+arrow_args({expand, [op_args | Meta], _, [{args, _, Exprs}]}) ->
   {args, Meta, Exprs};
-arrow_args({expand, Expr, {op, _, '(_)'}, [{args, _, []}]}) ->
-  {args, get_meta(Expr), []};
+arrow_args({expand, Meta, {op, _, '(_)'}, [{args, _, []}]}) ->
+  {args, Meta, []};
 arrow_args(Expr) ->
-  {args, get_meta(Expr), [Expr]}.
+  {args, aero_ast:meta(Expr), [Expr]}.
 
 %% Build operator args. Args to the right are flattened.
 op_args(LeftExpr, RightExpr) ->
-  Meta = merge_meta(get_meta([LeftExpr, RightExpr])),
-  {op_args, Meta, [LeftExpr | plain_op_args(RightExpr)]}.
+  Meta = merge_meta(aero_ast:metas([LeftExpr, RightExpr])),
+  Args = [LeftExpr | plain_op_args(RightExpr)],
+
+  {expand, [op_args | Meta], {op, Meta, '(_)'}, [{args, Meta, Args}]}.
 
 %% Build a macro call with args on the right.
 macro_call(LeftExpr, {expand_args, _, RightExprs}) ->
-  Meta = merge_meta(get_meta([LeftExpr | RightExprs])),
+  Meta = merge_meta(aero_ast:metas([LeftExpr | RightExprs])),
   {expand, Meta, LeftExpr, RightExprs};
 macro_call(LeftExpr, RightExpr) ->
-  Meta = merge_meta(get_meta([LeftExpr, RightExpr])),
+  Meta = merge_meta(aero_ast:metas([LeftExpr, RightExpr])),
   {expand, Meta, LeftExpr, [RightExpr]}.
 
 %% Build macro args. Args to the right are flattened.
 macro_args(LeftExpr, {expand_args, _, RightExprs}) ->
-  Meta = merge_meta(get_meta([LeftExpr | RightExprs])),
+  Meta = merge_meta(aero_ast:metas([LeftExpr | RightExprs])),
   {expand_args, Meta, [LeftExpr | RightExprs]};
 macro_args(LeftExpr, RightExpr) ->
-  Meta = merge_meta(get_meta([LeftExpr, RightExpr])),
+  Meta = merge_meta(aero_ast:metas([LeftExpr, RightExpr])),
   {expand_args, Meta, [LeftExpr, RightExpr]}.
 
 %% Turn op args or a single item into a plain list.
-plain_op_args({op_args, _, Exprs})   -> Exprs;
-plain_op_args([{op_args, _, Exprs}]) -> Exprs;
-plain_op_args([])                    -> [];
-plain_op_args([Expr])                -> [Expr];
-plain_op_args(Expr)                  -> [Expr].
+plain_op_args({expand, [op_args | _],  _, [{args, _, Exprs}]})  -> Exprs;
+plain_op_args([{expand, [op_args | _], _, [{args, _, Exprs}]}]) -> Exprs;
+plain_op_args([])                                               -> [];
+plain_op_args([Expr])                                           -> [Expr];
+plain_op_args(Expr)                                             -> [Expr].
 
 %% Replace explicit tuples with regular tuples and create implicit tuples.
-process_tuples({explicit_tuple, Meta, Exprs}) ->
-  {expand, Meta, {op, Meta, '(_)'}, [{args, Meta, lists:map(fun process_tuples/1, Exprs)}]};
-process_tuples({op_args, Meta, Exprs}) ->
-  {expand, Meta, {op, Meta, '(_)'}, [{args, Meta, lists:map(fun process_tuples/1, Exprs)}]};
+process_tuples({expand, [explicit_tuple | Meta], Op, Exprs}) ->
+  {expand, Meta, Op, lists:map(fun process_tuples/1, Exprs)};
+process_tuples({expand, [op_args | Meta], Op, Exprs}) ->
+  {expand, Meta, Op, lists:map(fun process_tuples/1, Exprs)};
 process_tuples({Type, Meta, Expr1, Exprs}) when is_list(Exprs) ->
   {Type, Meta, process_tuples(Expr1), lists:map(fun process_tuples/1, Exprs)};
 process_tuples({Type, Meta, Expr1, Expr2}) ->
@@ -656,23 +641,22 @@ trim_whitespace([{newline, _} | Tail]) -> trim_whitespace(Tail);
 trim_whitespace([{space, _} | Tail])   -> trim_whitespace(Tail);
 trim_whitespace(Tokens)                -> Tokens.
 
-%% Get a token's or expression's metadata.
-get_meta({_, Meta, _, _})           -> Meta;
-get_meta({_, Meta, _})              -> Meta;
-get_meta({_, Meta})                 -> Meta;
-get_meta(Exprs) when is_list(Exprs) -> [get_meta(Expr) || Expr <- Exprs].
-
 %% Combine code spans together and use the first line/column.
 merge_meta([]) ->
   [];
 merge_meta(Metas) ->
-  [{line, Line}, {column, Column}, {span, Span}] = hd(Metas),
+  Line = proplists:get_value(line, hd(Metas)),
+  Column = proplists:get_value(column, hd(Metas)),
+  Span = proplists:get_value(span, hd(Metas)),
+
   merge_meta(tl(Metas), Line, Column, Span).
 
 merge_meta([], Line, Column, Span) ->
   [{line, Line}, {column, Column}, {span, Span}];
 merge_meta([Meta | Tail], Line, Column, Span) ->
-  [{line, Line2}, {column, Column2}, {span, Span2}] = Meta,
+  Line2 = proplists:get_value(line, Meta),
+  Column2 = proplists:get_value(column, Meta),
+  Span2 = proplists:get_value(span, Meta),
 
   case Line2 < Line orelse (Line2 =:= Line andalso Column2 < Column) of
     true  -> merge_meta(Tail, Line2, Column2, aero_span:merge(Span, Span2));
