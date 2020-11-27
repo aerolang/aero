@@ -1,14 +1,14 @@
--module(aero_lexer).
+-module(aero_scan).
 
--export([tokenize/1]).
+-export([scan/1]).
 
 %% -----------------------------------------------------------------------------
 %% Public API
 %% -----------------------------------------------------------------------------
 
--spec tokenize(binary()) -> {ok, [aero_token:token()]} | {error, term()}.
-tokenize(Input) ->
-  tokenize(string:to_graphemes(Input), {0, 1, 1}, []).
+-spec scan(binary()) -> {ok, [aero_token:token()]} | {error, term()}.
+scan(Input) ->
+  scan(string:to_graphemes(Input), {0, 1, 1}, []).
 
 %% -----------------------------------------------------------------------------
 %% Tokenizing
@@ -40,9 +40,9 @@ tokenize(Input) ->
                     S =:= "~~~"; S =:= "->>"; S =:= "<<-"; S =:= "..."; S =:= "..<").
 -define(is_op_4(S), S =:= "...<").
 
-tokenize(Input, Pos, Tokens) ->
+scan(Input, Pos, Tokens) ->
   case next_token(Input, Pos) of
-    {token, Rest, NewPos, Token} -> tokenize(Rest, NewPos, [Token | Tokens]);
+    {token, Rest, NewPos, Token} -> scan(Rest, NewPos, [Token | Tokens]);
     {end_token, _, Token}        -> {ok, lists:reverse([Token | Tokens])};
     {error, Error}               -> {error, Error}
   end.

@@ -3,7 +3,7 @@
 %%% Takes care of finding the which function, constant, etc. it references by a
 %%% path, and replaces the path with the full name if it's not local.
 
--module(aero_resolver).
+-module(aero_resolve).
 
 -export([resolve/1]).
 
@@ -11,7 +11,7 @@
 %% Public API
 %% -----------------------------------------------------------------------------
 
--spec resolve(aero_expander:c_pkg()) -> {ok, aero_expander:c_pkg()} | {error, term()}.
+-spec resolve(aero_expand:c_pkg()) -> {ok, aero_expand:c_pkg()} | {error, term()}.
 resolve(Package) ->
   Index = index(Package),
 

@@ -11,7 +11,7 @@
 %% Public API
 %% -----------------------------------------------------------------------------
 
--spec pprint_core_aero(aero_expander:c_pkg()) -> binary().
+-spec pprint_core_aero(aero_expand:c_pkg()) -> binary().
 pprint_core_aero({c_pkg, _, _, Modules}) ->
   [re:replace(pprint(Module), " +\\n", "\n", [global, {return, binary}]) || Module <- Modules].
 

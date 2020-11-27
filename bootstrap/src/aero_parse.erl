@@ -4,7 +4,7 @@
 %%% traditional recursive descent parser, except that it keeps track of operator
 %%% precedence to parse more complicated and nested expressions.
 
--module(aero_parser).
+-module(aero_parse).
 
 -export([parse/1]).
 

@@ -1,13 +1,13 @@
-defmodule Aero.LexerTest do
-  use Aero.LexerCase
+defmodule Aero.ScannerTest do
+  use Aero.ScannerCase
 
-  lexer_test "empty string",
+  scanner_case "empty string",
     source: "",
     tokens: [
       {:eof, [line: 1, column: 1, span: :aero_span.new(0, 0)]}
     ]
 
-  lexer_test "whitespace is classified as newlines and spaces",
+  scanner_case "whitespace is classified as newlines and spaces",
     source: "\r\n  t_1 t_2\tt_3 \nt_4\r\nt_5 \n \n t_6 ",
     tokens: [
       {:newline, [line: 1, column: 1,  span: :aero_span.new(0,  4)]},
@@ -26,7 +26,7 @@ defmodule Aero.LexerTest do
       {:eof,     [line: 6, column: 6,  span: :aero_span.new(34, 34)]}
     ]
 
-  lexer_test "semicolons act as newlines",
+  scanner_case "semicolons act as newlines",
     source: "t_1;t_2 ; t_3\n;t_4 t_5;;",
     tokens: [
       {:ident,   [line: 1, column: 1,  span: :aero_span.new(0,  3)], :t_1},
@@ -42,7 +42,7 @@ defmodule Aero.LexerTest do
       {:eof,     [line: 2, column: 11, span: :aero_span.new(24, 24)]}
     ]
 
-  lexer_test "newlines are tokenized after comments",
+  scanner_case "newlines are tokenized after comments",
     source: "// comment\nt_1// comment ",
     tokens: [
       {:newline, [line: 1, column: 1,  span: :aero_span.new(0,  11)]},
@@ -51,14 +51,14 @@ defmodule Aero.LexerTest do
       {:eof,     [line: 2, column: 15, span: :aero_span.new(25, 25)]}
     ]
 
-  lexer_test "basic string",
+  scanner_case "basic string",
     source: "\"test\"",
     tokens: [
       {:str_lit, [line: 1, column: 1, span: :aero_span.new(0, 6)], "test"},
       {:eof,        [line: 1, column: 7, span: :aero_span.new(6, 6)]}
     ]
 
-  lexer_test "identifiers",
+  scanner_case "identifiers",
     source: "test Test __TEST__ test_1 Test1 __TEST_1__",
     tokens: [
       {:ident, [line: 1, column: 1,  span: :aero_span.new(0,  4)], :test},
@@ -75,7 +75,7 @@ defmodule Aero.LexerTest do
       {:eof,   [line: 1, column: 43, span: :aero_span.new(42, 42)]}
     ]
 
-  lexer_test "basic atoms",
+  scanner_case "basic atoms",
     source: ":test :test_1",
     tokens: [
       {:atom_lit, [line: 1, column: 1,  span: :aero_span.new(0,  5)], :test},
@@ -84,7 +84,7 @@ defmodule Aero.LexerTest do
       {:eof,      [line: 1, column: 14, span: :aero_span.new(13, 13)]}
     ]
 
-  lexer_test "escaped atoms",
+  scanner_case "escaped atoms",
     source: ":\"Test\" :\"& ,#\"",
     tokens: [
       {:atom_lit, [line: 1, column: 1,  span: :aero_span.new(0,  7)], :Test},

@@ -8,8 +8,8 @@ defmodule Aero.ParserCase do
     quote do
       test unquote(message) do
         expected = unquote(ast)
-        assert {:ok, tokens} = :aero_lexer.tokenize(unquote(source))
-        assert {:ok, output} = :aero_parser.parse(tokens)
+        assert {:ok, tokens} = :aero_scan.scan(unquote(source))
+        assert {:ok, output} = :aero_parse.parse(tokens)
         assert output == expected
       end
     end

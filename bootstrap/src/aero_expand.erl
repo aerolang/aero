@@ -5,7 +5,7 @@
 %%%
 %%% For now we don't really have macros, so they're just manually expanded here.
 
--module(aero_expander).
+-module(aero_expand).
 
 -export([expand/2]).
 -export_type([c_pkg/0]).
