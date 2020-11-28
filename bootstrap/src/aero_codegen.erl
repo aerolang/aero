@@ -9,7 +9,7 @@
 %% -----------------------------------------------------------------------------
 
 %% Generate BEAM files from Core Aero.
--spec generate(aero_expand:c_pkg()) -> {ok, [{atom(), binary()}]} | {error, term()}.
+-spec generate(aero_core:c_pkg()) -> {ok, [{atom(), binary()}]} | {error, term()}.
 generate({c_pkg, _, Name, Modules}) ->
   generate(Name, Modules, []).
 

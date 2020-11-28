@@ -8,160 +8,12 @@
 -module(aero_expand).
 
 -export([expand/2]).
--export_type([c_pkg/0]).
 
 %% -----------------------------------------------------------------------------
 %% Public API
 %% -----------------------------------------------------------------------------
 
-%% Top-level of Core Aero, represents a whole package.
--type c_pkg() :: {c_pkg, meta(), atom(), [c_mod()]}.
-
--type c_mod()       :: {c_mod, meta(), c_path(), c_mod_attrs(), [c_def()]}.
--type c_mod_attrs() :: [{c_atom(), c_expr()}].
-
-%% Definitions.
--type c_def() :: {c_def_func, meta(), c_path(), c_vis(), c_func()}
-               | {c_def_const, meta(), c_path(), c_vis(), c_type_inner(), c_expr()}.
-
-%% Definition visibility.
--type c_vis() :: c_vis_pub
-               | c_vis_priv.
-
-%% Any expression in Core Aero.
--type c_expr() :: c_block()
-                | c_bool()
-                | c_int()
-                | c_float()
-                | c_atom()
-                | c_str()
-                | c_unit()
-                | c_tuple()
-                | c_cons()
-                | c_nil()
-                | c_dict()
-                | c_func()
-                | c_call()
-                | c_apply()
-                | c_var()
-                | c_path()
-                | c_let()
-                | c_letrec()
-                | c_match()
-                | c_args().
-
-%% A group of expressions with the last giving the value of the group.
--type c_block() :: {c_block, meta(), [c_expr()]}.
-
-%% Literals.
--type c_bool()  :: {c_bool, meta(), boolean()}.
--type c_int()   :: {c_int, meta(), integer()}.
--type c_float() :: {c_float, meta(), float()}.
--type c_atom()  :: {c_atom, meta(), atom()}.
--type c_str()   :: {c_str, meta(), binary()}.
-
-%% Unit value.
--type c_unit() :: {c_unit, meta()}.
-
-%% Tuple.
--type c_tuple() :: {c_tuple, meta(), [c_expr()]}.
-
-%% Cons and nil.
--type c_cons() :: {c_cons, meta(), c_expr(), c_cons() | c_nil()}.
--type c_nil()  :: {c_nil, meta()}.
-
-%% Dictionary.
--type c_dict() :: {c_dict, meta(), [c_dict_pair()]}.
-
--type c_dict_pair() :: {c_expr(), c_expr()}.
-
-%% A function expression.
--type c_func() :: {c_func, meta(), c_func_args(), c_func_result(), c_func_where(), c_func_body()}.
-
--type c_func_args()   :: [{c_var(), c_type_inner()}].
--type c_func_result() :: c_type_inner().
--type c_func_where()  :: c_type_where().
--type c_func_body()   :: c_expr().
-
-%% A call to a named function.
--type c_call() :: {c_call, meta(), c_path(), c_call_args()}.
-
--type c_call_args() :: [c_expr()].
-
-%% A call to an anonymous function.
--type c_apply() :: {c_apply, meta(), c_var(), c_apply_args()}.
-
--type c_apply_args() :: [c_expr()].
-
-%% Variables.
--type c_var() :: {c_var, meta(), atom()}.
-
-%% Paths.
--type c_path() :: {c_path, [], [c_var()]}.
-
-%% Let and letrec expressions.
--type c_let()    :: {c_let, meta(), c_var(), c_type(), c_expr()}.
--type c_letrec() :: {c_letrec, meta(), c_var(), c_type(), c_func()}.
-
-%% Match.
--type c_match() :: {c_match, meta(), c_expr(), c_match_cases()}.
-
--type c_match_cases() :: [{c_pat(), c_expr()}].
-
-%% A list of expressions from function arguments.
--type c_args() :: {c_args, meta(), [c_expr()]}.
-
-%% Patterns that may or may not match.
--type c_pat() :: c_pat_outer()
-               | c_pat_inner().
-
--type c_pat_outer() :: {c_pat_args, meta(), c_pat_inner()}.
-
--type c_pat_inner() :: {c_pat_bool, meta(), boolean()}
-                     | {c_pat_int, meta(), integer()}
-                     | {c_pat_float, meta(), float()}
-                     | {c_pat_atom, meta(), atom()}
-                     | {c_pat_str, meta(), binary()}
-                     | {c_pat_unit, meta()}
-                     | {c_pat_tuple, meta(), [c_pat()]}
-                     | {c_pat_cons, meta(), c_pat(), [c_pat()]}
-                     | {c_pat_nil, meta()}
-                     | {c_pat_dict, meta(), [{c_pat(), c_pat()}]}
-                     | {c_pat_var, meta(), atom()}.
-
-%% Any type in Core Aero.
--type c_type() :: {c_type, meta(), c_type_inner(), c_type_where()}.
-
--type c_type_inner() :: c_type_bool
-                      | c_type_int
-                      | c_type_float
-                      | c_type_atom
-                      | c_type_str
-                      | c_type_bytes
-                      | c_type_bits
-                      | c_type_ref
-                      | c_type_unit
-                      | {c_type_tuple, [c_type_inner()]}
-                      | {c_type_list, c_type_inner()}
-                      | {c_type_dict, c_type_inner(), c_type_inner()}
-                      | {c_type_func, [c_type_inner()], c_type_inner()}
-                      | {c_type_uniq, c_type_inner()} 
-                      | {c_type_dyn, c_type_inner()}
-                      | c_type_wld
-                      | c_type_never
-                      | {c_type_mbox, c_type_inner()}
-                      | {c_type_addr, c_type_inner()}
-                      | {c_type_param, atom()}
-                      | {c_type_tag, atom()}
-                      | {c_type_struct, c_path(), [c_type_inner()]}
-                      | {c_type_proto, c_path(), [c_type_inner()]}
-                      | {c_type_union, [c_type_inner()]}
-                      | {c_type_inter, [c_type_inner()]}.
--type c_type_where() :: [{c_type_inner(), c_type_inner()}].
-
--type meta() :: [term()].
-
--spec expand(aero_ast:ast(), aero_context:context()) -> {ok, c_pkg()} | {error, term()}.
+-spec expand(aero_ast:ast(), aero_context:context()) -> {ok, aero_core:c_pkg()} | {error, term()}.
 expand(Source, Context) ->
   try expand_source(Source, Context) of
     Package -> {ok, Package}
@@ -186,10 +38,10 @@ expand_source({source, _, SourceArgs}, Context) ->
       {[expand_def(SourceArg, Context) | Defs], InnerModules}
     end, {[], []}, SourceArgs),
 
-  ModulePath = {c_path, [], [{c_var, [], ModName}]},
-  Module = {c_mod, [], ModulePath, [], lists:reverse(Defs)},
+  ModulePath = aero_core:c_path([], [aero_core:c_var([], ModName)]),
+  Module = aero_core:c_mod([], ModulePath, [], lists:reverse(Defs)),
 
-  {c_pkg, [], PkgName, [Module | lists:reverse(InnerModules)]};
+  aero_core:c_pkg([], PkgName, [Module | lists:reverse(InnerModules)]);
 expand_source(_, _) ->
   throw({expand_error, no_source}).
 
@@ -221,7 +73,7 @@ expand_func_def([{expand, _, {op, _, '_=_'}, [FuncHead, FuncBody]}], FuncMeta, V
     {tag, _, {ident, _, Name}, {expand, _, {op, _, Arrow}, [{args, _, LeftArrowArgs}, Result]}}
         when Arrow =:= '_->_'; Arrow =:= '_->>_' ->
       % For function head.
-      Path = {c_path, [], [{c_var, [], Name}]},
+      Path = aero_core:c_path([], [aero_core:c_var([], Name)]),
       ArgTypes = [expand_type_inner(Arg) || Arg <- LeftArrowArgs],
       ResultType = expand_type_inner(Result),
 
@@ -232,8 +84,8 @@ expand_func_def([{expand, _, {op, _, '_=_'}, [FuncHead, FuncBody]}], FuncMeta, V
           ExprVars = [element(1, Arg) || Arg <- ExprArgs],
           NewArgs = lists:zip(ExprVars, ArgTypes),
 
-          Func = {c_func, [], NewArgs, ResultType, Where, lift(ExprBody, Env)},
-          {c_def_func, [], Path, Vis, Func};
+          Func = aero_core:c_func([], NewArgs, ResultType, Where, lift(ExprBody, Env)),
+          aero_core:c_def_func([], Path, Vis, Func);
         {c_func, _, _, _, _, _} ->
           throw({expand_error, {func_def_eq_arity_mismatch, FuncMeta}});
         _ ->
@@ -247,8 +99,8 @@ expand_func_def([FuncHead, FuncBody], _FuncMeta, Vis) ->
   {Path, Args, Result, Where, Env} = expand_func_def_head(FuncHead, new_env()),
   Body = expand_func_def_body(FuncBody, Env),
 
-  Func = {c_func, [], Args, Result, Where, Body},
-  {c_def_func, [], Path, Vis, Func};
+  Func = aero_core:c_func([], Args, Result, Where, Body),
+  aero_core:c_def_func([], Path, Vis, Func);
 expand_func_def(_, FuncMeta, _) ->
   throw({expand_error, {func_def_invalid, FuncMeta}}).
 
@@ -263,7 +115,7 @@ expand_func_def_head({expand, FuncHeadMeta, {op, _, Arrow}, [{args, _, LeftArrow
   % TODO: check when pure.
   case LeftArrowArgs of
     [{expand, _, {op, _, '_(_)'}, [{ident, _, Name}, {args, _, Args}]}] ->
-      Path = {c_path, [], [{c_var, [], Name}]},
+      Path = aero_core:c_path([], [aero_core:c_var([], Name)]),
       {CoreArgs, BodyEnv} =
         lists:foldl(fun(Arg, {ArgAcc, EnvAcc}) ->
           case Arg of
@@ -293,11 +145,11 @@ expand_func_def_body(FuncBody, _Env) ->
 expand_const_def([{expand, _, {op, _, '_=_'}, [{tag, _, {ident, _, Name}, TagType}, ConstExpr]}],
                  _ConstMeta,
                  Vis) ->
-  Path = {c_path, [], [{c_var, [], Name}]},
+  Path = aero_core:c_path([], [aero_core:c_var([], Name)]),
   Type = expand_type_inner(TagType),
   Expr = expand_expr(ConstExpr, new_env()),
 
-  {c_def_const, [], Path, Vis, Type, Expr};
+  aero_core:c_def_const([], Path, Vis, Type, Expr);
 expand_const_def(_, ConstMeta, _) ->
   throw({expand_error, {const_def_invalid, ConstMeta}}).
 
@@ -307,7 +159,7 @@ expand_const_def(_, ConstMeta, _) ->
 
 %% Blocks.
 expand_expr({block, _, []}, _Env) ->
-  {c_unit, []};
+  aero_core:c_unit([]);
 expand_expr({block, _, [{expand, _, {op, _, Arrow}, _} | _] = BlockExprs}, Env)
     when Arrow =:= '_->_'; Arrow =:= '_->>_' ->
   % When the first entry in the block is a function, this whole thing is treated
@@ -355,9 +207,9 @@ expand_expr({block, _, [{expand, _, {op, _, Arrow}, _} | _] = BlockExprs}, Env)
       % Create a function which just has a match inside.
       Vars = [register_tmp(Env) || _ <- lists:seq(1, Arity)],
       FuncVars = [{Var, inferred_type()} || Var <- Vars],
-      Match = {c_match, [], {c_args, [], Vars}, FuncCases},
+      Match = aero_core:c_match([], aero_core:c_args([], Vars), FuncCases),
 
-      {c_func, [], FuncVars, inferred_type(), [], Match}
+      aero_core:c_func([], FuncVars, inferred_type(), [], Match)
   end;
 expand_expr({block, _, BlockExprs}, Env) ->
   {Exprs, _} =
@@ -365,7 +217,7 @@ expand_expr({block, _, BlockExprs}, Env) ->
       case BlockExpr of
         {expand, _, {op, _, '_=_'}, [Ident, RightExpr]} ->
           {NewEnv, Var} = register_var(EnvAcc, Ident),
-          LetExpr = {c_let, [], Var, inferred_type(), expand_expr(RightExpr, Env)},
+          LetExpr = aero_core:c_let([], Var, inferred_type(), expand_expr(RightExpr, Env)),
 
           {[LetExpr | ExprAcc], NewEnv};
         _ ->
@@ -378,42 +230,42 @@ expand_expr({block, _, BlockExprs}, Env) ->
     _ ->
       % Unused expressions in a block are given variables (the last expression
       % isn't modified, however).
-      {c_block, [], lists:reverse(lists:map(fun(Expr) ->
+      aero_core:c_block([], lists:reverse(lists:map(fun(Expr) ->
         case Expr of
           {c_let, _, _, _, _} ->
             Expr;
           _ ->
             Var = element(2, register_var(Env, {ident, [], '_'})),
-            {c_let, [], Var, inferred_type(), Expr}
+            aero_core:c_let([], Var, inferred_type(), Expr)
         end
-      end, tl(Exprs))) ++ [hd(Exprs)]}
+      end, tl(Exprs))) ++ [hd(Exprs)])
   end;
 
 %% Literals.
 expand_expr({ident, _, Bool}, _Env) when Bool =:= true; Bool =:= false ->
-  {c_bool, [], Bool};
+  aero_core:c_bool([], Bool);
 expand_expr({int_lit, _, Integer}, _Env) ->
-  {c_int, [], Integer};
+  aero_core:c_int([], Integer);
 expand_expr({float_lit, _, Float}, _Env) ->
-  {c_float, [], Float};
+  aero_core:c_float([], Float);
 expand_expr({atom_lit, _, Atom}, _Env) ->
-  {c_atom, [], Atom};
+  aero_core:c_atom([], Atom);
 expand_expr({str_lit, _, String}, _Env) ->
-  {c_str, [], String};
+  aero_core:c_str([], String);
 
 %% Unit value.
 expand_expr({expand, _, {op, _, '(_)'}, [{args, _, []}]}, _Env) ->
-  {c_unit, []};
+  aero_core:c_unit([]);
 
 %% Tuples.
 expand_expr({expand, _, {op, _, '(_)'}, [{args, _, Args}]}, Env) when length(Args) > 1 ->
-  {c_tuple, [], [expand_expr(Arg, Env) || Arg <- Args]};
+  aero_core:c_tuple([], [expand_expr(Arg, Env) || Arg <- Args]);
 
 %% Cons and nil.
 expand_expr({expand, _, {op, _, '_::_'}, [Head, Tail]}, Env) ->
-  {c_cons, [], expand_expr(Head, Env), expand_expr(Tail, Env)};
+  aero_core:c_cons([], expand_expr(Head, Env), expand_expr(Tail, Env));
 expand_expr({ident, _, nil}, _Env) ->
-  {c_nil, []};
+  aero_core:c_nil([]);
 
 %% Dictionaries.
 expand_expr({expand, _, {op, _, '#{_}'}, [{args, _, Args}]}, Env) ->
@@ -426,10 +278,10 @@ expand_expr({expand, _, {op, _, '#{_}'}, [{args, _, Args}]}, Env) ->
         % We can have a tag in a dictionary for #{ atom: expr } syntax.
         % Needing to corece the left side into an atom.
         {tag, _, {ident, _, Key}, Value} ->
-          {{c_atom, [], Key}, expand_expr(Value, Env)}
+          {aero_core:c_atom([], Key), expand_expr(Value, Env)}
       end
     end, Args),
-  {c_dict, [], Pairs};
+  aero_core:c_dict([], Pairs);
 
 %% Anonymous functions.
 expand_expr({expand, _, {op, _, Arrow}, [{args, _, Args}, Body]}, Env) when Arrow =:= '_->_';
@@ -457,12 +309,12 @@ expand_expr({expand, _, {op, _, Arrow}, [{args, _, Args}, Body]}, Env) when Arro
       end
     end, {[], HeadEnv}, FuncArgs),
   CoreBody = expand_expr(Body, BodyEnv),
-  Func = {c_func, [], lists:reverse(CoreArgs), inferred_type(), [], CoreBody},
+  Func = aero_core:c_func([], lists:reverse(CoreArgs), inferred_type(), [], CoreBody),
 
   % If recursive then wrap it into a block with a letrec.
   case Var of
     none -> Func;
-    _    -> {c_block, [], [{c_letrec, [], Var, inferred_type(), Func}, Var]}
+    _    -> aero_core:c_block([], [aero_core:c_letrec([], Var, inferred_type(), Func), Var])
   end;
 
 %% Function calls.
@@ -475,8 +327,8 @@ expand_expr({expand, Meta, {op, _, '_(_)'}, [Callee, {args, _, Args}]}, Env) ->
           erl_call(erlang, make_ref, []);
         {ident, _, list} ->
           lists:foldr(fun(Arg, Acc) ->
-            {c_cons, [], expand_expr(Arg, Env), Acc}
-          end, {c_nil, []}, Args);
+            aero_core:c_cons([], expand_expr(Arg, Env), Acc)
+          end, aero_core:c_nil([]), Args);
         {ident, _, mbox} when length(Args) =:= 0 ->
           erl_call(erlang, make_ref, []);
         _ ->
@@ -489,15 +341,15 @@ expand_expr({expand, Meta, {op, _, '_(_)'}, [Callee, {args, _, Args}]}, Env) ->
       CoreArgs = [expand_expr(Arg, Env) || Arg <- Args],
 
       case CoreCallee of
-        {c_var, _, _} -> {c_apply, [], CoreCallee, CoreArgs};
-        _             -> {c_call, [], CoreCallee, CoreArgs}
+        {c_var, _, _} -> aero_core:c_apply([], CoreCallee, CoreArgs);
+        _             -> aero_core:c_call([], CoreCallee, CoreArgs)
       end
   end;
 
 %% Variables.
 expand_expr({ident, _, Name} = Ident, Env) ->
   case lookup_var(Env, Ident) of
-    undefined -> {c_path, [], [{c_var, [], Name}]};
+    undefined -> aero_core:c_path([], [aero_core:c_var([], Name)]);
     Var       -> Var
   end;
 
@@ -526,17 +378,17 @@ expand_expr({expand, _, {op, _, '_/_'}, [Left, Right]}, Env) ->
   IntDiv = erl_call(erlang, 'div', [LeftVar, RightVar]),
   FloatDiv = erl_call(erlang, '/', [LeftVar, RightVar]),
 
-  {c_block, [], [
-    {c_let, [], LeftVar, inferred_type(), LeftExpr},
-    {c_let, [], RightVar, inferred_type(), RightExpr},
-    {c_match, [], IsLeftInt, [
-      {{c_pat_bool, [], true}, {c_match, [], IsRightInt, [
-        {{c_pat_bool, [], true}, IntDiv},
+  aero_core:c_block([], [
+    aero_core:c_let([], LeftVar, inferred_type(), LeftExpr),
+    aero_core:c_let([], RightVar, inferred_type(), RightExpr),
+    aero_core:c_match([], IsLeftInt, [
+      {aero_core:c_pat_bool([], true), aero_core:c_match([], IsRightInt, [
+        {aero_core:c_pat_bool([], true), IntDiv},
         {register_pat_wildcard(Env), FloatDiv}
-      ]}},
+      ])},
       {register_pat_wildcard(Env), FloatDiv}
-    ]}
-  ]};
+    ])
+  ]);
 expand_expr({expand, _, {op, _, '_%_'}, [Left, Right]}, Env) ->
   erl_call(erlang, 'rem', [expand_expr(Left, Env), expand_expr(Right, Env)]);
 
@@ -580,18 +432,18 @@ expand_expr({expand, _, {op, _, 'not_'}, [Value]}, Env) ->
 expand_expr({expand, _, {op, _, '_and_'}, [Left, Right]}, Env) ->
   % Manually short-circuit with `match`.
   Cases = [
-    {{c_pat_bool, [], true}, expand_expr(Right, Env)},
-    {register_pat_wildcard(Env), {c_bool, [], false}}
+    {aero_core:c_pat_bool([], true), expand_expr(Right, Env)},
+    {register_pat_wildcard(Env), aero_core:c_bool([], false)}
   ],
-  {c_match, [], expand_expr(Left, Env), Cases};
+  aero_core:c_match([], expand_expr(Left, Env), Cases);
 
 expand_expr({expand, _, {op, _, '_or_'}, [Left, Right]}, Env) ->
   % Manually short-circuit with `match`.
   Cases = [
-    {{c_pat_bool, [], true}, {c_bool, [], true}},
+    {aero_core:c_pat_bool([], true), aero_core:c_bool([], true)},
     {register_pat_wildcard(Env), expand_expr(Right, Env)}
   ],
-  {c_match, [], expand_expr(Left, Env), Cases};
+  aero_core:c_match([], expand_expr(Left, Env), Cases);
 
 %% `match` expression.
 expand_expr({expand, Meta, {ident, _, 'match'}, Args}, _Env) when length(Args) < 2 ->
@@ -605,7 +457,7 @@ expand_expr({expand, Meta, {ident, _, 'match'}, Args}, Env) ->
       CoreExpr =
         case lists:droplast(Args) of
           [Expr] -> expand_expr(Expr, Env);
-          Exprs  -> {c_tuple, [], [expand_expr(Expr, Env) || Expr <- Exprs]}
+          Exprs  -> aero_core:c_tuple([], [expand_expr(Expr, Env) || Expr <- Exprs])
         end,
       Cases =
         lists:map(fun
@@ -618,7 +470,7 @@ expand_expr({expand, Meta, {ident, _, 'match'}, Args}, Env) ->
             throw({expand_error, {match_case_invalid, aero_ast:meta(CaseExpr)}})
         end, BlockArgs),
 
-      {c_match, [], CoreExpr, Cases};
+      aero_core:c_match([], CoreExpr, Cases);
     _ ->
       throw({expand_error, {match_invalid, Meta}})
   end;
@@ -641,7 +493,10 @@ expand_expr({expand, Meta, {ident, _, 'when'}, [{block, _, BlockArgs}]}, Env) ->
       % Checking if the condition is `true`, otherwise using a wildcard pattern to
       % continue with a nested `match`.
       lists:foldl(fun({Cond, Expr}, Inner) ->
-        {c_match, [], Cond, [{{c_pat_bool, [], true}, Expr}, {register_pat_wildcard(Env), Inner}]}
+        aero_core:c_match([], Cond, [
+          {aero_core:c_pat_bool([], true), Expr},
+          {register_pat_wildcard(Env), Inner}
+        ])
       end, LastExpr, tl(RevClauses));
 
     false ->
@@ -656,18 +511,21 @@ expand_expr({expand, Meta, {ident, _, 'if'}, [Cond, Next]}, Env) ->
     % With else block.
     {expand, _, {op, _, '_else_'}, [{block, _, _} = Then, {block, _, _} = Else]} ->
       Cases = [
-        {{c_pat_bool, [], true}, expand_expr(Then, Env)},
+        {aero_core:c_pat_bool([], true), expand_expr(Then, Env)},
         {register_pat_wildcard(Env), expand_expr(Else, Env)}
       ],
-      {c_match, [], expand_expr(Cond, Env), Cases};
+      aero_core:c_match([], expand_expr(Cond, Env), Cases);
 
     % No else block, so wrapping with optional.
     {block, _, _} = Then ->
       Cases = [
-        {{c_pat_bool, [], true}, {c_tuple, [], [{c_atom, [], some}, expand_expr(Then, Env)]}},
-        {register_pat_wildcard(Env), {c_atom, [], none}}
+        {aero_core:c_pat_bool([], true), aero_core:c_tuple([], [
+          aero_core:c_atom([], some),
+          expand_expr(Then, Env)
+        ])},
+        {register_pat_wildcard(Env), aero_core:c_atom([], none)}
       ],
-      {c_match, [], expand_expr(Cond, Env), Cases};
+      aero_core:c_match([], expand_expr(Cond, Env), Cases);
 
     _ ->
       throw({expand_error, {if_invalid, Meta}})
@@ -679,8 +537,14 @@ expand_expr({expand, Meta, {ident, _, 'if'}, _}, _Env) ->
 %% Logs.
 expand_expr({expand, _, {ident, _, log}, [Message]}, Env) ->
   Args = [
-    {c_atom, [], standard_io},
-    {c_cons, [], expand_expr(Message, Env), {c_cons, [], {c_int, [], $\n}, {c_nil, []}}}
+    aero_core:c_atom([], standard_io),
+    aero_core:c_cons([],
+      expand_expr(Message, Env),
+      aero_core:c_cons([],
+        aero_core:c_int([], $\n),
+        aero_core:c_nil([])
+      )
+    )
   ],
   erl_call(io, put_chars, Args);
 
@@ -707,26 +571,26 @@ expand_pat_outer({args, _, Args}, Env) ->
       {[PatArg | Acc], NewEnv}
     end, {[], Env}, Args),
 
-  {{c_pat_args, [], lists:reverse(PatArgs)}, PatEnv};
+  {aero_core:c_pat_args([], lists:reverse(PatArgs)), PatEnv};
 
 expand_pat_outer(Pat, Env) ->
   expand_pat_inner(Pat, Env).
 
 %% Pattern literals.
 expand_pat_inner({ident, _, Bool}, Env) when Bool =:= true; Bool =:= false ->
-  {{c_pat_bool, [], Bool}, Env};
+  {aero_core:c_pat_bool([], Bool), Env};
 expand_pat_inner({int_lit, _, Integer}, Env) ->
-  {{c_pat_int, [], Integer}, Env};
+  {aero_core:c_pat_int([], Integer), Env};
 expand_pat_inner({float_lit, _, Float}, Env) ->
-  {{c_pat_float, [], Float}, Env};
+  {aero_core:c_pat_float([], Float), Env};
 expand_pat_inner({atom_lit, _, Atom}, Env) ->
-  {{c_pat_atom, [], Atom}, Env};
+  {aero_core:c_pat_atom([], Atom), Env};
 expand_pat_inner({str_lit, _, String}, Env) ->
-  {{c_pat_str, [], String}, Env};
+  {aero_core:c_pat_str([], String), Env};
 
 %% Unit pattern.
 expand_pat_inner({expand, _, {op, _, '(_)'}, [{args, _, []}]}, Env) ->
-  {{c_pat_unit, []}, Env};
+  {aero_core:c_pat_unit([]), Env};
 
 %% Tuple pattern.
 expand_pat_inner({expand, _, {op, _, '(_)'}, [{args, _, Args}]}, Env) when length(Args) > 1 ->
@@ -736,16 +600,16 @@ expand_pat_inner({expand, _, {op, _, '(_)'}, [{args, _, Args}]}, Env) when lengt
       {[Elem | Acc], NewEnv}
     end, {[], Env}, Args),
 
-  {{c_pat_tuple, [], lists:reverse(Elems)}, PatEnv};
+  {aero_core:c_pat_tuple([], lists:reverse(Elems)), PatEnv};
 
 %% Cons and nil pattern.
 expand_pat_inner({expand, _, {op, _, '_::_'}, [Head, Tail]}, Env) ->
   {HeadPat, HeadEnv} = expand_pat_inner(Head, Env),
   {TailPat, TailEnv} = expand_pat_inner(Tail, HeadEnv),
 
-  {{c_pat_cons, [], HeadPat, TailPat}, TailEnv};
+  {aero_core:c_pat_cons([], HeadPat, TailPat), TailEnv};
 expand_pat_inner({ident, _, nil}, Env) ->
-  {{c_pat_nil, []}, Env};
+  {aero_core:c_pat_nil([]), Env};
 
 %% Dictionary pattern.
 expand_pat_inner({expand, _, {op, _, '#{_}'}, [{args, _, Args}]}, Env) ->
@@ -761,14 +625,14 @@ expand_pat_inner({expand, _, {op, _, '#{_}'}, [{args, _, Args}]}, Env) ->
         % We can have a tag in a dictionary pattern for #{ atom: pat } syntax.
         % Needing to corece the left side into an atom.
         {tag, _, {ident, _, Key}, Value} ->
-          KeyPat = {c_pat_atom, [], Key},
+          KeyPat = aero_core:c_pat_atom([], Key),
           {ValuePat, ValueEnv} = expand_pat_inner(Value, AccEnv),
 
           {[{KeyPat, ValuePat} | Acc], ValueEnv}
       end
     end, {[], Env}, Args),
 
-  {{c_pat_dict, [], lists:reverse(Pairs)}, PatEnv};
+  {aero_core:c_pat_dict([], lists:reverse(Pairs)), PatEnv};
 
 %% Pattern variable.
 expand_pat_inner({ident, _, _} = Ident, Env) ->
@@ -787,8 +651,8 @@ expand_pat_inner({expand, Meta, {op, _, '_(_)'},
     {ident, _, list} ->
       lists:foldr(fun(Arg, {Acc, AccEnv}) ->
         {Head, NewEnv} = expand_pat_inner(Arg, AccEnv),
-        {{c_pat_cons, [], Head, Acc}, NewEnv}
-      end, {{c_pat_nil, []}, Env}, Args);
+        {aero_core:c_pat_cons([], Head, Acc), NewEnv}
+      end, {aero_core:c_pat_nil([]), Env}, Args);
     _ ->
       throw({expand_error, {pat_constructor_invalid, Meta}})
   end;
@@ -803,52 +667,52 @@ expand_pat_inner(Pat, _Env) ->
 
 %% Builtins.
 expand_type_inner({ident, _, bool}) ->
-  c_type_bool;
+  aero_core:c_type_bool([]);
 expand_type_inner({ident, _, int}) ->
-  c_type_int;
+  aero_core:c_type_int([]);
 expand_type_inner({ident, _, float}) ->
-  c_type_float;
+  aero_core:c_type_float([]);
 expand_type_inner({ident, _, atom}) ->
-  c_type_atom;
+  aero_core:c_type_atom([]);
 expand_type_inner({ident, _, str}) ->
-  c_type_str;
+  aero_core:c_type_str([]);
 expand_type_inner({ident, _, bytes}) ->
-  c_type_bytes;
+  aero_core:c_type_bytes([]);
 expand_type_inner({ident, _, bits}) ->
-  c_type_bits;
+  aero_core:c_type_bits([]);
 expand_type_inner({ident, _, ref}) ->
-  c_type_ref;
+  aero_core:c_type_ref([]);
 
 %% Unit type.
 expand_type_inner({expand, _, {op, _, '(_)'}, [{args, _, []}]}) ->
-  c_type_unit;
+  aero_core:c_type_unit([]);
 
 %% Collections.
 expand_type_inner({expand, _, {op, _, '(_)'}, [{args, _, Args}]}) when length(Args) > 1 ->
-  {c_type_tuple, lists:map(fun expand_type_inner/1, Args)};
+  aero_core:c_type_tuple([], lists:map(fun expand_type_inner/1, Args));
 expand_type_inner({expand, _, {ident, _, list}, [T]}) ->
-  {c_type_list, expand_type_inner(T)};
+  aero_core:c_type_list([], expand_type_inner(T));
 expand_type_inner({expand, _, {ident, _, dict}, [K, V]}) ->
-  {c_type_dict, expand_type_inner(K), expand_type_inner(V)};
+  aero_core:c_type_dict([], expand_type_inner(K), expand_type_inner(V));
 
 %% Functions.
 expand_type_inner({expand, _, {op, _, Arrow}, [{args, _, Args}, Result]})
     when Arrow =:= '_->_'; Arrow =:= '_->>_' ->
-  {c_type_func, lists:map(fun expand_type_inner/1, Args), expand_type_inner(Result)};
+  aero_core:c_type_func([], lists:map(fun expand_type_inner/1, Args), expand_type_inner(Result));
 
 %% Concurrent primitives.
 expand_type_inner({ident, _, wld}) ->
-  c_type_wld;
+  aero_core:c_type_wld([]);
 expand_type_inner({ident, _, never}) ->
-  c_type_never;
+  aero_core:c_type_never([]);
 expand_type_inner({expand, _, {ident, _, mbox}, [T]}) ->
-  {c_type_mbox, expand_type_inner(T)};
+  aero_core:c_type_mbox([], expand_type_inner(T));
 expand_type_inner({expand, _, {ident, _, addr}, [T]}) ->
-  {c_type_addr, expand_type_inner(T)};
+  aero_core:c_type_addr([], expand_type_inner(T));
 
 %% Type parameters.
 expand_type_inner({type_param, _, TParam}) ->
-  {c_type_param, TParam};
+  aero_core:c_type_var([], TParam);
 
 %% Option and Result type macros.
 expand_type_inner({expand, _, {op, _, '_?'}, [Type]}) ->
@@ -857,21 +721,27 @@ expand_type_inner({expand, _, {op, _, '_?'}, [Type]}) ->
       {c_type_tuple, InnerTypes} -> InnerTypes;
       InnerType                  -> [InnerType]
     end,
-  Some = {c_type_tuple, [{c_type_tag, some} | SomeInner]},
-  None = {c_type_tag, none},
+  Some = aero_core:c_type_tuple([], [aero_core:c_type_tag([], some) | SomeInner]),
+  None = aero_core:c_type_tag([], none),
 
-  {c_type_union, [Some, None]};
+  aero_core:c_type_union([], [Some, None]);
 expand_type_inner({expand, _, {op, _, '_!'}, [Type]}) ->
   OkInner =
     case expand_type_inner(Type) of
       {c_type_tuple, InnerTypes} -> InnerTypes;
       InnerType                  -> [InnerType]
     end,
-  Ok = {c_type_tuple, [{c_type_tag, ok} | OkInner]},
-  ErrorInner = {c_type_proto, {c_path, [], [{c_var, [], aero_std}, {c_var, [], 'Error'}]}, []},
-  Error = {c_type_tuple, [{c_type_tag, error}, ErrorInner]},
+  Ok = aero_core:c_type_tuple([], [aero_core:c_type_tag([], ok) | OkInner]),
+  ErrorInner = aero_core:c_type_proto([],
+    aero_core:c_type_path([], [
+      aero_core:c_type_var([], aero_std),
+      aero_core:c_type_var([], 'Error')
+    ]),
+    []
+  ),
+  Error = aero_core:c_type_tuple([], [aero_core:c_type_tag([], error), ErrorInner]),
 
-  {c_type_union, [Ok, Error]};
+  aero_core:c_type_union([], [Ok, Error]);
 
 %% Anything else...
 expand_type_inner(Type) ->
@@ -905,7 +775,7 @@ register_var(Env, {ident, _, IdentName}) ->
   counters:add(Env#env.counter, 1, 1),
   Num = counters:get(Env#env.counter, 1),
 
-  Var = {c_var, [], list_to_atom(atom_to_list(IdentName) ++ "_" ++ integer_to_list(Num))},
+  Var = aero_core:c_var([], list_to_atom(atom_to_list(IdentName) ++ "_" ++ integer_to_list(Num))),
   {Env#env{vars = [{IdentName, Var} | Env#env.vars]}, Var}.
 
 register_tmp(Env) ->
@@ -919,7 +789,7 @@ register_pat_var(Env, {ident, Meta, IdentName} = Ident) ->
       throw({expand_error, {pat_var_duplicate, Meta}});
     false ->
       {VarEnv, {c_var, VarMeta, VarName} = Var} = register_var(Env, Ident),
-      PatVar = {c_pat_var, VarMeta, VarName},
+      PatVar = aero_core:c_pat_var(VarMeta, VarName),
       {VarEnv#env{pat_vars = [{IdentName, Var} | VarEnv#env.pat_vars]}, PatVar}
   end.
 
@@ -933,14 +803,14 @@ clear_pat_vars(Env) ->
 
 %% Type without any bounds.
 inferred_type() ->
-  {c_type_param, '_'}.
+  aero_core:c_type_var([], '_').
 
 erl_call(Mod, Func, Args) ->
-  Callee = {c_path, [erl_path], [{c_var, [], Mod}, {c_var, [], Func}]},
-  {c_call, [], Callee, Args}.
+  Callee = aero_core:c_path([erl_path], [aero_core:c_var([], Mod), aero_core:c_var([], Func)]),
+  aero_core:c_call([], Callee, Args).
 
 lift({c_block, Meta, Exprs}, Env) ->
-  {c_block, Meta, [lift(Expr, Env) || Expr <- Exprs]};
+  aero_core:c_block(Meta, [lift(Expr, Env) || Expr <- Exprs]);
 lift({c_tuple, Meta, Exprs}, Env) ->
   {Lets, NewExprs} =
     lists:foldl(fun(Expr, {AccLets, AccExprs}) ->
@@ -950,14 +820,18 @@ lift({c_tuple, Meta, Exprs}, Env) ->
           {AccLets, [LiftedExpr | AccExprs]};
         false ->
           Var = register_tmp(Env),
-          Let = {c_let, [], Var, inferred_type(), LiftedExpr},
+          Let = aero_core:c_let([], Var, inferred_type(), LiftedExpr),
 
           {[Let | AccLets], [Var | AccExprs]}
       end
     end, {[], []}, Exprs),
   case Lets of
-    [] -> {c_tuple, Meta, lists:reverse(NewExprs)};
-    _  -> {c_block, Meta, lists:reverse([{c_tuple, Meta, lists:reverse(NewExprs)} | Lets])}
+    [] ->
+      aero_core:c_tuple(Meta, lists:reverse(NewExprs));
+    _  ->
+      aero_core:c_block(Meta,
+        lists:reverse([aero_core:c_tuple(Meta, lists:reverse(NewExprs)) | Lets])
+      )
   end;
 lift({c_cons, Meta, Head, Tail}, Env) ->
   LiftedHead = lift(Head, Env),
@@ -965,30 +839,30 @@ lift({c_cons, Meta, Head, Tail}, Env) ->
   case {is_simple(LiftedHead), is_simple(LiftedTail)} of
     % Both simple.
     {true, true} ->
-      {c_cons, Meta, LiftedHead, LiftedTail};
+      aero_core:c_cons(Meta, LiftedHead, LiftedTail);
 
     % Only head is simple.
     {true, false} ->
       Var = register_tmp(Env),
-      Let = {c_let, [], Var, inferred_type(), LiftedTail},
+      Let = aero_core:c_let([], Var, inferred_type(), LiftedTail),
 
-      {c_block, Meta, [Let, {c_cons, Meta, LiftedHead, Var}]};
+      aero_core:c_block(Meta, [Let, aero_core:c_cons(Meta, LiftedHead, Var)]);
 
     % Only tail is simple.
     {false, true} ->
       Var = register_tmp(Env),
-      Let = {c_let, [], Var, inferred_type(), LiftedHead},
+      Let = aero_core:c_let([], Var, inferred_type(), LiftedHead),
 
-      {c_block, Meta, [Let, {c_cons, Meta, Var, LiftedTail}]};
+      aero_core:c_block(Meta, [Let, aero_core:c_cons(Meta, Var, LiftedTail)]);
 
     % Neither are simple.
     {false, false} ->
       HeadVar = register_tmp(Env),
       TailVar = register_tmp(Env),
-      HeadLet = {c_let, [], HeadVar, inferred_type(), LiftedHead},
-      TailLet = {c_let, [], TailVar, inferred_type(), LiftedTail},
+      HeadLet = aero_core:c_let([], HeadVar, inferred_type(), LiftedHead),
+      TailLet = aero_core:c_let([], TailVar, inferred_type(), LiftedTail),
 
-      {c_block, Meta, [HeadLet, TailLet, {c_cons, Meta, HeadVar, TailVar}]}
+      aero_core:c_block(Meta, [HeadLet, TailLet, aero_core:c_cons(Meta, HeadVar, TailVar)])
   end;
 lift({c_dict, Meta, Pairs}, Env) ->
   {Lets, NewPairs} =
@@ -1003,14 +877,14 @@ lift({c_dict, Meta, Pairs}, Env) ->
         % Only key is simple.
         {true, false} ->
           Var = register_tmp(Env),
-          Let = {c_let, [], Var, inferred_type(), LiftedValue},
+          Let = aero_core:c_let([], Var, inferred_type(), LiftedValue),
 
           {[Let | AccLets], [{LiftedKey, Var} | AccPairs]};
 
         % Only value is simple.
         {false, true} ->
           Var = register_tmp(Env),
-          Let = {c_let, [], Var, inferred_type(), LiftedKey},
+          Let = aero_core:c_let([], Var, inferred_type(), LiftedKey),
 
           {[Let | AccLets], [{Var, LiftedValue} | AccPairs]};
 
@@ -1018,18 +892,22 @@ lift({c_dict, Meta, Pairs}, Env) ->
         {false, false} ->
           KeyVar = register_tmp(Env),
           ValueVar = register_tmp(Env),
-          KeyLet = {c_let, [], KeyVar, inferred_type(), LiftedKey},
-          ValueLet = {c_let, [], ValueVar, inferred_type(), LiftedValue},
+          KeyLet = aero_core:c_let([], KeyVar, inferred_type(), LiftedKey),
+          ValueLet = aero_core:c_let([], ValueVar, inferred_type(), LiftedValue),
 
           {[KeyLet, ValueLet | AccLets], [{KeyVar, ValueVar} | AccPairs]}
       end
     end, {[], []}, Pairs),
   case Lets of
-    [] -> {c_dict, Meta, lists:reverse(NewPairs)};
-    _  -> {c_block, Meta, lists:reverse([{c_dict, Meta, lists:reverse(NewPairs)} | Lets])}
+    [] ->
+      aero_core:c_dict(Meta, lists:reverse(NewPairs));
+    _  ->
+      aero_core:c_block(Meta,
+        lists:reverse([aero_core:c_dict(Meta, lists:reverse(NewPairs)) | Lets])
+      )
   end;
 lift({c_func, Meta, Args, Result, Where, Body}, Env) ->
-  {c_func, Meta, Args, Result, Where, lift(Body, Env)};
+  aero_core:c_func(Meta, Args, Result, Where, lift(Body, Env));
 lift({Call, Meta, Path, Args}, Env) when Call =:= c_call; Call =:= c_apply ->
   {Lets, NewArgs} =
     lists:foldl(fun(Arg, {AccLets, AccArgs}) ->
@@ -1039,30 +917,35 @@ lift({Call, Meta, Path, Args}, Env) when Call =:= c_call; Call =:= c_apply ->
           {AccLets, [LiftedArg | AccArgs]};
         false ->
           Var = register_tmp(Env),
-          Let = {c_let, [], Var, inferred_type(), LiftedArg},
+          Let = aero_core:c_let([], Var, inferred_type(), LiftedArg),
 
           {[Let | AccLets], [Var | AccArgs]}
       end
     end, {[], []}, Args),
+  NewCall =
+    case Call of
+      c_call  -> aero_core:c_call(Meta, Path, lists:reverse(NewArgs));
+      c_apply -> aero_core:c_apply(Meta, Path, lists:reverse(NewArgs))
+    end,
   case Lets of
-    [] -> {Call, Meta, Path, lists:reverse(NewArgs)};
-    _  -> {c_block, Meta, lists:reverse([{Call, Meta, Path, lists:reverse(NewArgs)} | Lets])}
+    [] -> NewCall;
+    _  -> aero_core:c_block(Meta, lists:reverse([NewCall | Lets]))
   end;
 lift({c_let, Meta, Var, Type, Expr}, Env) ->
-  {c_let, Meta, Var, Type, lift(Expr, Env)};
+  aero_core:c_let(Meta, Var, Type, lift(Expr, Env));
 lift({c_letrec, Meta, Var, Type, Func}, Env) ->
-  {c_letrec, Meta, Var, Type, lift(Func, Env)};
+  aero_core:c_letrec(Meta, Var, Type, lift(Func, Env));
 lift({c_match, Meta, Expr, Cases}, Env) ->
   LiftedExpr = lift(Expr, Env),
   LiftedCases = lists:map(fun({Pat, Body}) -> {Pat, lift(Body, Env)} end, Cases),
   case is_simple(LiftedExpr) of
     true ->
-      {c_match, Meta, LiftedExpr, LiftedCases};
+      aero_core:c_match(Meta, LiftedExpr, LiftedCases);
     false ->
       Var = register_tmp(Env),
-      Let = {c_let, [], Var, inferred_type(), LiftedExpr},
+      Let = aero_core:c_let([], Var, inferred_type(), LiftedExpr),
 
-      {c_block, Meta, [Let, {c_match, Meta, Var, LiftedCases}]}
+      aero_core:c_block(Meta, [Let, aero_core:c_match(Meta, Var, LiftedCases)])
   end;
 lift(Expr, _Env) ->
   Expr.

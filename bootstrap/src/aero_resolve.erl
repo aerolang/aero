@@ -11,7 +11,7 @@
 %% Public API
 %% -----------------------------------------------------------------------------
 
--spec resolve(aero_expand:c_pkg()) -> {ok, aero_expand:c_pkg()} | {error, term()}.
+-spec resolve(aero_core:c_pkg()) -> {ok, aero_core:c_pkg()} | {error, term()}.
 resolve(Package) ->
   Index = index(Package),
 
@@ -26,10 +26,10 @@ resolve(Package) ->
 %% -----------------------------------------------------------------------------
 
 resolve_module({c_mod, Meta, Path, Attrs, Defs}, Index) ->
-  {c_mod, Meta, Path, Attrs, [resolve_def(Def, set_path(Index, Path)) || Def <- Defs]}.
+  aero_core:c_mod(Meta, Path, Attrs, [resolve_def(Def, set_path(Index, Path)) || Def <- Defs]).
 
 resolve_def({c_def_func, Meta, Path, Vis, Func}, Index) ->
-  {c_def_func, Meta, Path, Vis, resolve_expr(Func, Index)};
+  aero_core:c_def_func(Meta, Path, Vis, resolve_expr(Func, Index));
 resolve_def(Def, _Index) ->
   Def.
 
@@ -49,7 +49,7 @@ resolve_expr({c_path, Meta, _} = Path, Index) ->
         % Replacing a constant reference with a call to it like a zero-arity
         % function. Constants aren't computed during compiling while bootstrapping.
         {NewPath, c_def_const} ->
-          {c_call, [const_call | Meta], NewPath, []};
+          aero_core:c_call([const_call | Meta], NewPath, []);
 
         none ->
           throw({resolve_error, {path_not_found, Meta, Path}})
@@ -58,34 +58,36 @@ resolve_expr({c_path, Meta, _} = Path, Index) ->
 
 %% All other expressions.
 resolve_expr({c_block, Meta, Exprs}, Index) ->
-  {c_block, Meta, [resolve_expr(Expr, Index) || Expr <- Exprs]};
+  aero_core:c_block(Meta, [resolve_expr(Expr, Index) || Expr <- Exprs]);
 
 resolve_expr({c_tuple, Meta, Exprs}, Index) ->
-  {c_tuple, Meta, [resolve_expr(Expr, Index) || Expr <- Exprs]};
+  aero_core:c_tuple(Meta, [resolve_expr(Expr, Index) || Expr <- Exprs]);
 resolve_expr({c_cons, Meta, Head, Tail}, Index) ->
-  {c_cons, Meta, resolve_expr(Head, Index), resolve_expr(Tail, Index)};
+  aero_core:c_cons(Meta, resolve_expr(Head, Index), resolve_expr(Tail, Index));
 resolve_expr({c_dict, Meta, Pairs}, Index) ->
-  {c_dict, Meta,
-           [{resolve_expr(Key, Index), resolve_expr(Value, Index)} || {Key, Value} <- Pairs]};
+  aero_core:c_dict(Meta,
+    [{resolve_expr(Key, Index), resolve_expr(Value, Index)} || {Key, Value} <- Pairs]
+  );
 
 resolve_expr({c_func, Meta, Args, Result, Where, Body}, Index) ->
-  {c_func, Meta, Args, Result, Where, resolve_expr(Body, Index)};
+  aero_core:c_func(Meta, Args, Result, Where, resolve_expr(Body, Index));
 resolve_expr({c_call, Meta, Path, Args}, Index) ->
-  {c_call, Meta, resolve_expr(Path, Index), [resolve_expr(Arg, Index) || Arg <- Args]};
+  aero_core:c_call(Meta, resolve_expr(Path, Index), [resolve_expr(Arg, Index) || Arg <- Args]);
 resolve_expr({c_apply, Meta, Var, Args}, Index) ->
-  {c_apply, Meta, Var, [resolve_expr(Arg, Index) || Arg <- Args]};
+  aero_core:c_apply(Meta, Var, [resolve_expr(Arg, Index) || Arg <- Args]);
 
 resolve_expr({c_let, Meta, Var, Type, Expr}, Index) ->
-  {c_let, Meta, Var, Type, resolve_expr(Expr, Index)};
+  aero_core:c_let(Meta, Var, Type, resolve_expr(Expr, Index));
 resolve_expr({c_letrec, Meta, Var, Type, Func}, Index) ->
-  {c_letrec, Meta, Var, Type, resolve_expr(Func, Index)};
+  aero_core:c_letrec(Meta, Var, Type, resolve_expr(Func, Index));
 
 resolve_expr({c_match, Meta, Expr, Cases}, Index) ->
-  {c_match, Meta,
-            resolve_expr(Expr, Index),
-            [{resolve_expr(Pat, Index), resolve_expr(Body, Index)} || {Pat, Body} <- Cases]};
+  aero_core:c_match(Meta,
+    resolve_expr(Expr, Index),
+    [{resolve_expr(Pat, Index), resolve_expr(Body, Index)} || {Pat, Body} <- Cases]
+  );
 resolve_expr({c_args, Meta, Args}, Index) ->
-  {c_args, Meta, [resolve_expr(Arg, Index) || Arg <- Args]};
+  aero_core:c_args(Meta, [resolve_expr(Arg, Index) || Arg <- Args]);
 
 resolve_expr(Expr, _Index) ->
   Expr.

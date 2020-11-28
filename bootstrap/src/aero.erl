@@ -94,7 +94,7 @@ write_escript(Modules) ->
 write_core({c_pkg, _, _, CoreModules} = Package) ->
   CoreDir = filename:join([aero_session:out_dir(), <<"core">>]),
   Names = [Name || {c_mod, _, {c_path, _, [{c_var, _, Name}]}, _, _} <- CoreModules],
-  Strings = aero_pprint:pprint_core_aero(Package),
+  Strings = aero_core_pprint:pprint(Package),
   Modules = lists:zip(Names, Strings),
 
   case filelib:ensure_dir(filename:join([CoreDir, <<".">>])) of

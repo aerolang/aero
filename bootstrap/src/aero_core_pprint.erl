@@ -1,26 +1,23 @@
-%%% Aero Pretty Printer.
+%%% Core Aero pretty printer.
 %%%
 %%% Prints out Core Aero in S-Expression form to be analyzed easier than looking
 %%% at the data structures that represent it directly.
 
--module(aero_pprint).
+-module(aero_core_pprint).
 
--export([pprint_core_aero/1]).
+-export([pprint/1]).
 
 %% -----------------------------------------------------------------------------
 %% Public API
 %% -----------------------------------------------------------------------------
 
--spec pprint_core_aero(aero_expand:c_pkg()) -> binary().
-pprint_core_aero({c_pkg, _, _, Modules}) ->
-  [re:replace(pprint(Module), " +\\n", "\n", [global, {return, binary}]) || Module <- Modules].
+-spec pprint(aero_core:c_pkg()) -> [binary()].
+pprint({c_pkg, _, _, Modules}) ->
+  [re:replace(pprint(Module, 0), " +\\n", "\n", [global, {return, binary}]) || Module <- Modules].
 
 %% -----------------------------------------------------------------------------
 %% Helper Functions
 %% -----------------------------------------------------------------------------
-
-pprint(Node) ->
-  pprint(Node, 0).
 
 %% Definitions.
 
@@ -83,8 +80,8 @@ pprint({c_apply, _, Callee, Args}, Level) ->
 pprint({c_var, _, Name}, _Level) ->
   [$%, printable_atom(Name)];
 
-pprint({c_path, _, Segments}, _Level) ->
-  [$$ | lists:join("::", [printable_atom(Name) || {c_var, _, Name} <- Segments])];
+pprint({c_path, _, Vars}, _Level) ->
+  [$$ | lists:join("::", [printable_atom(Name) || {c_var, _, Name} <- Vars])];
 
 pprint({c_let, _, Left, Type, Right}, Level) ->
   format(['let', Left, Type, Right], Level);
@@ -135,57 +132,59 @@ pprint({c_pat_var, _, Name}, _Level) ->
 
 %% Types.
 
-pprint(c_type_bool, _Level) ->
+pprint({c_type_bool, _}, _Level) ->
   "bool";
-pprint(c_type_int, _Level) ->
+pprint({c_type_int, _}, _Level) ->
   "int";
-pprint(c_type_float, _Level) ->
+pprint({c_type_float, _}, _Level) ->
   "float";
-pprint(c_type_atom, _Level) ->
+pprint({c_type_atom, _}, _Level) ->
   "atom";
-pprint(c_type_str, _Level) ->
+pprint({c_type_str, _}, _Level) ->
   "str";
-pprint(c_type_bytes, _Level) ->
+pprint({c_type_bytes, _}, _Level) ->
   "bytes";
-pprint(c_type_bits, _Level) ->
+pprint({c_type_bits, _}, _Level) ->
   "bits";
-pprint(c_type_ref, _Level) ->
+pprint({c_type_ref, _}, _Level) ->
   "ref";
 
-pprint(c_type_unit, _Level) ->
+pprint({c_type_unit, _}, _Level) ->
   "unit";
 
-pprint({c_type_tuple, TArgs}, Level) ->
+pprint({c_type_tuple, _, TArgs}, Level) ->
   format([tuple | TArgs], Level);
-pprint({c_type_list, T}, Level) ->
+pprint({c_type_list, _, T}, Level) ->
   format([list, T], Level);
-pprint({c_type_dict, K, V}, Level) ->
+pprint({c_type_dict, _, K, V}, Level) ->
   format([dict, K, V], Level);
 
-pprint({c_type_func, TArgs, TResult}, Level) ->
+pprint({c_type_func, _, TArgs, TResult}, Level) ->
   format([func | TArgs] ++ [TResult], Level);
 
-pprint(c_type_wld, _Level) ->
+pprint({c_type_wld, _}, _Level) ->
   "wld";
-pprint(c_type_never, _Level) ->
+pprint({c_type_never, _}, _Level) ->
   "never";
-pprint({c_type_mbox, T}, Level) ->
+pprint({c_type_mbox, _, T}, Level) ->
   format([mbox, T], Level);
-pprint({c_type_addr, T}, Level) ->
+pprint({c_type_addr, _, T}, Level) ->
   format([addr, T], Level);
 
-pprint({c_type_param, Name}, _Level) ->
+pprint({c_type_var, _, Name}, _Level) ->
   [$', printable_atom(Name)];
-pprint({c_type_tag, Name}, _Level) ->
+pprint({c_type_path, _, TypeVars}, _Level) ->
+  [$$ | lists:join("::", [printable_atom(Name) || {c_type_var, _, Name} <- TypeVars])];
+pprint({c_type_tag, _, Name}, _Level) ->
   [$:, printable_atom(Name)];
 
-pprint({c_type_struct, Name, TArgs}, Level) ->
-  format([struct, Name | pprint_args(arg, TArgs, Level)], Level);
-pprint({c_type_proto, Name, TArgs}, Level) ->
-  format([proto, Name| pprint_args(arg, TArgs, Level)], Level);
-pprint({c_type_union, TArgs}, Level) ->
+pprint({c_type_struct, _, Path, TArgs}, Level) ->
+  format([struct, Path | pprint_args(arg, TArgs, Level)], Level);
+pprint({c_type_proto, _, Path, TArgs}, Level) ->
+  format([proto, Path| pprint_args(arg, TArgs, Level)], Level);
+pprint({c_type_union, _, TArgs}, Level) ->
   format([union | pprint_args(TArgs, Level)], Level);
-pprint({c_type_inter, TArgs}, Level) ->
+pprint({c_type_inter, _, TArgs}, Level) ->
   format([inter | pprint_args(TArgs, Level)], Level);
 
 %% Utilities.
