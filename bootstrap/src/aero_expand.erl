@@ -108,7 +108,7 @@ expand_func_def_head(FuncHead, Env) ->
   expand_func_def_head(FuncHead, [], Env).
 
 expand_func_def_head({expand, _, {op, _, '_where_'}, [FuncHeadLeft, Clause]}, Where, Env) ->
-  expand_func_def_head(FuncHeadLeft, [Clause | expand_type_where(Where)], Env);
+  expand_func_def_head(FuncHeadLeft, [Clause | lists:map(fun expand_type_where/1, Where)], Env);
 expand_func_def_head({expand, FuncHeadMeta, {op, _, Arrow}, [{args, _, LeftArrowArgs}, Result]},
                      Where,
                      Env) when Arrow =:= '_->_'; Arrow =:= '_->>_'->
@@ -718,8 +718,8 @@ expand_type_inner({type_param, _, TParam}) ->
 expand_type_inner({expand, _, {op, _, '_?'}, [Type]}) ->
   SomeInner =
     case expand_type_inner(Type) of
-      {c_type_tuple, InnerTypes} -> InnerTypes;
-      InnerType                  -> [InnerType]
+      {c_type_tuple, _, InnerTypes} -> InnerTypes;
+      InnerType                     -> [InnerType]
     end,
   Some = aero_core:c_type_tuple([], [aero_core:c_type_tag([], some) | SomeInner]),
   None = aero_core:c_type_tag([], none),
@@ -728,8 +728,8 @@ expand_type_inner({expand, _, {op, _, '_?'}, [Type]}) ->
 expand_type_inner({expand, _, {op, _, '_!'}, [Type]}) ->
   OkInner =
     case expand_type_inner(Type) of
-      {c_type_tuple, InnerTypes} -> InnerTypes;
-      InnerType                  -> [InnerType]
+      {c_type_tuple, _, InnerTypes} -> InnerTypes;
+      InnerType                     -> [InnerType]
     end,
   Ok = aero_core:c_type_tuple([], [aero_core:c_type_tag([], ok) | OkInner]),
   ErrorInner = aero_core:c_type_proto([],
@@ -956,7 +956,7 @@ is_simple({c_tuple, _, Exprs}) ->
 is_simple({c_cons, _, Head, Tail}) ->
   is_simple(Head) andalso is_literal(Tail);
 is_simple({c_dict, _, Pairs}) ->
-  lists:all(fun(K, V) -> is_literal(K) andalso is_literal(V) end, Pairs);
+  lists:all(fun({K, V}) -> is_literal(K) andalso is_literal(V) end, Pairs);
 is_simple({c_args, _, Exprs}) ->
   lists:all(fun is_simple/1, Exprs);
 is_simple(Expr) ->

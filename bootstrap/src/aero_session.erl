@@ -134,7 +134,8 @@ visible_pkg(CurrPkg, Module) ->
       case {string:split(Left, "@"), string:replace(Right, "-", "_"), atom_to_list(CurrPkg)} of
         {[Name | Tail], [Name], CurrName} when length(Name) > 0, Name =/= CurrName,
                                                length(Tail) < 2 ->
-          {binary_to_atom(Name, utf8), binary_to_atom(Module, utf8)};
+          {list_to_atom(unicode:characters_to_list(Name)),
+             list_to_atom(unicode:characters_to_list(Module))};
         _ ->
           nil
       end;

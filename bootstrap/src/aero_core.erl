@@ -104,7 +104,7 @@
 
 %% Collections.
 -type c_tuple() :: {c_tuple, meta(), [c_expr()]}.
--type c_cons()  :: {c_cons, meta(), c_expr(), c_cons() | c_nil()}.
+-type c_cons()  :: {c_cons, meta(), c_expr(), c_expr()}.
 -type c_nil()   :: {c_nil, meta()}.
 -type c_dict()  :: {c_dict, meta(), [c_dict_pair()]}.
 
@@ -115,7 +115,7 @@
 
 -type c_func_args()   :: [{c_var(), c_type()}].
 -type c_func_result() :: c_type().
--type c_func_where()  :: c_type_where().
+-type c_func_where()  :: [{c_type(), c_type()}].
 -type c_func_body()   :: c_expr().
 
 %% A call to a named function.
@@ -171,7 +171,7 @@
 -type c_pat_unit() :: {c_pat_unit, meta()}.
 
 %% Collection patterns.
--type c_pat_cons()  :: {c_pat_cons, meta(), c_pat(), [c_pat()]}.
+-type c_pat_cons()  :: {c_pat_cons, meta(), c_pat(), c_pat()}.
 -type c_pat_nil()   :: {c_pat_nil, meta()}.
 -type c_pat_tuple() :: {c_pat_tuple, meta(), [c_pat()]}.
 -type c_pat_dict()  :: {c_pat_dict, meta(), [{c_pat(), c_pat()}]}.
@@ -330,7 +330,7 @@ c_tuple(Meta, Exprs) ->
   {c_tuple, Meta, Exprs}.
 
 %% Create a cons expression.
--spec c_cons(meta(), c_expr(), c_cons() | c_nil()) -> c_cons().
+-spec c_cons(meta(), c_expr(), c_expr()) -> c_cons().
 c_cons(Meta, Head, Tail) ->
   {c_cons, Meta, Head, Tail}.
 
@@ -420,7 +420,7 @@ c_pat_unit(Meta) ->
   {c_pat_unit, Meta}.
 
 %% Create a cons pattern.
--spec c_pat_cons(meta(), c_pat(), [c_pat()]) -> c_pat_cons().
+-spec c_pat_cons(meta(), c_pat(), c_pat()) -> c_pat_cons().
 c_pat_cons(Meta, Head, Tail) ->
   {c_pat_cons, Meta, Head, Tail}.
 

@@ -15,7 +15,8 @@ main([<<"compile">> | Args]) ->
       Input = proplists:get_value(input, Options),
       case Input of
         undefined ->
-          show_usage({missing_input, "Input file is required"});
+          show_usage({missing_input, "Input file is required"}),
+          halt(1);
         _ ->
           OutDir = proplists:get_value(out_dir, Options),
           Escript = proplists:get_bool(escript, Options),
@@ -31,10 +32,12 @@ main([<<"compile">> | Args]) ->
           write_output(aero:compile(Input, [{escript, Escript}, {core, Core}]))
       end;
     {error, {Reason, Data}} ->
-      show_usage({Reason, Data})
+      show_usage({Reason, Data}),
+      halt(1)
   end;
 main(_) ->
-  show_usage().
+  show_usage(),
+  halt(1).
 
 %% -----------------------------------------------------------------------------
 %% Helper Functions
@@ -52,10 +55,9 @@ parse_args(Args) ->
   ListArgs = lists:map(fun binary_to_list/1, Args),
   getopt:parse(getopt_spec(), ListArgs).
 
-%% Display how to use command-line interface and terminate.
+%% Display how to use command-line interface.
 show_usage() ->
-  getopt:usage(getopt_spec(), "aero_bootstrap compile"),
-  halt(1).
+  getopt:usage(getopt_spec(), "aero_bootstrap compile").
 
 %% Display usage with error message.
 show_usage({Reason, Data}) ->
