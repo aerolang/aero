@@ -71,16 +71,14 @@ expand_func_def([{expand, _, {op, _, '_=_'}, [FuncHead, FuncBody]}], FuncMeta, V
   % Function definition variant with assignment to an anonymous function on the right.
   Where = [],
   case FuncHead of
-    {tag, _, {ident, _, _} = Ident,
-             {expand, _, {op, _, Arrow}, [{args, _, LeftArrowArgs}, Result]}}
+    {tag, _, {ident, _, _} = Ident, {expand, _, {op, _, Arrow}, [{args, _, Args}, Result]}}
         when Arrow =:= '_->_'; Arrow =:= '_->>_' ->
       % For function head.
       check_existing_def(Env, Ident),
       {DefEnv, Path} = aero_env:register_def(Env, Ident),
-      BodyEnv = aero_env:reset_counter(Env),
 
-      ArgTypes = [expand_type_inner(Arg) || Arg <- LeftArrowArgs],
-      ResultType = expand_type_inner(Result),
+      {ArgTypes, ResultEnv} = aero_expand_type:expand_types(Args, aero_env:reset_counter(Env)),
+      {ResultType, BodyEnv} = aero_expand_type:expand_type(Result, ResultEnv),
 
       % Expanding body and ensuring it gives a function.
       case expand_expr(FuncBody, BodyEnv) of
@@ -111,30 +109,32 @@ expand_func_def(_, FuncMeta, _, _) ->
 expand_func_def_head(FuncHead, Env) ->
   expand_func_def_head(FuncHead, [], Env).
 
-expand_func_def_head({expand, _, {op, _, '_where_'}, [FuncHeadLeft, Clause]}, Where, Env) ->
-  expand_func_def_head(FuncHeadLeft, [Clause | lists:map(fun expand_type_where/1, Where)], Env);
+expand_func_def_head({expand, _, {op, _, '_where_'}, [FuncHeadLeft, Clause]}, Wheres, Env) ->
+  {WhereTypes, HeadEnv} = aero_expand_type:expand_where_clauses(Wheres, Env),
+
+  expand_func_def_head(FuncHeadLeft, [Clause | WhereTypes], HeadEnv);
 expand_func_def_head({expand, FuncHeadMeta, {op, _, Arrow}, [{args, _, LeftArrowArgs}, Result]},
                      Where,
-                     Env) when Arrow =:= '_->_'; Arrow =:= '_->>_'->
+                     Env) when Arrow =:= '_->_'; Arrow =:= '_->>_' ->
   % TODO: check when pure.
   case LeftArrowArgs of
     [{expand, _, {op, _, '_(_)'}, [{ident, _, _} = Ident, {args, _, Args}]}] ->
       check_existing_def(Env, Ident),
       {DefEnv, Path} = aero_env:register_def(Env, Ident),
 
-      {CoreArgs, BodyEnv} =
+      {CoreArgs, ResultEnv} =
         lists:foldl(fun(Arg, {ArgAcc, EnvAcc}) ->
           case Arg of
             {tag, _, {ident, _, _} = ArgIdent, Type} ->
-              {NewEnv, ArgVar} = aero_env:register_var(EnvAcc, ArgIdent),
-              ArgType = expand_type_inner(Type),
+              {ArgEnv, ArgVar} = aero_env:register_var(EnvAcc, ArgIdent),
+              {ArgType, NewEnv} = aero_expand_type:expand_type(Type, ArgEnv),
 
               {[{ArgVar, ArgType} | ArgAcc], NewEnv};
             _ ->
               throw({expand_error, {func_def_arg_invalid, aero_ast:meta(Arg)}})
           end
         end, {[], aero_env:reset_counter(Env)}, Args),
-      ResultType = expand_type_inner(Result),
+      {ResultType, BodyEnv} = aero_expand_type:expand_type(Result, ResultEnv),
 
       {Path, lists:reverse(CoreArgs), ResultType, Where, DefEnv, BodyEnv};
     _ ->
@@ -153,9 +153,7 @@ expand_const_def([{expand, _, {op, _, '_=_'}, [ConstLeft, ConstExpr]}], ConstMet
     {tag, _, {ident, _, _} = Ident, TagType} ->
       check_existing_def(Env, Ident),
       {DefEnv, Path} = aero_env:register_def(Env, Ident),
-      BodyEnv = aero_env:reset_counter(Env),
-
-      Type = expand_type_inner(TagType),
+      {Type, BodyEnv} = aero_expand_type:expand_type(TagType, aero_env:reset_counter(Env)),
       Expr = lift(expand_expr(ConstExpr, BodyEnv), BodyEnv),
 
       {aero_core:c_def_const([], Path, Vis, Type, Expr), DefEnv};
@@ -679,97 +677,6 @@ expand_pat_inner({expand, Meta, {op, _, '_(_)'},
 %% Anything else...
 expand_pat_inner(Pat, _Env) ->
   throw({expand_error, {pat_invalid, aero_ast:meta(Pat)}}).
-
-%% -----------------------------------------------------------------------------
-%% Type Expanding
-%% -----------------------------------------------------------------------------
-
-%% Builtins.
-expand_type_inner({ident, _, bool}) ->
-  aero_core:c_type_bool([]);
-expand_type_inner({ident, _, int}) ->
-  aero_core:c_type_int([]);
-expand_type_inner({ident, _, float}) ->
-  aero_core:c_type_float([]);
-expand_type_inner({ident, _, atom}) ->
-  aero_core:c_type_atom([]);
-expand_type_inner({ident, _, str}) ->
-  aero_core:c_type_str([]);
-expand_type_inner({ident, _, bytes}) ->
-  aero_core:c_type_bytes([]);
-expand_type_inner({ident, _, bits}) ->
-  aero_core:c_type_bits([]);
-expand_type_inner({ident, _, ref}) ->
-  aero_core:c_type_ref([]);
-
-%% Unit type.
-expand_type_inner({expand, _, {op, _, '(_)'}, [{args, _, []}]}) ->
-  aero_core:c_type_unit([]);
-
-%% Collections.
-expand_type_inner({expand, _, {op, _, '(_)'}, [{args, _, Args}]}) when length(Args) > 1 ->
-  aero_core:c_type_tuple([], lists:map(fun expand_type_inner/1, Args));
-expand_type_inner({expand, _, {ident, _, list}, [T]}) ->
-  aero_core:c_type_list([], expand_type_inner(T));
-expand_type_inner({expand, _, {ident, _, dict}, [K, V]}) ->
-  aero_core:c_type_dict([], expand_type_inner(K), expand_type_inner(V));
-
-%% Functions.
-expand_type_inner({expand, _, {op, _, Arrow}, [{args, _, Args}, Result]})
-    when Arrow =:= '_->_'; Arrow =:= '_->>_' ->
-  aero_core:c_type_func([], lists:map(fun expand_type_inner/1, Args), expand_type_inner(Result));
-
-%% Concurrent primitives.
-expand_type_inner({ident, _, wld}) ->
-  aero_core:c_type_wld([]);
-expand_type_inner({ident, _, never}) ->
-  aero_core:c_type_never([]);
-expand_type_inner({expand, _, {ident, _, mbox}, [T]}) ->
-  aero_core:c_type_mbox([], expand_type_inner(T));
-expand_type_inner({expand, _, {ident, _, addr}, [T]}) ->
-  aero_core:c_type_addr([], expand_type_inner(T));
-
-%% Type parameters.
-expand_type_inner({type_param, _, TParam}) ->
-  aero_core:c_type_var([], TParam);
-
-%% Option and Result type macros.
-expand_type_inner({expand, _, {op, _, '_?'}, [Type]}) ->
-  SomeInner =
-    case expand_type_inner(Type) of
-      {c_type_tuple, _, InnerTypes} -> InnerTypes;
-      InnerType                     -> [InnerType]
-    end,
-  Some = aero_core:c_type_tuple([], [aero_core:c_type_tag([], some) | SomeInner]),
-  None = aero_core:c_type_tag([], none),
-
-  aero_core:c_type_union([], [Some, None]);
-expand_type_inner({expand, _, {op, _, '_!'}, [Type]}) ->
-  OkInner =
-    case expand_type_inner(Type) of
-      {c_type_tuple, _, InnerTypes} -> InnerTypes;
-      InnerType                     -> [InnerType]
-    end,
-  Ok = aero_core:c_type_tuple([], [aero_core:c_type_tag([], ok) | OkInner]),
-  ErrorInner = aero_core:c_type_proto([],
-    aero_core:c_type_path([], [
-      aero_core:c_type_var([], aero_std),
-      aero_core:c_type_var([], 'Error')
-    ]),
-    []
-  ),
-  Error = aero_core:c_type_tuple([], [aero_core:c_type_tag([], error), ErrorInner]),
-
-  aero_core:c_type_union([], [Ok, Error]);
-
-%% Anything else...
-expand_type_inner(Type) ->
-  throw({expand_error, {type_invalid, aero_ast:meta(Type)}}).
-
-%% Where clauses.
-%% TODO: implement.
-expand_type_where(Where) ->
-  throw({expand_error, {type_where_invalid, aero_ast:meta(Where)}}).
 
 %% -----------------------------------------------------------------------------
 %% Utilities
