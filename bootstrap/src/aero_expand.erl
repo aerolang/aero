@@ -13,9 +13,9 @@
 %% Public API
 %% -----------------------------------------------------------------------------
 
--spec expand(aero_ast:ast(), aero_context:context()) -> {ok, aero_core:c_pkg()} | {error, term()}.
-expand(Source, Context) ->
-  try expand_source(Source, Context) of
+-spec expand(aero_ast:ast(), aero_env:env()) -> {ok, aero_core:c_pkg()} | {error, term()}.
+expand(Source, Env) ->
+  try expand_source(Source, Env) of
     Package -> {ok, Package}
   catch
     throw:{expand_error, Reason} -> {error, Reason}
@@ -25,18 +25,19 @@ expand(Source, Context) ->
 %% Definition Expanding
 %% -----------------------------------------------------------------------------
 
-expand_source({source, _, SourceArgs}, Context) ->
+expand_source({source, _, SourceArgs}, Env) ->
   PkgName = aero_session:pkg(),
   ModName =
     case aero_session:pkg() of
-      aero -> binary_to_atom(filename:basename(aero_context:filename(Context), ".aero"), utf8);
+      aero -> binary_to_atom(filename:basename(aero_env:filename(Env), ".aero"), utf8);
       Pkg  -> Pkg
     end,
 
-  {Defs, InnerModules} =
-    lists:foldl(fun(SourceArg, {Defs, InnerModules}) ->
-      {[expand_def(SourceArg, Context) | Defs], InnerModules}
-    end, {[], []}, SourceArgs),
+  {Defs, _, InnerModules} =
+    lists:foldl(fun(SourceArg, {Defs, DefEnv, InnerModules}) ->
+      {Def, NewEnv} = expand_def(SourceArg, DefEnv),
+      {[Def | Defs], NewEnv, InnerModules}
+    end, {[], Env, []}, SourceArgs),
 
   ModulePath = aero_core:c_path([], [aero_core:c_var([], ModName)]),
   Module = aero_core:c_mod([], ModulePath, [], lists:reverse(Defs)),
@@ -46,46 +47,49 @@ expand_source(_, _) ->
   throw({expand_error, no_source}).
 
 %% Private definitions.
-expand_def({expand, Meta, {ident, _, func}, Args}, _Context) ->
-  expand_func_def(Args, Meta, c_vis_priv);
-expand_def({expand, Meta, {ident, _, const}, Args}, _Context) ->
-  expand_const_def(Args, Meta, c_vis_priv);
+expand_def({expand, Meta, {ident, _, func}, Args}, Env) ->
+  expand_func_def(Args, Meta, c_vis_priv, Env);
+expand_def({expand, Meta, {ident, _, const}, Args}, Env) ->
+  expand_const_def(Args, Meta, c_vis_priv, Env);
 
 %% Public definitions.
-expand_def({expand, Meta, {ident, _, pub}, PubArgs}, _Context) ->
+expand_def({expand, Meta, {ident, _, pub}, PubArgs}, Env) ->
   case PubArgs of
     [{expand, _, {ident, _, func}, Args}] ->
-      expand_func_def(Args, Meta, c_vis_pub);
+      expand_func_def(Args, Meta, c_vis_pub, Env);
     [{expand, _, {ident, _, const}, Args}] ->
-      expand_const_def(Args, Meta, c_vis_pub);
+      expand_const_def(Args, Meta, c_vis_pub, Env);
     _ ->
       throw({expand_error, {pub_invalid, aero_ast:meta(Meta)}})
   end;
 
 %% Anything else...
-expand_def(Def, _Context) ->
+expand_def(Def, _Env) ->
   throw({expand_error, {def_invalid, aero_ast:meta(Def)}}).
 
-expand_func_def([{expand, _, {op, _, '_=_'}, [FuncHead, FuncBody]}], FuncMeta, Vis) ->
+expand_func_def([{expand, _, {op, _, '_=_'}, [FuncHead, FuncBody]}], FuncMeta, Vis, Env) ->
   % Function definition variant with assignment to an anonymous function on the right.
   Where = [],
   case FuncHead of
-    {tag, _, {ident, _, Name}, {expand, _, {op, _, Arrow}, [{args, _, LeftArrowArgs}, Result]}}
+    {tag, _, {ident, _, _} = Ident,
+             {expand, _, {op, _, Arrow}, [{args, _, LeftArrowArgs}, Result]}}
         when Arrow =:= '_->_'; Arrow =:= '_->>_' ->
       % For function head.
-      Path = aero_core:c_path([], [aero_core:c_var([], Name)]),
+      check_existing_def(Env, Ident),
+      {DefEnv, Path} = aero_env:register_def(Env, Ident),
+      BodyEnv = aero_env:reset_counter(Env),
+
       ArgTypes = [expand_type_inner(Arg) || Arg <- LeftArrowArgs],
       ResultType = expand_type_inner(Result),
 
       % Expanding body and ensuring it gives a function.
-      Env = new_env(),
-      case expand_expr(FuncBody, Env) of
+      case expand_expr(FuncBody, BodyEnv) of
         {c_func, _, ExprArgs, _, _, ExprBody} when length(ExprArgs) =:= length(ArgTypes) ->
           ExprVars = [element(1, Arg) || Arg <- ExprArgs],
           NewArgs = lists:zip(ExprVars, ArgTypes),
 
-          Func = aero_core:c_func([], NewArgs, ResultType, Where, lift(ExprBody, Env)),
-          aero_core:c_def_func([], Path, Vis, Func);
+          Func = aero_core:c_func([], NewArgs, ResultType, Where, lift(ExprBody, BodyEnv)),
+          {aero_core:c_def_func([], Path, Vis, Func), DefEnv};
         {c_func, _, _, _, _, _} ->
           throw({expand_error, {func_def_eq_arity_mismatch, FuncMeta}});
         _ ->
@@ -94,14 +98,14 @@ expand_func_def([{expand, _, {op, _, '_=_'}, [FuncHead, FuncBody]}], FuncMeta, V
     _ ->
       throw({expand_error, {func_def_eq_head_invalid, aero_ast:meta(FuncHead)}})
   end;
-expand_func_def([FuncHead, FuncBody], _FuncMeta, Vis) ->
+expand_func_def([FuncHead, FuncBody], _FuncMeta, Vis, Env) ->
   % Function definition variant with assignment to an anonymous function on the right.
-  {Path, Args, Result, Where, Env} = expand_func_def_head(FuncHead, new_env()),
-  Body = expand_func_def_body(FuncBody, Env),
+  {Path, Args, Result, Where, DefEnv, BodyEnv} = expand_func_def_head(FuncHead, Env),
+  Body = expand_func_def_body(FuncBody, BodyEnv),
 
   Func = aero_core:c_func([], Args, Result, Where, Body),
-  aero_core:c_def_func([], Path, Vis, Func);
-expand_func_def(_, FuncMeta, _) ->
+  {aero_core:c_def_func([], Path, Vis, Func), DefEnv};
+expand_func_def(_, FuncMeta, _, _) ->
   throw({expand_error, {func_def_invalid, FuncMeta}}).
 
 expand_func_def_head(FuncHead, Env) ->
@@ -114,23 +118,25 @@ expand_func_def_head({expand, FuncHeadMeta, {op, _, Arrow}, [{args, _, LeftArrow
                      Env) when Arrow =:= '_->_'; Arrow =:= '_->>_'->
   % TODO: check when pure.
   case LeftArrowArgs of
-    [{expand, _, {op, _, '_(_)'}, [{ident, _, Name}, {args, _, Args}]}] ->
-      Path = aero_core:c_path([], [aero_core:c_var([], Name)]),
+    [{expand, _, {op, _, '_(_)'}, [{ident, _, _} = Ident, {args, _, Args}]}] ->
+      check_existing_def(Env, Ident),
+      {DefEnv, Path} = aero_env:register_def(Env, Ident),
+
       {CoreArgs, BodyEnv} =
         lists:foldl(fun(Arg, {ArgAcc, EnvAcc}) ->
           case Arg of
-            {tag, _, {ident, _, _} = Ident, Type} ->
-              {NewEnv, ArgVar} = register_var(EnvAcc, Ident),
+            {tag, _, {ident, _, _} = ArgIdent, Type} ->
+              {NewEnv, ArgVar} = aero_env:register_var(EnvAcc, ArgIdent),
               ArgType = expand_type_inner(Type),
 
               {[{ArgVar, ArgType} | ArgAcc], NewEnv};
             _ ->
               throw({expand_error, {func_def_arg_invalid, aero_ast:meta(Arg)}})
           end
-        end, {[], Env}, Args),
+        end, {[], aero_env:reset_counter(Env)}, Args),
       ResultType = expand_type_inner(Result),
 
-      {Path, lists:reverse(CoreArgs), ResultType, Where, BodyEnv};
+      {Path, lists:reverse(CoreArgs), ResultType, Where, DefEnv, BodyEnv};
     _ ->
       throw({expand_error, {func_def_head_invalid, FuncHeadMeta}})
   end;
@@ -142,15 +148,23 @@ expand_func_def_body({block, _, _} = Block, Env) ->
 expand_func_def_body(FuncBody, _Env) ->
   throw({expand_error, {func_def_body_invalid, aero_ast:meta(FuncBody)}}).
 
-expand_const_def([{expand, _, {op, _, '_=_'}, [{tag, _, {ident, _, Name}, TagType}, ConstExpr]}],
-                 _ConstMeta,
-                 Vis) ->
-  Path = aero_core:c_path([], [aero_core:c_var([], Name)]),
-  Type = expand_type_inner(TagType),
-  Expr = expand_expr(ConstExpr, new_env()),
+expand_const_def([{expand, _, {op, _, '_=_'}, [ConstLeft, ConstExpr]}], ConstMeta, Vis, Env) ->
+  case ConstLeft of
+    {tag, _, {ident, _, _} = Ident, TagType} ->
+      check_existing_def(Env, Ident),
+      {DefEnv, Path} = aero_env:register_def(Env, Ident),
+      BodyEnv = aero_env:reset_counter(Env),
 
-  aero_core:c_def_const([], Path, Vis, Type, Expr);
-expand_const_def(_, ConstMeta, _) ->
+      Type = expand_type_inner(TagType),
+      Expr = lift(expand_expr(ConstExpr, BodyEnv), BodyEnv),
+
+      {aero_core:c_def_const([], Path, Vis, Type, Expr), DefEnv};
+    {ident, _, _} ->
+      throw({expand_error, {const_def_missing_type, ConstMeta}});
+    _ ->
+      throw({expand_error, {const_def_invalid, ConstMeta}})
+  end;
+expand_const_def(_, ConstMeta, _, _) ->
   throw({expand_error, {const_def_invalid, ConstMeta}}).
 
 %% -----------------------------------------------------------------------------
@@ -205,19 +219,20 @@ expand_expr({block, _, [{expand, _, {op, _, Arrow}, _} | _] = BlockExprs}, Env)
       end, tl(FuncCases)),
 
       % Create a function which just has a match inside.
-      Vars = [register_tmp(Env) || _ <- lists:seq(1, Arity)],
-      FuncVars = [{Var, inferred_type()} || Var <- Vars],
+      Vars = [aero_env:tmp_var(Env) || _ <- lists:seq(1, Arity)],
+      FuncVars = [{Var, aero_env:inferred_type_var(Env)} || Var <- Vars],
       Match = aero_core:c_match([], aero_core:c_args([], Vars), FuncCases),
 
-      aero_core:c_func([], FuncVars, inferred_type(), [], Match)
+      aero_core:c_func([], FuncVars, aero_env:inferred_type_var(Env), [], Match)
   end;
 expand_expr({block, _, BlockExprs}, Env) ->
   {Exprs, _} =
     lists:foldl(fun(BlockExpr, {ExprAcc, EnvAcc}) ->
       case BlockExpr of
         {expand, _, {op, _, '_=_'}, [Ident, RightExpr]} ->
-          {NewEnv, Var} = register_var(EnvAcc, Ident),
-          LetExpr = aero_core:c_let([], Var, inferred_type(), expand_expr(RightExpr, Env)),
+          {NewEnv, Var} = aero_env:register_var(EnvAcc, Ident),
+          RightCore = expand_expr(RightExpr, Env),
+          LetExpr = aero_core:c_let([], Var, aero_env:inferred_type_var(EnvAcc), RightCore),
 
           {[LetExpr | ExprAcc], NewEnv};
         _ ->
@@ -235,8 +250,7 @@ expand_expr({block, _, BlockExprs}, Env) ->
           {c_let, _, _, _, _} ->
             Expr;
           _ ->
-            Var = element(2, register_var(Env, {ident, [], '_'})),
-            aero_core:c_let([], Var, inferred_type(), Expr)
+            aero_core:c_let([], aero_env:tmp_var(Env), aero_env:inferred_type_var(Env), Expr)
         end
       end, tl(Exprs))) ++ [hd(Exprs)])
   end;
@@ -291,7 +305,7 @@ expand_expr({expand, _, {op, _, Arrow}, [{args, _, Args}, Body]}, Env) when Arro
   {FuncArgs, {HeadEnv, Var}} =
     case Args of
       [{expand, _, {op, _, '_(_)'}, [FuncIdent, {args, _, InnerArgs}]}] ->
-        {InnerArgs, register_var(Env, FuncIdent)};
+        {InnerArgs, aero_env:register_var(Env, FuncIdent)};
       _ ->
         {Args, {Env, none}}
     end,
@@ -300,8 +314,8 @@ expand_expr({expand, _, {op, _, Arrow}, [{args, _, Args}, Body]}, Env) when Arro
     lists:foldl(fun(Arg, {ArgAcc, EnvAcc}) ->
       case Arg of
         {ident, _, _} = Ident ->
-          {NewEnv, ArgVar} = register_var(EnvAcc, Ident),
-          ArgType = inferred_type(),
+          {NewEnv, ArgVar} = aero_env:register_var(EnvAcc, Ident),
+          ArgType = aero_env:inferred_type_var(EnvAcc),
 
           {[{ArgVar, ArgType} | ArgAcc], NewEnv};
         _ ->
@@ -309,12 +323,16 @@ expand_expr({expand, _, {op, _, Arrow}, [{args, _, Args}, Body]}, Env) when Arro
       end
     end, {[], HeadEnv}, FuncArgs),
   CoreBody = expand_expr(Body, BodyEnv),
-  Func = aero_core:c_func([], lists:reverse(CoreArgs), inferred_type(), [], CoreBody),
+  Func = aero_core:c_func(
+    [], lists:reverse(CoreArgs), aero_env:inferred_type_var(Env), [], CoreBody),
 
   % If recursive then wrap it into a block with a letrec.
   case Var of
-    none -> Func;
-    _    -> aero_core:c_block([], [aero_core:c_letrec([], Var, inferred_type(), Func), Var])
+    none ->
+      Func;
+    _ ->
+      aero_core:c_block(
+        [], [aero_core:c_letrec([], Var, aero_env:inferred_type_var(Env), Func), Var])
   end;
 
 %% Function calls.
@@ -348,7 +366,7 @@ expand_expr({expand, Meta, {op, _, '_(_)'}, [Callee, {args, _, Args}]}, Env) ->
 
 %% Variables.
 expand_expr({ident, _, Name} = Ident, Env) ->
-  case lookup_var(Env, Ident) of
+  case aero_env:lookup_var(Env, Ident) of
     undefined -> aero_core:c_path([], [aero_core:c_var([], Name)]);
     Var       -> Var
   end;
@@ -366,8 +384,8 @@ expand_expr({expand, _, {op, _, '_*_'}, [Left, Right]}, Env) ->
   erl_call(erlang, '*', [expand_expr(Left, Env), expand_expr(Right, Env)]);
 expand_expr({expand, _, {op, _, '_/_'}, [Left, Right]}, Env) ->
   % Choosing between integer and float division.
-  LeftVar = register_tmp(Env),
-  RightVar = register_tmp(Env),
+  LeftVar = aero_env:tmp_var(Env),
+  RightVar = aero_env:tmp_var(Env),
 
   LeftExpr = expand_expr(Left, Env),
   RightExpr = expand_expr(Right, Env),
@@ -379,14 +397,14 @@ expand_expr({expand, _, {op, _, '_/_'}, [Left, Right]}, Env) ->
   FloatDiv = erl_call(erlang, '/', [LeftVar, RightVar]),
 
   aero_core:c_block([], [
-    aero_core:c_let([], LeftVar, inferred_type(), LeftExpr),
-    aero_core:c_let([], RightVar, inferred_type(), RightExpr),
+    aero_core:c_let([], LeftVar, aero_env:inferred_type_var(Env), LeftExpr),
+    aero_core:c_let([], RightVar, aero_env:inferred_type_var(Env), RightExpr),
     aero_core:c_match([], IsLeftInt, [
       {aero_core:c_pat_bool([], true), aero_core:c_match([], IsRightInt, [
         {aero_core:c_pat_bool([], true), IntDiv},
-        {register_pat_wildcard(Env), FloatDiv}
+        {aero_env:wildcard_pat_var(Env), FloatDiv}
       ])},
-      {register_pat_wildcard(Env), FloatDiv}
+      {aero_env:wildcard_pat_var(Env), FloatDiv}
     ])
   ]);
 expand_expr({expand, _, {op, _, '_%_'}, [Left, Right]}, Env) ->
@@ -433,7 +451,7 @@ expand_expr({expand, _, {op, _, '_and_'}, [Left, Right]}, Env) ->
   % Manually short-circuit with `match`.
   Cases = [
     {aero_core:c_pat_bool([], true), expand_expr(Right, Env)},
-    {register_pat_wildcard(Env), aero_core:c_bool([], false)}
+    {aero_env:wildcard_pat_var(Env), aero_core:c_bool([], false)}
   ],
   aero_core:c_match([], expand_expr(Left, Env), Cases);
 
@@ -441,7 +459,7 @@ expand_expr({expand, _, {op, _, '_or_'}, [Left, Right]}, Env) ->
   % Manually short-circuit with `match`.
   Cases = [
     {aero_core:c_pat_bool([], true), aero_core:c_bool([], true)},
-    {register_pat_wildcard(Env), expand_expr(Right, Env)}
+    {aero_env:wildcard_pat_var(Env), expand_expr(Right, Env)}
   ],
   aero_core:c_match([], expand_expr(Left, Env), Cases);
 
@@ -495,7 +513,7 @@ expand_expr({expand, Meta, {ident, _, 'when'}, [{block, _, BlockArgs}]}, Env) ->
       lists:foldl(fun({Cond, Expr}, Inner) ->
         aero_core:c_match([], Cond, [
           {aero_core:c_pat_bool([], true), Expr},
-          {register_pat_wildcard(Env), Inner}
+          {aero_env:wildcard_pat_var(Env), Inner}
         ])
       end, LastExpr, tl(RevClauses));
 
@@ -512,7 +530,7 @@ expand_expr({expand, Meta, {ident, _, 'if'}, [Cond, Next]}, Env) ->
     {expand, _, {op, _, '_else_'}, [{block, _, _} = Then, {block, _, _} = Else]} ->
       Cases = [
         {aero_core:c_pat_bool([], true), expand_expr(Then, Env)},
-        {register_pat_wildcard(Env), expand_expr(Else, Env)}
+        {aero_env:wildcard_pat_var(Env), expand_expr(Else, Env)}
       ],
       aero_core:c_match([], expand_expr(Cond, Env), Cases);
 
@@ -523,7 +541,7 @@ expand_expr({expand, Meta, {ident, _, 'if'}, [Cond, Next]}, Env) ->
           aero_core:c_atom([], some),
           expand_expr(Then, Env)
         ])},
-        {register_pat_wildcard(Env), aero_core:c_atom([], none)}
+        {aero_env:wildcard_pat_var(Env), aero_core:c_atom([], none)}
       ],
       aero_core:c_match([], expand_expr(Cond, Env), Cases);
 
@@ -561,7 +579,7 @@ expand_pat(Ast, Env) ->
   % Patterns store the variables bound during this pattern to prevent them from
   % being repeating.
   {Pat, PatEnv} = expand_pat_outer(Ast, Env),
-  {Pat, clear_pat_vars(PatEnv)}.
+  {Pat, aero_env:clear_pat_vars(PatEnv)}.
 
 %% Args pattern.
 expand_pat_outer({args, _, Args}, Env) ->
@@ -636,12 +654,13 @@ expand_pat_inner({expand, _, {op, _, '#{_}'}, [{args, _, Args}]}, Env) ->
 
 %% Pattern variable.
 expand_pat_inner({ident, _, _} = Ident, Env) ->
-  {NewEnv, PatVar} = register_pat_var(Env, Ident),
+  check_existing_pat_var(Env, Ident),
+  {NewEnv, PatVar} = aero_env:register_pat_var(Env, Ident),
   {PatVar, NewEnv};
 
 %% Wildcard.
 expand_pat_inner({blank, _}, Env) ->
-  {register_pat_wildcard(Env), Env};
+  {aero_env:wildcard_pat_var(Env), Env};
 
 %% Constructor patterns.
 expand_pat_inner({expand, Meta, {op, _, '_(_)'},
@@ -756,54 +775,17 @@ expand_type_where(Where) ->
 %% Utilities
 %% -----------------------------------------------------------------------------
 
-%% Variable environment.
--record(env, {vars, pat_vars, counter}).
-
-%% Empty expression environment.
-new_env() ->
-  #env{vars = [], pat_vars = [], counter = counters:new(1, [])}.
-
-%% Get a variable by its name.
-lookup_var(Env, {ident, _, IdentName}) ->
-  case proplists:get_value(IdentName, Env#env.vars) of
-    undefined -> undefined;
-    Var       -> Var
+check_existing_def(Env, Ident) ->
+  case aero_env:lookup_def(Env, Ident) of
+    undefined -> ok;
+    Def       -> throw({expand_error, {def_exists, aero_ast:meta(Ident), Def}})
   end.
 
-%% Create a fresh variable name from an identifier and save it to the env.
-register_var(Env, {ident, _, IdentName}) ->
-  counters:add(Env#env.counter, 1, 1),
-  Num = counters:get(Env#env.counter, 1),
-
-  Var = aero_core:c_var([], list_to_atom(atom_to_list(IdentName) ++ "_" ++ integer_to_list(Num))),
-  {Env#env{vars = [{IdentName, Var} | Env#env.vars]}, Var}.
-
-register_tmp(Env) ->
-  {_, Var} = register_var(Env, {ident, [], ''}),
-  Var.
-
-%% Create a fresh pattern variable.
-register_pat_var(Env, {ident, Meta, IdentName} = Ident) ->
-  case proplists:is_defined(IdentName, Env#env.pat_vars) of
-    true ->
-      throw({expand_error, {pat_var_duplicate, Meta}});
-    false ->
-      {VarEnv, {c_var, VarMeta, VarName} = Var} = register_var(Env, Ident),
-      PatVar = aero_core:c_pat_var(VarMeta, VarName),
-      {VarEnv#env{pat_vars = [{IdentName, Var} | VarEnv#env.pat_vars]}, PatVar}
+check_existing_pat_var(Env, Ident) ->
+  case aero_env:lookup_pat_var(Env, Ident) of
+    undefined -> ok;
+    PatVar    -> throw({expand_error, {pat_var_exists, aero_ast:meta(Ident), PatVar}})
   end.
-
-register_pat_wildcard(Env) ->
-  {_, PatVar} = register_pat_var(Env, {ident, [], ''}),
-  PatVar.
-
-%% Remove pattern variables for once patterns are done parsing.
-clear_pat_vars(Env) ->
-  Env#env{pat_vars = []}.
-
-%% Type without any bounds.
-inferred_type() ->
-  aero_core:c_type_var([], '_').
 
 erl_call(Mod, Func, Args) ->
   Callee = aero_core:c_path([erl_path], [aero_core:c_var([], Mod), aero_core:c_var([], Func)]),
@@ -819,8 +801,8 @@ lift({c_tuple, Meta, Exprs}, Env) ->
         true ->
           {AccLets, [LiftedExpr | AccExprs]};
         false ->
-          Var = register_tmp(Env),
-          Let = aero_core:c_let([], Var, inferred_type(), LiftedExpr),
+          Var = aero_env:tmp_var(Env),
+          Let = aero_core:c_let([], Var, aero_env:inferred_type_var(Env), LiftedExpr),
 
           {[Let | AccLets], [Var | AccExprs]}
       end
@@ -843,24 +825,24 @@ lift({c_cons, Meta, Head, Tail}, Env) ->
 
     % Only head is simple.
     {true, false} ->
-      Var = register_tmp(Env),
-      Let = aero_core:c_let([], Var, inferred_type(), LiftedTail),
+      Var = aero_env:tmp_var(Env),
+      Let = aero_core:c_let([], Var, aero_env:inferred_type_var(Env), LiftedTail),
 
       aero_core:c_block(Meta, [Let, aero_core:c_cons(Meta, LiftedHead, Var)]);
 
     % Only tail is simple.
     {false, true} ->
-      Var = register_tmp(Env),
-      Let = aero_core:c_let([], Var, inferred_type(), LiftedHead),
+      Var = aero_env:tmp_var(Env),
+      Let = aero_core:c_let([], Var, aero_env:inferred_type_var(Env), LiftedHead),
 
       aero_core:c_block(Meta, [Let, aero_core:c_cons(Meta, Var, LiftedTail)]);
 
     % Neither are simple.
     {false, false} ->
-      HeadVar = register_tmp(Env),
-      TailVar = register_tmp(Env),
-      HeadLet = aero_core:c_let([], HeadVar, inferred_type(), LiftedHead),
-      TailLet = aero_core:c_let([], TailVar, inferred_type(), LiftedTail),
+      HeadVar = aero_env:tmp_var(Env),
+      TailVar = aero_env:tmp_var(Env),
+      HeadLet = aero_core:c_let([], HeadVar, aero_env:inferred_type_var(Env), LiftedHead),
+      TailLet = aero_core:c_let([], TailVar, aero_env:inferred_type_var(Env), LiftedTail),
 
       aero_core:c_block(Meta, [HeadLet, TailLet, aero_core:c_cons(Meta, HeadVar, TailVar)])
   end;
@@ -876,24 +858,24 @@ lift({c_dict, Meta, Pairs}, Env) ->
 
         % Only key is simple.
         {true, false} ->
-          Var = register_tmp(Env),
-          Let = aero_core:c_let([], Var, inferred_type(), LiftedValue),
+          Var = aero_env:tmp_var(Env),
+          Let = aero_core:c_let([], Var, aero_env:inferred_type_var(Env), LiftedValue),
 
           {[Let | AccLets], [{LiftedKey, Var} | AccPairs]};
 
         % Only value is simple.
         {false, true} ->
-          Var = register_tmp(Env),
-          Let = aero_core:c_let([], Var, inferred_type(), LiftedKey),
+          Var = aero_env:tmp_var(Env),
+          Let = aero_core:c_let([], Var, aero_env:inferred_type_var(Env), LiftedKey),
 
           {[Let | AccLets], [{Var, LiftedValue} | AccPairs]};
 
         % Neither are simple.
         {false, false} ->
-          KeyVar = register_tmp(Env),
-          ValueVar = register_tmp(Env),
-          KeyLet = aero_core:c_let([], KeyVar, inferred_type(), LiftedKey),
-          ValueLet = aero_core:c_let([], ValueVar, inferred_type(), LiftedValue),
+          KeyVar = aero_env:tmp_var(Env),
+          ValueVar = aero_env:tmp_var(Env),
+          KeyLet = aero_core:c_let([], KeyVar, aero_env:inferred_type_var(Env), LiftedKey),
+          ValueLet = aero_core:c_let([], ValueVar, aero_env:inferred_type_var(Env), LiftedValue),
 
           {[KeyLet, ValueLet | AccLets], [{KeyVar, ValueVar} | AccPairs]}
       end
@@ -916,8 +898,8 @@ lift({Call, Meta, Path, Args}, Env) when Call =:= c_call; Call =:= c_apply ->
         true ->
           {AccLets, [LiftedArg | AccArgs]};
         false ->
-          Var = register_tmp(Env),
-          Let = aero_core:c_let([], Var, inferred_type(), LiftedArg),
+          Var = aero_env:tmp_var(Env),
+          Let = aero_core:c_let([], Var, aero_env:inferred_type_var(Env), LiftedArg),
 
           {[Let | AccLets], [Var | AccArgs]}
       end
@@ -942,8 +924,8 @@ lift({c_match, Meta, Expr, Cases}, Env) ->
     true ->
       aero_core:c_match(Meta, LiftedExpr, LiftedCases);
     false ->
-      Var = register_tmp(Env),
-      Let = aero_core:c_let([], Var, inferred_type(), LiftedExpr),
+      Var = aero_env:tmp_var(Env),
+      Let = aero_core:c_let([], Var, aero_env:inferred_type_var(Env), LiftedExpr),
 
       aero_core:c_block(Meta, [Let, aero_core:c_match(Meta, Var, LiftedCases)])
   end;

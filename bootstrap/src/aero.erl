@@ -12,7 +12,7 @@ compile(InputFile, Options) ->
   Passes = lists:flatten([
     {fun aero_scan:scan/1, []},
     {fun aero_parse:parse/1, []},
-    {fun aero_expand:expand/2, [aero_context:new(InputFile)]},
+    {fun aero_expand:expand/2, [aero_env:new(InputFile)]},
     {fun aero_resolve:resolve/1, []},
 
     case {proplists:get_bool(core, Options), proplists:get_bool(escript, Options)} of
