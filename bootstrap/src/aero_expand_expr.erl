@@ -9,7 +9,7 @@
 %% -----------------------------------------------------------------------------
 
 %% Expand an expression.
--spec expand_expr(aero_ast:ast(), aero_env:env()) -> aero_core:c_expr().
+-spec expand_expr(aero_ast:t(), aero_env:t()) -> aero_core:c_expr().
 
 %% Blocks.
 expand_expr({block, _, []}, _Env) ->

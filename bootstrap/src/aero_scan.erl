@@ -6,7 +6,7 @@
 %% Public API
 %% -----------------------------------------------------------------------------
 
--spec scan(binary()) -> {ok, [aero_token:token()]} | {error, term()}.
+-spec scan(binary()) -> {ok, [aero_token:t()]} | {error, term()}.
 scan(Input) ->
   scan(string:to_graphemes(Input), {0, 1, 1}, []).
 

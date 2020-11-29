@@ -13,7 +13,7 @@
 %% -----------------------------------------------------------------------------
 
 %% Parse tokens into the Aero AST.
--spec parse([aero_token:token()]) -> {ok, aero_ast:source()} | {error, term()}.
+-spec parse([aero_token:t()]) -> {ok, aero_ast:source()} | {error, term()}.
 parse([]) ->
   {error, no_tokens};
 parse(Tokens) ->

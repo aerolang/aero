@@ -4,7 +4,7 @@
 
 -export([meta/1, metas/1]).
 
--export_type([ast/0, source/0]).
+-export_type([t/0, source/0]).
 -export_type([int_lit/0, float_lit/0, atom_lit/0, str_lit/0]).
 -export_type([ident/0, type_param/0, blank/0, op/0]).
 -export_type([block/0, expand/0, args/0, tag/0, attr/0, inner_attr/0]).
@@ -14,24 +14,24 @@
 %% -----------------------------------------------------------------------------
 
 %% Any AST element.
--type ast() :: source()
-             | int_lit()
-             | float_lit() 
-             | atom_lit()
-             | str_lit()
-             | ident()
-             | type_param()
-             | blank()
-             | op()
-             | block()
-             | expand()
-             | args()
-             | tag()
-             | attr()
-             | inner_attr().
+-type t() :: source()
+           | int_lit()
+           | float_lit() 
+           | atom_lit()
+           | str_lit()
+           | ident()
+           | type_param()
+           | blank()
+           | op()
+           | block()
+           | expand()
+           | args()
+           | tag()
+           | attr()
+           | inner_attr().
 
 %% Top AST element.
--type source() :: {source, meta(), [ast()]}.
+-type source() :: {source, meta(), [t()]}.
 
 %% Literals.
 -type int_lit()   :: {int_lit, meta(), integer()}.
@@ -46,22 +46,22 @@
 -type op()         :: {op, meta(), atom()}.
 
 %% Group of expressions.
--type block() :: {block, meta(), [ast()]}.
+-type block() :: {block, meta(), [t()]}.
 
 %% Expand element and arguments.
--type expand() :: {expand, meta(), ast(), [ast()]}.
--type args()   :: {args, meta(), [ast()]}.
+-type expand() :: {expand, meta(), t(), [t()]}.
+-type args()   :: {args, meta(), [t()]}.
 
 %% Tags and attributes.
--type tag()        :: {tag, meta(), ast(), ast()}.
--type attr()       :: {attr, meta(), ast(), ast()}.
--type inner_attr() :: {inner_attr, meta(), ast()}.
+-type tag()        :: {tag, meta(), t(), t()}.
+-type attr()       :: {attr, meta(), t(), t()}.
+-type inner_attr() :: {inner_attr, meta(), t()}.
 
 %% AST metadata.
 -type meta() :: [term()].
 
 %% Get metadata from an AST element.
--spec meta(ast()) -> meta().
+-spec meta(t()) -> meta().
 meta({source, Meta, _})     -> Meta;
 meta({int_lit, Meta, _})    -> Meta;
 meta({float_lit, Meta, _})  -> Meta;
@@ -79,4 +79,5 @@ meta({attr, Meta, _, _})    -> Meta;
 meta({inner_attr, Meta, _}) -> Meta.
 
 %% Get metadata from multiple AST elements at once.
+-spec metas([t()]) -> [meta()].
 metas(Asts) when is_list(Asts) -> [meta(Ast) || Ast <- Asts].

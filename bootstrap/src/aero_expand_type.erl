@@ -9,7 +9,7 @@
 %% -----------------------------------------------------------------------------
 
 %% Expand a type.
--spec expand_type(aero_ast:ast(), aero_env:env()) -> {aero_core:c_type(), aero_env:env()}.
+-spec expand_type(aero_ast:t(), aero_env:t()) -> {aero_core:c_type(), aero_env:t()}.
 
 %% Builtins.
 expand_type({ident, _, bool}, Env) ->
@@ -110,7 +110,7 @@ expand_type(Type, _) ->
   throw({expand_error, {type_invalid, aero_ast:meta(Type)}}).
 
 %% Expand a list of types.
--spec expand_types([aero_ast:ast()], aero_env:env()) -> {[aero_core:c_type()], aero_env:env()}.
+-spec expand_types([aero_ast:t()], aero_env:t()) -> {[aero_core:c_type()], aero_env:t()}.
 expand_types(Args, Env) ->
   {Types, TypeEnv} =
     lists:foldl(fun(Arg, {TypeAcc, EnvAcc}) ->
@@ -121,16 +121,16 @@ expand_types(Args, Env) ->
   {lists:reverse(Types), TypeEnv}.
 
 %% Expand a where clause.
--spec expand_where_clause(aero_ast:ast(), aero_env:env()) ->
-        {{aero_core:c_type(), aero_core:c_type()}, aero_env:env()}.
+-spec expand_where_clause(aero_ast:t(), aero_env:t()) ->
+        {{aero_core:c_type(), aero_core:c_type()}, aero_env:t()}.
 expand_where_clause(Where, _Env) ->
   %% TODO: implement.
   throw({expand_error, {type_where_invalid, aero_ast:meta(Where)}}).
 
 %% Expand a list of where clauses.
 -dialyzer({no_return, expand_where_clauses/2}).
--spec expand_where_clauses([aero_ast:ast()], aero_env:env()) ->
-        {[{aero_core:c_type(), aero_core:c_type()}], aero_env:env()}.
+-spec expand_where_clauses([aero_ast:t()], aero_env:t()) ->
+        {[{aero_core:c_type(), aero_core:c_type()}], aero_env:t()}.
 expand_where_clauses(Wheres, Env) ->
   {Wheres, WhereEnv} =
     lists:foldl(fun(Arg, {WhereAcc, EnvAcc}) ->

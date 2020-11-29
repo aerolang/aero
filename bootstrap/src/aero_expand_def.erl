@@ -9,7 +9,7 @@
 %% -----------------------------------------------------------------------------
 
 %% Expand a definition.
--spec expand_def(aero_ast:ast(), aero_env:env()) -> {aero_core:c_def(), aero_env:env()}.
+-spec expand_def(aero_ast:t(), aero_env:t()) -> {aero_core:c_def(), aero_env:t()}.
 
 %% Private definitions.
 expand_def({expand, Meta, {ident, _, func}, Args}, Env) ->

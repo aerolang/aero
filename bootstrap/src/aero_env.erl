@@ -20,7 +20,7 @@
          lookup_type_var/2, register_type_var/2, inferred_type_var/1, clear_type_vars/1,
          clear_all_vars/1, reset_counter/1]).
 
--export_type([env/0, counter/0]).
+-export_type([t/0, counter/0]).
 
 %% -----------------------------------------------------------------------------
 %% Public API
@@ -34,50 +34,53 @@
               counter        :: counter()}).
 
 %% Environment.
--type env() :: #env{}.
+-type t() :: #env{}.
 
 %% Environment variable counter.
 -opaque counter() :: counters:counters_ref().
 
 %% Create a new environment.
--spec new(binary()) -> env().
+-spec new(binary()) -> t().
 new(Filename) ->
   #env{filename = Filename, counter = counters:new(1, [])}.
 
 %% Create an environment with an existing counter.
--spec new(binary(), counter()) -> env().
+-spec new(binary(), counter()) -> t().
 new(Filename, Counter) ->
   #env{filename = Filename, counter = Counter}.
 
 %% Get the filename.
--spec filename(env()) -> binary().
+-spec filename(t()) -> binary().
 filename(Env) ->
   Env#env.filename.
 
 %% Get all definitions.
--spec defs(env()) -> [aero_core:c_path()].
+-spec defs(t()) -> [aero_core:c_path()].
 defs(Env) ->
   element(2, lists:unzip(Env#env.defs)).
 
 %% Get all variables.
+-spec vars(t()) -> [aero_core:c_var()].
 vars(Env) ->
   element(2, lists:unzip(Env#env.vars)).
 
 %% Get all pattern variables.
+-spec pat_vars(t()) -> [aero_core:c_pat_var()].
 pat_vars(Env) ->
   element(2, lists:unzip(Env#env.pat_vars)).
 
 %% Get all type variables.
+-spec type_vars(t()) -> [aero_core:c_type_var()].
 type_vars(Env) ->
   element(2, lists:unzip(Env#env.type_vars)).
 
 %% Get the counter.
--spec counter(env()) -> counter().
+-spec counter(t()) -> counter().
 counter(Env) ->
   Env#env.counter.
 
 %% Get a definition by its name.
--spec lookup_def(env(), aero_ast:ident()) -> aero_core:c_path() | undefined.
+-spec lookup_def(t(), aero_ast:ident()) -> aero_core:c_path() | undefined.
 lookup_def(Env, {ident, _, IdentName}) ->
   case proplists:get_value(IdentName, Env#env.defs) of
     undefined -> undefined;
@@ -85,19 +88,19 @@ lookup_def(Env, {ident, _, IdentName}) ->
   end.
 
 %% Create a definition from an identifier and save it to the env.
--spec register_def(env(), aero_ast:ident()) -> {env(), aero_core:c_path()}.
+-spec register_def(t(), aero_ast:ident()) -> {t(), aero_core:c_path()}.
 register_def(Env, {ident, _, IdentName}) ->
   Path = aero_core:c_path([], [aero_core:c_var([], IdentName)]),
 
   {Env#env{defs = [{IdentName, Path} | Env#env.defs]}, Path}.
 
 %% Clear definitions in the environment.
--spec clear_defs(env()) -> env().
+-spec clear_defs(t()) -> t().
 clear_defs(Env) ->
   Env#env{defs = []}.
 
 %% Get a variable by its name.
--spec lookup_var(env(), aero_ast:ident()) -> aero_core:c_var() | undefined.
+-spec lookup_var(t(), aero_ast:ident()) -> aero_core:c_var() | undefined.
 lookup_var(Env, {ident, _, IdentName}) ->
   case proplists:get_value(IdentName, Env#env.vars) of
     undefined -> undefined;
@@ -105,7 +108,7 @@ lookup_var(Env, {ident, _, IdentName}) ->
   end.
 
 %% Create a fresh variable name from an identifier and save it to the env.
--spec register_var(env(), aero_ast:ident()) -> {env(), aero_core:c_var()}.
+-spec register_var(t(), aero_ast:ident()) -> {t(), aero_core:c_var()}.
 register_var(Env, {ident, _, IdentName}) ->
   Num = incr_counter(Env),
   VarName = list_to_atom(atom_to_list(IdentName) ++ "_" ++ integer_to_list(Num)),
@@ -114,18 +117,18 @@ register_var(Env, {ident, _, IdentName}) ->
   {Env#env{vars = [{IdentName, Var} | Env#env.vars]}, Var}.
 
 %% Create a temporary variable, not saved to the environment.
--spec tmp_var(env()) -> aero_core:c_var().
+-spec tmp_var(t()) -> aero_core:c_var().
 tmp_var(Env) ->
   Num = incr_counter(Env),
   aero_core:c_var([], list_to_atom("_" ++ integer_to_list(Num))).
 
 %% Clear variables in the environment.
--spec clear_vars(env()) -> env().
+-spec clear_vars(t()) -> t().
 clear_vars(Env) ->
   Env#env{vars = []}.
 
 %% Get a pattern variable by its name.
--spec lookup_pat_var(env(), aero_ast:ident()) -> aero_core:c_pat_var() | undefined.
+-spec lookup_pat_var(t(), aero_ast:ident()) -> aero_core:c_pat_var() | undefined.
 lookup_pat_var(Env, {ident, _, IdentName}) ->
   case proplists:get_value(IdentName, Env#env.pat_vars) of
     undefined -> undefined;
@@ -137,7 +140,7 @@ lookup_pat_var(Env, {ident, _, IdentName}) ->
 %% lookup_pat_var/2 should be used to check for existing pattern variables
 %% before registering. A regular variable is also saved to the environment for
 %% expressions outside the pattern.
--spec register_pat_var(env(), aero_ast:ident()) -> {env(), aero_core:c_pat_var()}.
+-spec register_pat_var(t(), aero_ast:ident()) -> {t(), aero_core:c_pat_var()}.
 register_pat_var(Env, {ident, _, IdentName}) ->
   Num = incr_counter(Env),
   VarName = list_to_atom(atom_to_list(IdentName) ++ "_" ++ integer_to_list(Num)),
@@ -151,18 +154,18 @@ register_pat_var(Env, {ident, _, IdentName}) ->
   {NewEnv, PatVar}.
 
 %% Create a wildcard pattern variable, not saved to the environment.
--spec wildcard_pat_var(env()) -> aero_core:c_pat_var().
+-spec wildcard_pat_var(t()) -> aero_core:c_pat_var().
 wildcard_pat_var(Env) ->
   Num = incr_counter(Env),
   aero_core:c_pat_var([], list_to_atom("_" ++ integer_to_list(Num))).
 
 %% Clear pattern variables in the environment.
--spec clear_pat_vars(env()) -> env().
+-spec clear_pat_vars(t()) -> t().
 clear_pat_vars(Env) ->
   Env#env{pat_vars = []}.
 
 %% Get a type variable by its name.
--spec lookup_type_var(env(), aero_ast:type_param()) -> aero_core:c_type_var() | undefined.
+-spec lookup_type_var(t(), aero_ast:type_param()) -> aero_core:c_type_var() | undefined.
 lookup_type_var(Env, {type_param, _, ParamName}) ->
   case proplists:get_value(ParamName, Env#env.type_vars) of
     undefined -> undefined;
@@ -170,7 +173,7 @@ lookup_type_var(Env, {type_param, _, ParamName}) ->
   end.
 
 %% Create a type variable from an identifier and save it to the env.
--spec register_type_var(env(), aero_ast:type_param()) -> {env(), aero_core:c_type_var()}.
+-spec register_type_var(t(), aero_ast:type_param()) -> {t(), aero_core:c_type_var()}.
 register_type_var(Env, {type_param, _, ParamName}) ->
   TypeVarName = list_to_atom(atom_to_list(ParamName) ++ "_0"),
   TypeVar = aero_core:c_type_var([], TypeVarName),
@@ -178,23 +181,23 @@ register_type_var(Env, {type_param, _, ParamName}) ->
   {Env#env{type_vars = [{ParamName, TypeVar} | Env#env.type_vars]}, TypeVar}.
 
 %% Create an inferred type variable, not saved to the environment.
--spec inferred_type_var(env()) -> aero_core:c_type_var().
+-spec inferred_type_var(t()) -> aero_core:c_type_var().
 inferred_type_var(Env) ->
   Num = incr_counter(Env),
   aero_core:c_type_var([], list_to_atom("_" ++ integer_to_list(Num))).
 
 %% Clear type variables in the environment.
--spec clear_type_vars(env()) -> env().
+-spec clear_type_vars(t()) -> t().
 clear_type_vars(Env) ->
   Env#env{type_vars = []}.
 
 %% Clear all variable types.
--spec clear_all_vars(env()) -> env().
+-spec clear_all_vars(t()) -> t().
 clear_all_vars(Env) ->
   Env#env{vars = [], pat_vars = [], type_vars = []}.
 
 %% Reset the counter.
--spec reset_counter(env()) -> env().
+-spec reset_counter(t()) -> t().
 reset_counter(Env) ->
   Env#env{counter = counters:new(1, [])}.
 

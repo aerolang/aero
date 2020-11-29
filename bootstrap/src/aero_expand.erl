@@ -15,7 +15,7 @@
 %% Public API
 %% -----------------------------------------------------------------------------
 
--spec expand(aero_ast:ast(), aero_env:env()) -> {ok, aero_core:c_pkg()} | {error, term()}.
+-spec expand(aero_ast:t(), aero_env:t()) -> {ok, aero_core:c_pkg()} | {error, term()}.
 expand(Source, Env) ->
   try expand_source(Source, Env) of
     Package -> {ok, Package}

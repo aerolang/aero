@@ -9,7 +9,7 @@
 %% -----------------------------------------------------------------------------
 
 %% Expand a pattern.
--spec expand_pat(aero_ast:ast(), aero_env:env()) -> {aero_core:c_pat(), aero_env:env()}.
+-spec expand_pat(aero_ast:t(), aero_env:t()) -> {aero_core:c_pat(), aero_env:t()}.
 expand_pat(Ast, Env) ->
   % Patterns store the variables bound during this pattern to prevent them from
   % being repeating, but all the pattern vars are cleared.

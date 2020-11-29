@@ -4,7 +4,7 @@
 
 -export([meta/1, metas/1]).
 
--export_type([token/0]).
+-export_type([t/0]).
 -export_type([int_lit/0, float_lit/0, atom_lit/0, str_lit/0]).
 -export_type([ident/0, type_param/0, blank/0, op/0]).
 -export_type([space/0, newline/0, eof/0]).
@@ -14,17 +14,17 @@
 %% -----------------------------------------------------------------------------
 
 %% Any token.
--type token() :: int_lit()
-               | float_lit()
-               | atom_lit()
-               | str_lit()
-               | ident()
-               | type_param()
-               | blank()
-               | op()
-               | space()
-               | newline()
-               | eof().
+-type t() :: int_lit()
+           | float_lit()
+           | atom_lit()
+           | str_lit()
+           | ident()
+           | type_param()
+           | blank()
+           | op()
+           | space()
+           | newline()
+           | eof().
 
 %% Literals.
 -type int_lit()   :: {int_lit, meta(), integer()}.
@@ -47,7 +47,7 @@
 -type meta() :: [term()].
 
 %% Get metadata from a token.
--spec meta(token()) -> meta().
+-spec meta(t()) -> meta().
 meta({int_lit, Meta, _})    -> Meta;
 meta({float_lit, Meta, _})  -> Meta;
 meta({atom_lit, Meta, _})   -> Meta;
