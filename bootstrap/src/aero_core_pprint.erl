@@ -21,14 +21,16 @@ pprint({c_pkg, _, _, Modules}) ->
 
 %% Definitions.
 
-pprint({c_mod, _, Name, _Attrs, Defs}, Level) ->
+pprint({c_mod, _, Path, _Attrs, Defs}, Level) ->
   DefStrs = lists:join($\n, pprint_args(Defs, Level)),
-  format([module, Name, [], DefStrs], Level);
+  format([module, Path, [], DefStrs], Level);
 
 pprint({c_def_func, _, Path, Vis, Func}, Level) ->
   format([def, Vis, func, Path, pprint_arg(Func, Level)], Level);
 pprint({c_def_const, _, Path, Vis, Type, Expr}, Level) ->
   format([def, Vis, const, Path, pprint_arg(Type, Level), pprint_arg(Expr, Level)], Level);
+pprint({c_def_mod, _, Path, Vis}, Level) ->
+  format([def, Vis, mod, Path], Level);
 
 pprint(c_vis_pub, _Level) ->
   "pub";

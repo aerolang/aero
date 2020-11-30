@@ -1,7 +1,7 @@
 %%% Aero scope environment information.
 %%%
-%%% The environment tracks the filename along with definitions, variables, and
-%%% pattern variables.
+%%% The environment tracks the current scope along with definitions, variables,
+%%% and pattern variables.
 %%%
 %%% Definitions are tracked to make to possible to detect a duplicate definition
 %%% name in the same scope. Variables are created with numbers at the end to be
@@ -14,11 +14,13 @@
 
 -module(aero_env).
 
--export([new/1, new/2, filename/1, defs/1, vars/1, pat_vars/1, type_vars/1, counter/1]).
+-export([new/2, module/1, filename/1, defs/1, vars/1, pat_vars/1, type_vars/1, counter/1]).
+-export([append_module/2]).
 -export([lookup_def/2, register_def/2, clear_defs/1, lookup_var/2, register_var/2, tmp_var/1,
          clear_vars/1, lookup_pat_var/2, register_pat_var/2, wildcard_pat_var/1, clear_pat_vars/1,
          lookup_type_var/2, register_type_var/2, inferred_type_var/1, clear_type_vars/1,
-         clear_all_vars/1, reset_counter/1]).
+         clear_all_vars/1]).
+-export([reset_counter/1]).
 
 -export_type([t/0, counter/0]).
 
@@ -27,6 +29,7 @@
 %% -----------------------------------------------------------------------------
 
 -record(env, {filename       :: binary(),
+              module         :: aero_core:c_path(),
               defs      = [] :: [{atom(), aero_core:c_path()}],
               vars      = [] :: [{atom(), aero_core:c_var()}],
               pat_vars  = [] :: [{atom(), aero_core:c_pat_var()}],
@@ -40,19 +43,19 @@
 -opaque counter() :: counters:counters_ref().
 
 %% Create a new environment.
--spec new(binary()) -> t().
-new(Filename) ->
-  #env{filename = Filename, counter = counters:new(1, [])}.
-
-%% Create an environment with an existing counter.
--spec new(binary(), counter()) -> t().
-new(Filename, Counter) ->
-  #env{filename = Filename, counter = Counter}.
+-spec new(binary(), aero_core:c_path()) -> t().
+new(Filename, Module) ->
+  #env{filename = Filename, module = Module, counter = counters:new(1, [])}.
 
 %% Get the filename.
 -spec filename(t()) -> binary().
 filename(Env) ->
   Env#env.filename.
+
+%% Get the module.
+-spec module(t()) -> aero_core:c_path().
+module(Env) ->
+  Env#env.module.
 
 %% Get all definitions.
 -spec defs(t()) -> [aero_core:c_path()].
@@ -78,6 +81,13 @@ type_vars(Env) ->
 -spec counter(t()) -> counter().
 counter(Env) ->
   Env#env.counter.
+
+%% Add a segment to the module name.
+-spec append_module(t(), aero_ast:ident()) -> t().
+append_module(Env, {ident, _, IdentName}) ->
+  {c_path, _, CurrModules} = Env#env.module,
+
+  Env#env{module = aero_core:c_path([], CurrModules ++ [aero_core:c_var([], IdentName)])}.
 
 %% Get a definition by its name.
 -spec lookup_def(t(), aero_ast:ident()) -> aero_core:c_path() | undefined.

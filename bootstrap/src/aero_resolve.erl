@@ -30,7 +30,9 @@ resolve_module({c_mod, Meta, Path, Attrs, Defs}, Index) ->
 
 resolve_def({c_def_func, Meta, Path, Vis, Func}, Index) ->
   aero_core:c_def_func(Meta, Path, Vis, resolve_expr(Func, Index));
-resolve_def(Def, _Index) ->
+resolve_def({c_def_const, Meta, Path, Vis, Type, Expr}, Index) ->
+  aero_core:c_def_const(Meta, Path, Vis, Type, resolve_expr(Expr, Index));
+resolve_def({c_def_mod, _, _, _} = Def, _Index) ->
   Def.
 
 %% Resolving paths.
@@ -97,12 +99,14 @@ resolve_expr(Expr, _Index) ->
 
 %% Produce an index of all module members for searching.
 index({c_pkg, _, _, Modules}) ->
-  List = lists:flatmap(fun({c_mod, _, ModPath, _, Defs}) ->
+  List = lists:flatmap(fun({c_mod, _, ParentPath, _, Defs}) ->
     lists:map(fun
       ({c_def_func, _, FuncPath, Vis, _}) ->
-        {path_key([ModPath, FuncPath]), {Vis, c_def_func}};
+        {path_key([ParentPath, FuncPath]), {Vis, c_def_func}};
       ({c_def_const, _, ConstPath, Vis, _, _}) ->
-        {path_key([ModPath, ConstPath]), {Vis, c_def_const}}
+        {path_key([ParentPath, ConstPath]), {Vis, c_def_const}};
+      ({c_def_mod, _, ModPath, Vis}) ->
+        {path_key([ParentPath, ModPath]), {Vis, c_def_mod}}
     end, Defs)  
   end, Modules),
 

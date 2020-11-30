@@ -17,19 +17,21 @@
 lift({c_pkg, Meta, Name, Modules}) ->
   LiftedModules =
     lists:map(fun({c_mod, ModMeta, Path, Attrs, Defs}) ->
-      {c_mod, ModMeta, Path, Attrs, lists:map(fun lift_def/1, Defs)}
+      aero_core:c_mod(ModMeta, Path, Attrs, lists:map(fun lift_def/1, Defs))
     end, Modules),
 
-  {ok, {c_pkg, Meta, Name, LiftedModules}}.
+  {ok, aero_core:c_pkg(Meta, Name, LiftedModules)}.
 
 %% -----------------------------------------------------------------------------
 %% Helper Functions
 %% -----------------------------------------------------------------------------
  
 lift_def({c_def_func, Meta, Path, Vis, Func}) ->
-  {c_def_func, Meta, Path, Vis, lift_expr(Func, def_env(Meta))};
+  aero_core:c_def_func(Meta, Path, Vis, lift_expr(Func, def_env(Meta)));
 lift_def({c_def_const, Meta, Path, Vis, Type, Expr}) ->
-  {c_def_const, Meta, Path, Vis, Type, lift_expr(Expr, def_env(Meta))}.
+  aero_core:c_def_const(Meta, Path, Vis, Type, lift_expr(Expr, def_env(Meta)));
+lift_def({c_def_mod, _, _, _} = Def) ->
+  Def.
 
 lift_expr({c_block, Meta, Exprs}, Env) ->
   aero_core:c_block(Meta, [lift_expr(Expr, Env) || Expr <- Exprs]);
@@ -198,4 +200,4 @@ is_var({c_path, _, _}) -> true;
 is_var(_)              -> false.
 
 def_env(Meta) ->
-  aero_env:new(<<"nofile">>, proplists:get_value(counter, Meta)).
+  proplists:get_value(env, Meta).

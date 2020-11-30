@@ -8,11 +8,13 @@
 %% Public API
 %% -----------------------------------------------------------------------------
 
+%% Compile an Aero file.
+-spec compile(binary(), [term()]) -> {ok, non_neg_integer()} | {error, term()}.
 compile(InputFile, Options) ->
   Passes = lists:flatten([
     {fun aero_scan:scan/1, []},
     {fun aero_parse:parse/1, []},
-    {fun aero_expand:expand/2, [aero_env:new(InputFile)]},
+    {fun aero_expand:expand/1, []},
     {fun aero_lift:lift/1, []},
     {fun aero_resolve:resolve/1, []},
 
@@ -94,9 +96,10 @@ write_escript(Modules) ->
 %% Write Core Aero into the output directory instead if requested.
 write_core({c_pkg, _, _, CoreModules} = Package) ->
   CoreDir = filename:join([aero_session:out_dir(), <<"core">>]),
-  Names = [Name || {c_mod, _, {c_path, _, [{c_var, _, Name}]}, _, _} <- CoreModules],
+  Basenames = lists:map(fun core_filename/1, CoreModules),
+
   Strings = aero_core_pprint:pprint(Package),
-  Modules = lists:zip(Names, Strings),
+  Modules = lists:zip(Basenames, Strings),
 
   case filelib:ensure_dir(filename:join([CoreDir, <<".">>])) of
     ok                 -> write_core(Modules, CoreDir, 0);
@@ -105,10 +108,11 @@ write_core({c_pkg, _, _, CoreModules} = Package) ->
 
 write_core([], _, Acc) ->
   {ok, Acc};
-write_core([{Name, String} | T], CoreDir, Acc) ->
-  Filename = filename:join([CoreDir, atom_to_list(Name) ++ ".c-aero"]),
-
-  case file:write_file(Filename, <<String/binary, "\n">>) of
+write_core([{Basename, String} | T], CoreDir, Acc) ->
+  case file:write_file(filename:join([CoreDir, Basename]), <<String/binary, "\n">>) of
     ok                 -> write_core(T, CoreDir, Acc + 1);
     {error, _} = Error -> Error
   end.
+
+core_filename({c_mod, _, {c_path, _, Vars}, _, _}) ->
+  lists:join($., [Name || {c_var, _, Name} <- Vars]) ++ ".c-aero".

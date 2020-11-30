@@ -42,9 +42,10 @@ generate_entry_point(Main) ->
 %% Helper Functions
 %% -----------------------------------------------------------------------------
 
-generate(PkgName, [CoreModule | Tail], Acc) ->
-  {c_mod, _, {c_path, _, [{c_var, _, Name}]}, _, _} = CoreModule,
-  CerlName = list_to_atom(atom_to_list(PkgName) ++ "." ++ atom_to_list(Name)),
+generate(PkgName, [{c_mod, _, {c_path, _, Vars}, _, _} = CoreModule | Tail], Acc) ->
+  VarStrings = [atom_to_list(Name) || {c_var, _, Name} <- Vars],
+
+  CerlName = list_to_atom(lists:flatten(lists:join($., [atom_to_list(PkgName) | VarStrings]))),
   CerlModule = gen_module(CerlName, CoreModule),
 
   case compile:noenv_forms(CerlModule, [from_core, return_errors]) of
@@ -68,6 +69,7 @@ gen_module(Name, {c_mod, _, _, Attrs, Defs}) ->
   {CerlExports, CerlDefs} =
     lists:foldl(fun(Def, {AccExports, AccDefs}) ->
       case gen_def(Def) of
+        skip                          -> {AccExports, AccDefs};
         {no_export, CerlDef}          -> {AccExports, [CerlDef | AccDefs]};
         {export, CerlExport, CerlDef} -> {[CerlExport | AccExports], [CerlDef | AccDefs]}
       end
@@ -85,12 +87,20 @@ gen_def({c_def_func, _, {c_path, _, [{c_var, _, FuncName}]}, Vis, Func}) ->
     c_vis_priv -> {no_export, Def}
   end;
 
-gen_def({c_def_const, _, {c_path, _, [{c_var, _, FuncName}]}, Vis, _Type, Expr}) ->
-  FName = cerl:c_fname(const_name(FuncName), 0),
+gen_def({c_def_const, _, {c_path, _, [{c_var, _, ConstName}]}, Vis, _Type, Expr}) ->
+  FName = cerl:c_fname(const_name(ConstName), 0),
   Def = {FName, cerl:c_fun([], gen_expr(Expr))},
   case Vis of
     c_vis_pub  -> {export, FName, Def};
     c_vis_priv -> {no_export, Def}
+  end;
+
+gen_def({c_def_mod, _, {c_path, _, [{c_var, _, ModName}]}, Vis}) ->
+  FName = cerl:c_fname(mod_name(ModName), 0),
+  Def = {FName, cerl:c_fun([], cerl:abstract(ModName))},
+  case Vis of
+    c_vis_pub  -> {export, FName, Def};
+    c_vis_priv -> skip
   end.
 
 %% Expressions.
@@ -232,8 +242,11 @@ gen_pat({c_pat_var, _, VarName}) ->
 
 %% Utilities.
 
-const_name(FuncName) ->
-  list_to_atom("const@" ++ atom_to_list(FuncName)).
+const_name(ConstName) ->
+  list_to_atom("const@" ++ atom_to_list(ConstName)).
+
+mod_name(ModName) ->
+  list_to_atom("mod@" ++ atom_to_list(ModName)).
 
 arity({c_func, _, Args, _, _, _}) ->
   length(Args).

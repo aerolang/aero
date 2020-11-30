@@ -9,13 +9,16 @@
 %% -----------------------------------------------------------------------------
 
 %% Expand a definition.
--spec expand_def(aero_ast:t(), aero_env:t()) -> {aero_core:c_def(), aero_env:t()}.
+-spec expand_def(aero_ast:t(), aero_env:t()) ->
+        {aero_core:c_def(), aero_env:t(), [aero_core:c_mod()]}.
 
 %% Private definitions.
 expand_def({expand, Meta, {ident, _, func}, Args}, Env) ->
   expand_func_def(Args, Meta, c_vis_priv, Env);
 expand_def({expand, Meta, {ident, _, const}, Args}, Env) ->
   expand_const_def(Args, Meta, c_vis_priv, Env);
+expand_def({expand, Meta, {ident, _, mod}, Args}, Env) ->
+  expand_mod_def(Args, Meta, c_vis_priv, Env);
 
 %% Public definitions.
 expand_def({expand, Meta, {ident, _, pub}, PubArgs}, Env) ->
@@ -24,6 +27,8 @@ expand_def({expand, Meta, {ident, _, pub}, PubArgs}, Env) ->
       expand_func_def(Args, Meta, c_vis_pub, Env);
     [{expand, _, {ident, _, const}, Args}] ->
       expand_const_def(Args, Meta, c_vis_pub, Env);
+    [{expand, _, {ident, _, mod}, Args}] ->
+      expand_mod_def(Args, Meta, c_vis_pub, Env);
     _ ->
       throw({expand_error, {pub_invalid, aero_ast:meta(Meta)}})
   end;
@@ -36,6 +41,7 @@ expand_def(Def, _Env) ->
 %% Helper Functions
 %% -----------------------------------------------------------------------------
 
+%% Functions.
 expand_func_def([{expand, _, {op, _, '_=_'}, [FuncHead, FuncBody]}], FuncMeta, Vis, Env) ->
   % Function definition variant with assignment to an anonymous function on the right.
   Where = [],
@@ -56,9 +62,9 @@ expand_func_def([{expand, _, {op, _, '_=_'}, [FuncHead, FuncBody]}], FuncMeta, V
           NewArgs = lists:zip(ExprVars, ArgTypes),
 
           Func = aero_core:c_func([], NewArgs, ResultType, Where, ExprBody),
-          Def = aero_core:c_def_func([{counter, aero_env:counter(BodyEnv)}], Path, Vis, Func),
+          Def = aero_core:c_def_func([{env, BodyEnv}], Path, Vis, Func),
 
-          {Def, DefEnv};
+          {Def, DefEnv, []};
         {c_func, _, _, _, _, _} ->
           throw({expand_error, {func_def_eq_arity_mismatch, FuncMeta}});
         _ ->
@@ -73,9 +79,9 @@ expand_func_def([FuncHead, FuncBody], _FuncMeta, Vis, Env) ->
   Body = expand_func_def_body(FuncBody, BodyEnv),
 
   Func = aero_core:c_func([], Args, Result, Where, Body),
-  Def = aero_core:c_def_func([{counter, aero_env:counter(BodyEnv)}], Path, Vis, Func),
+  Def = aero_core:c_def_func([{env, BodyEnv}], Path, Vis, Func),
 
-  {Def, DefEnv};
+  {Def, DefEnv, []};
 expand_func_def(_, FuncMeta, _, _) ->
   throw({expand_error, {func_def_invalid, FuncMeta}}).
 
@@ -121,6 +127,7 @@ expand_func_def_body({block, _, _} = Block, Env) ->
 expand_func_def_body(FuncBody, _Env) ->
   throw({expand_error, {func_def_body_invalid, aero_ast:meta(FuncBody)}}).
 
+%% Constants.
 expand_const_def([{expand, _, {op, _, '_=_'}, [ConstLeft, ConstExpr]}], ConstMeta, Vis, Env) ->
   case ConstLeft of
     {tag, _, {ident, _, _} = Ident, TagType} ->
@@ -129,9 +136,9 @@ expand_const_def([{expand, _, {op, _, '_=_'}, [ConstLeft, ConstExpr]}], ConstMet
       {Type, BodyEnv} = aero_expand_type:expand_type(TagType, aero_env:reset_counter(Env)),
 
       Expr = aero_expand_expr:expand_expr(ConstExpr, BodyEnv),
-      Def = aero_core:c_def_const([{counter, aero_env:counter(BodyEnv)}], Path, Vis, Type, Expr),
+      Def = aero_core:c_def_const([{env, BodyEnv}], Path, Vis, Type, Expr),
 
-      {Def, DefEnv};
+      {Def, DefEnv, []};
     {ident, _, _} ->
       throw({expand_error, {const_def_missing_type, ConstMeta}});
     _ ->
@@ -139,6 +146,36 @@ expand_const_def([{expand, _, {op, _, '_=_'}, [ConstLeft, ConstExpr]}], ConstMet
   end;
 expand_const_def(_, ConstMeta, _, _) ->
   throw({expand_error, {const_def_invalid, ConstMeta}}).
+
+%% Modules.
+expand_mod_def([Ident, Body], ModMeta, Vis, Env) ->
+  {DefEnv, Path} =
+    case Ident of
+      {ident, _, _} ->
+        check_existing_def(Env, Ident),
+        aero_env:register_def(Env, Ident);
+      _ ->
+        throw({expand_error, {mod_name_invalid, ModMeta}})
+    end,
+  case Body of
+    {block, _, BlockArgs} ->
+      BodyEnv = aero_env:append_module(aero_env:clear_defs(Env), Ident),
+
+      {Defs, _, InnerModules} =
+        lists:foldl(fun(BlockArg, {Defs, EnvAcc, InnerModulesAcc}) ->
+          {Def, NewEnv, NewModules} = aero_expand_def:expand_def(BlockArg, EnvAcc),
+          {[Def | Defs], NewEnv, [NewModules | InnerModulesAcc]}
+        end, {[], BodyEnv, []}, BlockArgs),
+
+      Module = aero_core:c_mod([], aero_env:module(BodyEnv), [], lists:reverse(Defs)),
+      ModuleDef = aero_core:c_def_mod([], Path, Vis),
+
+      {ModuleDef, DefEnv, lists:flatten([Module | lists:reverse(InnerModules)])};
+    _ ->
+      throw({expand_error, {mod_body_invalid, ModMeta}})
+  end;
+expand_mod_def(_, ModMeta, _, _) ->
+  throw({expand_error, {mod_def_invalid, ModMeta}}).
 
 check_existing_def(Env, Ident) ->
   case aero_env:lookup_def(Env, Ident) of

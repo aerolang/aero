@@ -10,7 +10,7 @@
 
 -module(aero_core).
 
--export([c_pkg/3, c_mod/4, c_def_func/4, c_def_const/5]).
+-export([c_pkg/3, c_mod/4, c_def_func/4, c_def_const/5, c_def_mod/3]).
 -export([c_block/2, c_bool/2, c_int/2, c_float/2, c_atom/2, c_str/2, c_unit/1, c_tuple/2,
          c_cons/3, c_nil/1, c_dict/2, c_func/5, c_call/3, c_apply/3, c_var/2, c_path/2, c_let/4,
          c_letrec/4, c_match/3, c_args/2]).
@@ -23,7 +23,7 @@
          c_type_proto/3, c_type_union/2, c_type_inter/2, c_type_where/3]).
 
 -export_type([c_any/0]).
--export_type([c_pkg/0, c_mod/0, c_def/0, c_def_func/0, c_def_const/0, c_vis/0]).
+-export_type([c_pkg/0, c_mod/0, c_def/0, c_def_func/0, c_def_const/0, c_def_mod/0, c_vis/0]).
 -export_type([c_expr/0, c_block/0, c_bool/0, c_int/0, c_float/0, c_atom/0, c_str/0, c_unit/0,
               c_tuple/0, c_cons/0, c_nil/0,  c_dict/0, c_func/0, c_call/0, c_apply/0, c_var/0,
               c_path/0, c_let/0, c_letrec/0, c_match/0, c_args/0]).
@@ -58,10 +58,12 @@
 
 %% Definitions.
 -type c_def() :: c_def_func()
-               | c_def_const().
+               | c_def_const()
+               | c_def_mod().
 
 -type c_def_func()  :: {c_def_func, meta(), c_path(), c_vis(), c_func()}.
 -type c_def_const() :: {c_def_const, meta(), c_path(), c_vis(), c_type(), c_expr()}.
+-type c_def_mod()   :: {c_def_mod, meta(), c_path(), c_vis()}.
 
 %% Definition visibility.
 -type c_vis() :: c_vis_pub
@@ -288,6 +290,11 @@ c_def_func(Meta, Path, Vis, Func) ->
 -spec c_def_const(meta(), c_path(), c_vis(), c_type(), c_expr()) -> c_def_const().
 c_def_const(Meta, Path, Vis, Type, Expr) ->
   {c_def_const, Meta, Path, Vis, Type, Expr}.
+
+%% Create a module definition.
+-spec c_def_mod(meta(), c_path(), c_vis()) -> c_def_mod().
+c_def_mod(Meta, Path, Vis) ->
+  {c_def_mod, Meta, Path, Vis}.
 
 %% Create a block expression.
 -spec c_block(meta(), [c_expr()]) -> c_block().
