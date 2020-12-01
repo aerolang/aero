@@ -199,8 +199,8 @@ expand_expr({expand, Meta, {op, _, '_(_)'}, [Callee, {args, _, Args}]}, Env) ->
       CoreArgs = [expand_expr(Arg, Env) || Arg <- Args],
 
       case CoreCallee of
-        {c_var, _, _} -> aero_core:c_apply([], CoreCallee, CoreArgs);
-        _             -> aero_core:c_call([], CoreCallee, CoreArgs)
+        {c_var, _, _}  -> aero_core:c_apply([], CoreCallee, CoreArgs);
+        {c_path, _, _} -> aero_core:c_call([], CoreCallee, CoreArgs)
       end
   end;
 
@@ -209,6 +209,16 @@ expand_expr({ident, _, Name} = Ident, Env) ->
   case aero_env:lookup_var(Env, Ident) of
     undefined -> aero_core:c_path([], [aero_core:c_var([], Name)]);
     Var       -> Var
+  end;
+
+%% Paths and member access.
+expand_expr({expand, Meta, {op, _, '_._'}, [Left, {ident, _, Name}]}, Env) ->
+  case expand_expr(Left, Env) of
+    {c_path, _, Vars} ->
+      aero_core:c_path([], Vars ++ [aero_core:c_var([], Name)]);
+    _ ->
+      %% TODO: implement.
+      throw({expand_error, {member_access_invalid, Meta}})
   end;
 
 %% Arithmetic operators.

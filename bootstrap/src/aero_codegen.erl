@@ -43,9 +43,7 @@ generate_entry_point(Main) ->
 %% -----------------------------------------------------------------------------
 
 generate(PkgName, [{c_mod, _, {c_path, _, Vars}, _, _} = CoreModule | Tail], Acc) ->
-  VarStrings = [atom_to_list(Name) || {c_var, _, Name} <- Vars],
-
-  CerlName = list_to_atom(lists:flatten(lists:join($., [atom_to_list(PkgName) | VarStrings]))),
+  CerlName = cerl_name(Vars),
   CerlModule = gen_module(CerlName, CoreModule),
 
   case compile:noenv_forms(CerlModule, [from_core, return_errors]) of
@@ -159,16 +157,6 @@ gen_expr({c_func, _, Args, _Result, _Where, Body}) ->
 
   cerl:c_fun(CerlArgs, CerlBody);
 
-gen_expr({c_call, Meta, {c_path, _, [{c_var, _, Module}, {c_var, _, Function}]}, Args}) ->
-  CerlModule = cerl:abstract(Module),
-  CerlFunction =
-    case proplists:get_bool(const_call, Meta) of
-      false -> cerl:abstract(Function);
-      true  -> cerl:abstract(const_name(Function))
-    end,
-  CerlArgs = [gen_expr(Arg) || Arg <- Args],
-
-  cerl:c_call(CerlModule, CerlFunction, CerlArgs);
 gen_expr({c_call, Meta, {c_path, _, [{c_var, _, Function}]}, Args}) ->
   CerlFunction =
     case proplists:get_bool(const_call, Meta) of
@@ -178,6 +166,19 @@ gen_expr({c_call, Meta, {c_path, _, [{c_var, _, Function}]}, Args}) ->
   CerlArgs = [gen_expr(Arg) || Arg <- Args],
 
   cerl:c_apply(CerlFunction, CerlArgs);
+gen_expr({c_call, Meta, {c_path, _, Vars}, Args}) ->
+  Module = cerl_name(lists:droplast(Vars)),
+  {c_var, _, Function} = lists:last(Vars),
+
+  CerlModule = cerl:abstract(Module),
+  CerlFunction =
+    case proplists:get_bool(const_call, Meta) of
+      false -> cerl:abstract(Function);
+      true  -> cerl:abstract(const_name(Function))
+    end,
+  CerlArgs = [gen_expr(Arg) || Arg <- Args],
+
+  cerl:c_call(CerlModule, CerlFunction, CerlArgs);
 gen_expr({c_apply, _, {c_var, _, Function}, Args}) ->
   CerlFunction = cerl:c_var(Function),
   CerlArgs = [gen_expr(Arg) || Arg <- Args],
@@ -241,6 +242,10 @@ gen_pat({c_pat_var, _, VarName}) ->
   cerl:c_var(VarName).
 
 %% Utilities.
+
+cerl_name(Vars) ->
+  VarStrings = [atom_to_list(Name) || {c_var, _, Name} <- Vars],
+  list_to_atom(lists:flatten(lists:join($., VarStrings))).
 
 const_name(ConstName) ->
   list_to_atom("const@" ++ atom_to_list(ConstName)).

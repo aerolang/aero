@@ -115,15 +115,42 @@ index({c_pkg, _, _, Modules}) ->
 set_path(Index, Path) ->
   Index#index{module = Path}.
 
-lookup(Index, Path) ->
-  Key = path_key([Index#index.module, Path]),
-
-  % Looking in the same path, any visibility is fine.
-  case maps:get(Key, Index#index.members, none) of
-    none         -> none;
-    {_Vis, Type} -> {Path, Type}
-  end.
-
 %% Create a lookup key from the atoms inside a list of paths.
 path_key(Paths) ->
   lists:flatmap(fun({c_path, _, Vars}) -> [Name || {c_var, _, Name} <- Vars] end, Paths).
+
+%% Look up a name.
+lookup(Index, {c_path, _, Vars} = Path) when length(Vars) =:= 1 ->
+  Key = path_key([Index#index.module, Path]),
+
+  % Looking in the same path, any visibility is fine.
+  case maps:get(Key, Index#index.members) of
+    {_Vis, c_def_func}  -> {Path, c_def_func};
+    {_Vis, c_def_const} -> {Path, c_def_const};
+    _                   -> none
+  end;
+lookup(Index, Path) ->
+  % Not in the same directory, so we need to check if module definitions are
+  % public along the way.
+  lookup(Index, path_key([Index#index.module]), path_key([Path])).
+
+lookup(Index, Mod, [Name]) ->
+  Key = Mod ++ [Name],
+
+  case maps:get(Key, Index#index.members) of
+    {c_vis_pub, c_def_func}  -> {global_path(Key), c_def_func};
+    {c_vis_pub, c_def_const} -> {global_path(Key), c_def_const};
+    _                        -> none
+  end;
+lookup(Index, Base, [Mod | Name]) ->
+  Key = Base ++ [Mod],
+
+  case maps:get(Key, Index#index.members) of
+    {c_vis_pub, c_def_mod}  -> lookup(Index, Key, Name);
+    _                       -> none
+  end.
+
+%% Get a global path from a lookup key.
+global_path(Key) ->
+  aero_core:c_path([], [aero_session:pkg() | [aero_core:c_var([], Name) || Name <- Key]]).
+ 

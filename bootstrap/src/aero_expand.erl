@@ -20,7 +20,10 @@ expand(Source) ->
   Filename = aero_session:root(),
   RootName = binary_to_atom(filename:basename(Filename, ".aero"), utf8),
 
-  Env = aero_env:new(Filename, aero_core:c_path([], [aero_core:c_var([], RootName)])),
+  Env = aero_env:new(Filename, aero_core:c_path([], [
+    aero_core:c_var([], aero_session:pkg()),
+    aero_core:c_var([], RootName)
+  ])),
 
   try expand_source(Source, Env) of
     Package -> {ok, Package}
