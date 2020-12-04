@@ -14,8 +14,8 @@
 
 -module(aero_env).
 
--export([new/2, module/1, filename/1, defs/1, vars/1, pat_vars/1, type_vars/1, counter/1]).
--export([append_module/2]).
+-export([new/2]).
+-export([filename/1, module/1, append_module/2]).
 -export([lookup_def/2, register_def/2, clear_defs/1, lookup_var/2, register_var/2, tmp_var/1,
          clear_vars/1, lookup_pat_var/2, register_pat_var/2, wildcard_pat_var/1, clear_pat_vars/1,
          lookup_type_var/2, register_type_var/2, inferred_type_var/1, clear_type_vars/1,
@@ -56,31 +56,6 @@ filename(Env) ->
 -spec module(t()) -> aero_core:c_path().
 module(Env) ->
   Env#env.module.
-
-%% Get all definitions.
--spec defs(t()) -> [aero_core:c_path()].
-defs(Env) ->
-  element(2, lists:unzip(Env#env.defs)).
-
-%% Get all variables.
--spec vars(t()) -> [aero_core:c_var()].
-vars(Env) ->
-  element(2, lists:unzip(Env#env.vars)).
-
-%% Get all pattern variables.
--spec pat_vars(t()) -> [aero_core:c_pat_var()].
-pat_vars(Env) ->
-  element(2, lists:unzip(Env#env.pat_vars)).
-
-%% Get all type variables.
--spec type_vars(t()) -> [aero_core:c_type_var()].
-type_vars(Env) ->
-  element(2, lists:unzip(Env#env.type_vars)).
-
-%% Get the counter.
--spec counter(t()) -> counter().
-counter(Env) ->
-  Env#env.counter.
 
 %% Add a segment to the module name.
 -spec append_module(t(), aero_ast:ident()) -> t().
