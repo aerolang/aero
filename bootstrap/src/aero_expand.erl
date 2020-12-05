@@ -37,15 +37,10 @@ expand(Source) ->
 
 expand_source({source, _, SourceArgs}, Env) ->
   PkgName = aero_session:pkg(),
+  {Defs, _, InnerModules} = aero_expand_def:expand_defs(SourceArgs, Env),
 
-  {Defs, _, InnerModules} =
-    lists:foldl(fun(SourceArg, {Defs, EnvAcc, InnerModulesAcc}) ->
-      {Def, NewEnv, NewModules} = aero_expand_def:expand_def(SourceArg, EnvAcc),
-      {[Def | Defs], NewEnv, [NewModules | InnerModulesAcc]}
-    end, {[], Env, []}, SourceArgs),
+  Module = aero_core:c_mod([], aero_env:module(Env), [], Defs),
 
-  Module = aero_core:c_mod([], aero_env:module(Env), [], lists:reverse(Defs)),
-
-  aero_core:c_pkg([], PkgName, [Module | lists:flatten(lists:reverse(InnerModules))]);
+  aero_core:c_pkg([], PkgName, [Module | InnerModules]);
 expand_source(_, _) ->
   throw({expand_error, no_source}).

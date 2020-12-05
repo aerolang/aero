@@ -2,7 +2,7 @@
 
 -module(aero_expand_def).
 
--export([expand_def/2]).
+-export([expand_def/2, expand_defs/2]).
 
 %% -----------------------------------------------------------------------------
 %% Public API
@@ -40,6 +40,33 @@ expand_def({expand, Meta, {ident, _, pub}, PubArgs}, Env) ->
 %% Anything else...
 expand_def(Def, _Env) ->
   throw({expand_error, {def_invalid, aero_ast:meta(Def)}}).
+
+%% Expand a list of definitions.
+-spec expand_defs([aero_ast:t()], aero_env:t()) ->
+        {[aero_core:c_def()], aero_env:t(), [aero_core:c_mod()]}.
+expand_defs(Asts, Env) ->
+  {Defs, DefEnv, InnerModules, _} =
+    lists:foldl(fun(Ast, {Defs, EnvAcc, InnerModulesAcc, AllowUse}) ->
+      IsUse = 
+        case Ast of
+          {expand, _, {ident, _, use}, _}                                 -> true;
+          {expand, _, {ident, _, pub}, [{expand, _, {ident, _, use}, _}]} -> true;
+          _                                                               -> false
+        end,
+      case AllowUse of
+        % Making sure we don't try to `use` after we define things.
+        false when IsUse =:= true ->
+          throw({expand_error, {use_after_def, aero_ast:meta(Ast)}});
+
+        % Otherwise, expand normally and if it's not a `use`, make sure we can't
+        % `use` again.
+        _ ->
+          {Def, NewEnv, NewModules} = aero_expand_def:expand_def(Ast, EnvAcc),
+          {[Def | Defs], NewEnv, [NewModules | InnerModulesAcc], IsUse}
+      end
+    end, {[], Env, [], true}, Asts),
+
+  {lists:reverse(Defs), DefEnv, lists:flatten(lists:reverse(InnerModules))}.
 
 %% -----------------------------------------------------------------------------
 %% Helper Functions
@@ -164,17 +191,12 @@ expand_mod_def([Ident, Body], ModMeta, Vis, Env) ->
   case Body of
     {block, _, BlockArgs} ->
       BodyEnv = aero_env:append_module(aero_env:clear_defs(Env), Ident),
+      {Defs, _, InnerModules} = expand_defs(BlockArgs, BodyEnv),
 
-      {Defs, _, InnerModules} =
-        lists:foldl(fun(BlockArg, {Defs, EnvAcc, InnerModulesAcc}) ->
-          {Def, NewEnv, NewModules} = aero_expand_def:expand_def(BlockArg, EnvAcc),
-          {[Def | Defs], NewEnv, [NewModules | InnerModulesAcc]}
-        end, {[], BodyEnv, []}, BlockArgs),
-
-      Module = aero_core:c_mod([], aero_env:module(BodyEnv), [], lists:reverse(Defs)),
+      Module = aero_core:c_mod([], aero_env:module(BodyEnv), [], Defs),
       ModuleDef = aero_core:c_def_mod([], Path, Vis),
 
-      {ModuleDef, DefEnv, lists:flatten([Module | lists:reverse(InnerModules)])};
+      {ModuleDef, DefEnv, [Module | InnerModules]};
     _ ->
       throw({expand_error, {mod_body_invalid, ModMeta}})
   end;
@@ -193,27 +215,21 @@ expand_use_def([{ident, _, Name} = Ident], UseMeta, Vis, Env) ->
       check_existing_def(Env, Ident),
       {DefEnv, Alias} = aero_env:register_def(Env, Ident),
 
-      {source, _, SourceArgs} =
+      {Defs, _, InnerModules} =
         case aero_scan:scan(Input) of
           {ok, Tokens} ->
             case aero_parse:parse(Tokens) of
-              {ok, Ast}          -> Ast;
-              {error, _} = Error -> throw({expand_error, Error})
+              {ok, {source, _, SourceArgs}} -> expand_defs(SourceArgs, SourceEnv);
+              {error, _} = Error            -> throw({expand_error, Error})
             end;
           {error, _} = Error ->
             throw({expand_error, Error})
         end,
 
-        {Defs, _, InnerModules} =
-          lists:foldl(fun(BlockArg, {Defs, EnvAcc, InnerModulesAcc}) ->
-            {Def, NewEnv, NewModules} = aero_expand_def:expand_def(BlockArg, EnvAcc),
-            {[Def | Defs], NewEnv, [NewModules | InnerModulesAcc]}
-          end, {[], SourceEnv, []}, SourceArgs),
+      Module = aero_core:c_mod([], aero_env:module(SourceEnv), [], Defs),
+      ModuleDef = aero_core:c_def_mod([], Alias, Vis),
 
-        Module = aero_core:c_mod([], aero_env:module(SourceEnv), [], lists:reverse(Defs)),
-        ModuleDef = aero_core:c_def_mod([], Alias, Vis),
-
-        {ModuleDef, DefEnv, lists:flatten([Module | lists:reverse(InnerModules)])};
+      {ModuleDef, DefEnv, [Module | InnerModules]};
     {error, enoent} ->
       throw({expand_error, {use_not_found, UseMeta, Name}})
   end;
