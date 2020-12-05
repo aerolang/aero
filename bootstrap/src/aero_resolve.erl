@@ -26,7 +26,7 @@ resolve(Package) ->
 %% -----------------------------------------------------------------------------
 
 resolve_module({c_mod, Meta, Path, Attrs, Defs}, Index) ->
-  aero_core:c_mod(Meta, Path, Attrs, [resolve_def(Def, set_path(Index, Path)) || Def <- Defs]).
+  aero_core:c_mod(Meta, Path, Attrs, [resolve_def(Def, set_module(Index, Path)) || Def <- Defs]).
 
 resolve_def({c_def_func, Meta, Path, Vis, Func}, Index) ->
   aero_core:c_def_func(Meta, Path, Vis, resolve_expr(Func, Index));
@@ -44,7 +44,7 @@ resolve_expr({c_path, Meta, _} = Path, Index) ->
 
     % Updating the path.
     false ->
-      case lookup(Index, Path) of
+      case search_module(Index, Path) of
         {NewPath, c_def_func} ->
           NewPath;
 
@@ -53,7 +53,7 @@ resolve_expr({c_path, Meta, _} = Path, Index) ->
         {NewPath, c_def_const} ->
           aero_core:c_call([const_call | Meta], NewPath, []);
 
-        none ->
+        undefined ->
           throw({resolve_error, {path_not_found, Meta, Path}})
       end
   end;
@@ -99,58 +99,59 @@ resolve_expr(Expr, _Index) ->
 
 %% Produce an index of all module members for searching.
 index({c_pkg, _, _, Modules}) ->
-  List = lists:flatmap(fun({c_mod, _, ParentPath, _, Defs}) ->
+  List = lists:flatmap(fun({c_mod, _, Mod, _, Defs}) ->
     lists:map(fun
-      ({c_def_func, _, FuncPath, Vis, _}) ->
-        {path_key([ParentPath, FuncPath]), {Vis, c_def_func}};
-      ({c_def_const, _, ConstPath, Vis, _, _}) ->
-        {path_key([ParentPath, ConstPath]), {Vis, c_def_const}};
-      ({c_def_mod, _, ModPath, Vis}) ->
-        {path_key([ParentPath, ModPath]), {Vis, c_def_mod}}
+      ({c_def_func, _, Path, Vis, _}) ->
+        {path_key(Mod, Path), {Vis, c_def_func}};
+      ({c_def_const, _, Path, Vis, _, _}) ->
+        {path_key(Mod, Path), {Vis, c_def_const}};
+      ({c_def_mod, _, Path, Vis}) ->
+        {path_key(Mod, Path), {Vis, c_def_mod}}
     end, Defs)  
   end, Modules),
 
   #index{members = maps:from_list(List)}.
 
-set_path(Index, Path) ->
-  Index#index{module = Path}.
+%% Set the current module.
+set_module(Index, ModPath) ->
+  Index#index{module = ModPath}.
 
-%% Create a lookup key from the atoms inside a list of paths.
-path_key(Paths) ->
-  lists:flatmap(fun({c_path, _, Vars}) -> [Name || {c_var, _, Name} <- Vars] end, Paths).
+%% Find a path in the index.
+search_module(Index, Path) ->
+  Key = path_key(Path),
+  search_module(Index#index.members, path_key(Index#index.module), [], [hd(Key)], tl(Key)).
 
-%% Look up a name.
-lookup(Index, {c_path, _, Vars} = Path) when length(Vars) =:= 1 ->
-  Key = path_key([Index#index.module, Path]),
-
-  % Looking in the same path, any visibility is fine.
-  case maps:get(Key, Index#index.members) of
-    {_Vis, c_def_func}  -> {Path, c_def_func};
-    {_Vis, c_def_const} -> {Path, c_def_const};
-    _                   -> none
+search_module(Members, Mod, Base, Key, []) ->
+  case maps:get(Mod ++ Base ++ Key, Members, none) of
+    {Vis, Def} when Def =:= c_def_func orelse Def =:= c_def_const,
+                    Vis =:= c_vis_pub orelse Base =:= [] ->
+      case Base of
+        [] -> {local_path(Key), Def};
+        _  -> {global_path(Mod ++ Base ++ Key), Def}
+      end;
+    _ ->
+      undefined
   end;
-lookup(Index, Path) ->
-  % Not in the same directory, so we need to check if module definitions are
-  % public along the way.
-  lookup(Index, path_key([Index#index.module]), path_key([Path])).
-
-lookup(Index, Mod, [Name]) ->
-  Key = Mod ++ [Name],
-
-  case maps:get(Key, Index#index.members) of
-    {c_vis_pub, c_def_func}  -> {global_path(Key), c_def_func};
-    {c_vis_pub, c_def_const} -> {global_path(Key), c_def_const};
-    _                        -> none
-  end;
-lookup(Index, Base, [Mod | Name]) ->
-  Key = Base ++ [Mod],
-
-  case maps:get(Key, Index#index.members) of
-    {c_vis_pub, c_def_mod}  -> lookup(Index, Key, Name);
-    _                       -> none
+search_module(Members, Mod, Base, Key, Rem) ->
+  case maps:get(Mod ++ Base ++ Key, Members, none) of
+    {Vis, c_def_mod} when Vis =:= c_vis_pub orelse Base =:= [] ->
+      search_module(Members, Mod, Base ++ Key, [hd(Rem)], tl(Rem));
+    _ ->
+      search_module(Members, Mod, Base, Key ++ [hd(Rem)], tl(Rem))
   end.
+
+%% Create a lookup key from a path.
+path_key({c_path, _, Vars}) ->
+  [Name || {c_var, _, Name} <- Vars].
+
+%% Create a lookup key using a module and path.
+path_key(Mod, Path) ->
+  path_key(Mod) ++ path_key(Path).
 
 %% Get a global path from a lookup key.
 global_path(Key) ->
   aero_core:c_path([], [aero_session:pkg() | [aero_core:c_var([], Name) || Name <- Key]]).
- 
+
+%% Get a local path from a lookup key.
+local_path(Key) ->
+  aero_core:c_path([], [aero_core:c_var([], Name) || Name <- Key]).

@@ -19,6 +19,8 @@ expand_def({expand, Meta, {ident, _, const}, Args}, Env) ->
   expand_const_def(Args, Meta, c_vis_priv, Env);
 expand_def({expand, Meta, {ident, _, mod}, Args}, Env) ->
   expand_mod_def(Args, Meta, c_vis_priv, Env);
+expand_def({expand, Meta, {ident, _, use}, Args}, Env) ->
+  expand_use_def(Args, Meta, c_vis_priv, Env);
 
 %% Public definitions.
 expand_def({expand, Meta, {ident, _, pub}, PubArgs}, Env) ->
@@ -29,6 +31,8 @@ expand_def({expand, Meta, {ident, _, pub}, PubArgs}, Env) ->
       expand_const_def(Args, Meta, c_vis_pub, Env);
     [{expand, _, {ident, _, mod}, Args}] ->
       expand_mod_def(Args, Meta, c_vis_pub, Env);
+    [{expand, _, {ident, _, use}, Args}] ->
+      expand_use_def(Args, Meta, c_vis_pub, Env);
     _ ->
       throw({expand_error, {pub_invalid, aero_ast:meta(Meta)}})
   end;
@@ -176,6 +180,45 @@ expand_mod_def([Ident, Body], ModMeta, Vis, Env) ->
   end;
 expand_mod_def(_, ModMeta, _, _) ->
   throw({expand_error, {mod_def_invalid, ModMeta}}).
+
+%% Uses.
+expand_use_def([{ident, _, Name} = Ident], UseMeta, Vis, Env) ->
+  LocalDir = filename:rootname(aero_env:filename(Env)),
+  LocalFile = filename:join([LocalDir, <<(atom_to_binary(Name, utf8))/binary, ".aero">>]),
+
+  case file:read_file(LocalFile) of
+    {ok, Input} ->
+      SourceEnv = aero_env:append_module(aero_env:new(LocalFile, aero_env:module(Env)), Ident),
+
+      check_existing_def(Env, Ident),
+      {DefEnv, Alias} = aero_env:register_def(Env, Ident),
+
+      {source, _, SourceArgs} =
+        case aero_scan:scan(Input) of
+          {ok, Tokens} ->
+            case aero_parse:parse(Tokens) of
+              {ok, Ast}          -> Ast;
+              {error, _} = Error -> throw({expand_error, Error})
+            end;
+          {error, _} = Error ->
+            throw({expand_error, Error})
+        end,
+
+        {Defs, _, InnerModules} =
+          lists:foldl(fun(BlockArg, {Defs, EnvAcc, InnerModulesAcc}) ->
+            {Def, NewEnv, NewModules} = aero_expand_def:expand_def(BlockArg, EnvAcc),
+            {[Def | Defs], NewEnv, [NewModules | InnerModulesAcc]}
+          end, {[], SourceEnv, []}, SourceArgs),
+
+        Module = aero_core:c_mod([], aero_env:module(SourceEnv), [], lists:reverse(Defs)),
+        ModuleDef = aero_core:c_def_mod([], Alias, Vis),
+
+        {ModuleDef, DefEnv, lists:flatten([Module | lists:reverse(InnerModules)])};
+    {error, enoent} ->
+      throw({expand_error, {use_not_found, UseMeta, Name}})
+  end;
+expand_use_def(_, UseMeta, _, _) ->
+  throw({expand_error, {use_def_invalid, UseMeta}}).
 
 check_existing_def(Env, Ident) ->
   case aero_env:lookup_def(Env, Ident) of
