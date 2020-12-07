@@ -15,8 +15,7 @@ defmodule Aero.MixProject do
 
   def application do
     [
-      extra_applications: [:logger],
-      mod: {:aero_app, []}
+      extra_applications: [:logger]
     ]
   end
 

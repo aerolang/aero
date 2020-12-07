@@ -9,29 +9,29 @@
 %% -----------------------------------------------------------------------------
 
 %% Compile an Aero file.
--spec compile(binary(), [term()]) -> {ok, non_neg_integer()} | {error, term()}.
-compile(InputFile, Options) ->
+-spec compile(binary(), aero_session:t()) -> {ok, non_neg_integer()} | {error, term()}.
+compile(InputFile, Session) ->
   Passes = lists:flatten([
     {fun aero_scan:scan/1, []},
     {fun aero_parse:parse/1, []},
-    {fun aero_expand:expand/1, []},
+    {fun aero_expand:expand/2, [Session]},
     {fun aero_lift:lift/1, []},
     {fun aero_resolve:resolve/1, []},
 
-    case {proplists:get_bool(core, Options), proplists:get_bool(escript, Options)} of
-      {false, false} ->
+    case aero_session:mode(Session) of
+      beam ->
         [
           {fun aero_codegen:generate/1, []},
-          {fun write_beam/1, []}
+          {fun write_beam/2, [Session]}
         ];
-      {false, true} ->
+      escript ->
         [
           {fun aero_codegen:generate/1, []},
-          {fun write_escript/1, []}
+          {fun write_escript/2, [Session]}
         ];
-      {true, _} ->
+      core ->
         [
-          {fun write_core/1, []}
+          {fun write_core/2, [Session]}
         ]
     end
   ]),
@@ -46,8 +46,8 @@ transform({ok, Data}, [{Fun, Args} | Tail]) -> transform(apply(Fun, [Data | Args
 transform({error, _} = Error, _)            -> Error.
 
 %% Write BEAM files to the output directory.
-write_beam(Modules) ->
-  BeamDir = filename:join([aero_session:out_dir(), <<"ebin">>]),
+write_beam(Modules, Session) ->
+  BeamDir = filename:join([aero_session:out_dir(Session), <<"ebin">>]),
 
   case filelib:ensure_dir(filename:join([BeamDir, <<".">>])) of
     ok                 -> write_beam(Modules, BeamDir, 0);
@@ -65,9 +65,9 @@ write_beam([{Name, Beam} | T], BeamDir, Acc) ->
   end.
 
 %% Create an escript in the output directory.
-write_escript(Modules) ->
-  BinDir = filename:join([aero_session:out_dir(), <<"bin">>]),
-  Filename = filename:join([BinDir, [filename:basename(aero_session:root(), <<".aero">>)]]),
+write_escript(Modules, Session) ->
+  BinDir = filename:join([aero_session:out_dir(Session), <<"bin">>]),
+  Filename = filename:join([BinDir, atom_to_binary(aero_session:pkg(Session))]),
 
   % The root module is passed as the first result and we use that to find the
   % main function. The entry point does some conversions and is where the
@@ -94,8 +94,8 @@ write_escript(Modules) ->
   end.
 
 %% Write Core Aero into the output directory instead if requested.
-write_core({c_pkg, _, _, CoreModules} = Package) ->
-  CoreDir = filename:join([aero_session:out_dir(), <<"core">>]),
+write_core({c_pkg, _, _, CoreModules} = Package, Session) ->
+  CoreDir = filename:join([aero_session:out_dir(Session), <<"core">>]),
   Basenames = lists:map(fun core_filename/1, CoreModules),
 
   Strings = aero_core_pprint:pprint(Package),
@@ -115,4 +115,4 @@ write_core([{Basename, String} | T], CoreDir, Acc) ->
   end.
 
 core_filename({c_mod, _, {c_path, _, Vars}, _, _}) ->
-  lists:join($., [Name || {c_var, _, Name} <- Vars]) ++ ".c-aero".
+  lists:join($., [Name || {c_var, _, Name} <- Vars]) ++ ".acore".

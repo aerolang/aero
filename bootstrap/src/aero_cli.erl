@@ -15,29 +15,34 @@ main([<<"compile">> | Args]) ->
       Input = proplists:get_value(input, Options),
       case Input of
         undefined ->
-          show_usage({missing_input, "Input file is required"}),
-          halt(1);
+          show_usage({missing_input, "Input file is required"});
         _ ->
           OutDir = proplists:get_value(out_dir, Options),
-          Escript = proplists:get_bool(escript, Options),
-          Pkg = proplists:get_value(pkg, Options),
-          Core = proplists:get_bool(core, Options),
+          Mode =
+            case {proplists:get_bool(escript, Options), proplists:get_bool(core, Options)} of
+              {false, false} -> beam;
+              {true,  false} -> escript;
+              {false, true}  -> core;
+              {true,  true}  -> show_usage({bad_mode, "Cannot use both escript and core"})
+            end,
 
           %% Configure the global environment.
           code:add_pathsa(proplists:get_all_values(path, Options)),
-          aero_session:configure(Input, OutDir, Pkg),
+
+          Session = aero_session:new(Input, [
+            {out_dir, OutDir},
+            {mode, Mode}
+          ]),
 
           %% Compile the root. Local modules that are dependents will be added
           %% during expansion.
-          write_output(aero:compile(Input, [{escript, Escript}, {core, Core}]))
+          write_output(aero:compile(Input, Session))
       end;
     {error, {Reason, Data}} ->
-      show_usage({Reason, Data}),
-      halt(1)
+      show_usage({Reason, Data})
   end;
 main(_) ->
-  show_usage(),
-  halt(1).
+  show_usage().
 
 %% -----------------------------------------------------------------------------
 %% Helper Functions
@@ -55,11 +60,13 @@ parse_args(Args) ->
   ListArgs = lists:map(fun binary_to_list/1, Args),
   getopt:parse(getopt_spec(), ListArgs).
 
-%% Display how to use command-line interface.
+%% Display how to use command-line interface and exit.
 show_usage() ->
-  getopt:usage(getopt_spec(), "aero_bootstrap compile").
+  getopt:usage(getopt_spec(), "aero_bootstrap compile"),
+  halt(1).
 
 %% Display usage with error message.
+-dialyzer({no_return, show_usage/1}).
 show_usage({Reason, Data}) ->
   print_error("Error: ~s ~p~n~n", [Reason, Data]),
   show_usage().
@@ -70,7 +77,6 @@ getopt_spec() ->
     {out_dir, $o, "out-dir", {binary, <<"out">>}, "Output folder"},
     {escript, undefined, "escript", boolean, "Compile to an executable escript"},
     {path, $P, "add-path", binary, "Prepends a path to the Erlang code path"},
-    {pkg, undefined, "pkg", {atom, aero}, "Package name"},
     {core, undefined, "core", boolean, "Compile to Core Aero"},
     {input, undefined, undefined, binary, "Input Aero file"}
   ].

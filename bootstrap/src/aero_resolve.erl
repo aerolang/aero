@@ -126,8 +126,8 @@ search_module(Members, Mod, Base, Key, []) ->
     {Vis, Def} when Def =:= c_def_func orelse Def =:= c_def_const,
                     Vis =:= c_vis_pub orelse Base =:= [] ->
       case Base of
-        [] -> {local_path(Key), Def};
-        _  -> {global_path(Mod ++ Base ++ Key), Def}
+        [] -> {path_from_key(Key), Def};
+        _  -> {path_from_key(Mod ++ Base ++ Key), Def}
       end;
     _ ->
       undefined
@@ -148,10 +148,6 @@ path_key({c_path, _, Vars}) ->
 path_key(Mod, Path) ->
   path_key(Mod) ++ path_key(Path).
 
-%% Get a global path from a lookup key.
-global_path(Key) ->
-  aero_core:c_path([], [aero_session:pkg() | [aero_core:c_var([], Name) || Name <- Key]]).
-
-%% Get a local path from a lookup key.
-local_path(Key) ->
+%% Get a path from a lookup key.
+path_from_key(Key) ->
   aero_core:c_path([], [aero_core:c_var([], Name) || Name <- Key]).
