@@ -22,7 +22,7 @@
          clear_all_vars/1]).
 -export([reset_counter/1]).
 
--export_type([t/0, counter/0]).
+-export_type([t/0]).
 
 %% -----------------------------------------------------------------------------
 %% Public API
@@ -34,13 +34,10 @@
               vars      = [] :: [{atom(), aero_core:c_var()}],
               pat_vars  = [] :: [{atom(), aero_core:c_pat_var()}],
               type_vars = [] :: [{atom(), aero_core:c_type_var()}],
-              counter        :: counter()}).
+              counter        :: counters:counters_ref()}).
 
 %% Environment.
 -type t() :: #env{}.
-
-%% Environment variable counter.
--opaque counter() :: counters:counters_ref().
 
 %% Create a new environment.
 -spec new(binary(), aero_core:c_path()) -> t().
