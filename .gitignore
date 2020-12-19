@@ -9,4 +9,5 @@ erl_crash.dump
 *.beam
 
 # Output
-/aero_bootstrap
+/aero
+/out

@@ -62,7 +62,7 @@ parse_args(Args) ->
 
 %% Display how to use command-line interface and exit.
 show_usage() ->
-  getopt:usage(getopt_spec(), "aero_bootstrap compile"),
+  getopt:usage(getopt_spec(), "aero compile"),
   halt(1).
 
 %% Display usage with error message.

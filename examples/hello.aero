@@ -1,0 +1,3 @@
+pub func main() ->> () {
+  log "Hello, World!"
+}
