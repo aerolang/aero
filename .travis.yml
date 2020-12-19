@@ -4,7 +4,6 @@ elixir:
 otp_release:
   - '23.0'
 install:
-  - cd bootstrap
   - mix local.rebar --force
   - mix local.hex --force
   - mix deps.get
