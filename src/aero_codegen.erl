@@ -118,7 +118,7 @@ gen_expr({c_block, _, Exprs}) ->
   RevExprs = lists:reverse(Exprs),
 
   % Erlang "let"s go backwards, so we expand the inner parts first.
-  lists:foldr(fun({c_let, _, Left, _Type, Right}, Inner) ->
+  lists:foldl(fun({c_let, _, Left, _Type, Right}, Inner) ->
     cerl:c_let([gen_expr(Left)], gen_expr(Right), Inner)
   end, gen_expr(hd(RevExprs)), tl(RevExprs));
 

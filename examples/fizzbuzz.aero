@@ -1,0 +1,27 @@
+// Fizzbuzz using boolean expressions.
+func fizzbuzz_1(x: int) -> str {
+  when {
+    x % 3 == 0 and x % 5 == 0 => "fizzbuzz"
+    x % 3 == 0                => "fizz"
+    x % 5 == 0                => "buzz"
+    true                      => "neither"
+  }
+}
+
+// Fizzbuzz using pattern matching.
+func fizzbuzz_2(x: int) -> str {
+  match (x % 3, x % 5) {
+    0, 0 => "fizzbuzz"
+    0, _ => "fizz"
+    _, 0 => "buzz"
+    _    => "neither"
+  }
+}
+
+pub func main() ->> () {
+  log fizzbuzz_1(3)
+  log fizzbuzz_1(5)
+
+  log fizzbuzz_2(15)
+  log fizzbuzz_2(7)
+}
