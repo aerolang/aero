@@ -1,6 +1,6 @@
 # Aero
 
-[![Build Status](https://travis-ci.org/bbridges/aero.svg?branch=master)](https://travis-ci.org/bbridges/aero)
+[![Build Status](https://www.travis-ci.com/aerolang/aero.svg?branch=master)](https://www.travis-ci.com/aerolang/aero)
 
 Aero is an experimental programming language aimed to be statically typed,
 purely functional with uniqueness types and eager evaluation, and oriented
