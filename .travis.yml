@@ -1,14 +1,11 @@
-language: elixir
-elixir:
-  - '1.11'
+language: erlang
 otp_release:
   - '23.0'
 install:
-  - mix local.rebar --force
-  - mix local.hex --force
-  - mix deps.get
+  - rebar3 get-deps
 script:
-  - mix test
+  - rebar3 eunit
+  - rebar3 dialyzer
 notifications:
   email: false
   slack:

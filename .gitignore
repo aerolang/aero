@@ -1,13 +1,14 @@
-# Elixir defaults.
+# Erlang defaults.
 /_build
 /cover
 /deps
 /doc
-/.fetch
+/_checkouts
 erl_crash.dump
-*.ez
+*.o
 *.beam
+*.plt
+.rebar3
 
 # Output
-/aero
 /out

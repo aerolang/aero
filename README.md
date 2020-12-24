@@ -13,38 +13,35 @@ Erlang-based compiler targeting Core Erlang for a future self-hosting compiler.
 
 ## Building
 
-Erlang and Elixir are required to build the compiler and Erlang is needed on the
-host that Aero programs are run on.
+Erlang is required to build the compiler and is needed on the host that Aero
+programs are run on.
 
-The recommended way to install Erlang and Elixir is with
-[asdf](https://asdf-vm.com). This allows for easy version managment. Aero
-expects the Erlang/OTP version to at least be 23.0.
+The recommended way to install Erlang is with [asdf](https://asdf-vm.com). This
+allows for easy version managment. Aero expects the Erlang/OTP version to at
+least be 23.0.
 
 ```sh
 $ asdf plugin add erlang
-$ asdf plugin add elixir
-
 $ asdf install erlang 23.2
-$ asdf install elixir 1.11.2-otp-23
 ```
 
-Building the compiler uses `mix` from Elixir.
+Building the compiler uses [Rebar3](https://rebar3.org).
 
 ```sh
-$ mix deps.get
-$ mix test
-$ mix escript.build
+$ rebar3 get-deps
+$ rebar3 eunit
+$ rebar3 escriptize
 ```
 
-This generates an Escript in called `./aero` which can be used to compile Aero
-programs.
+This generates an Escript in `_build/default/bin` called `aero` which can be
+used to compile Aero programs.
 
 ## Examples
 
 See `examples/` for sample Aero programs. They can be run like so:
 
 ```sh
-$ ./aero compile examples/hello.aero --escript
+$ aero compile examples/hello.aero --escript
 $ ./out/bin/hello
 ```
 

@@ -1,0 +1,9 @@
+{application, aero, [
+  {description,  "Aero programming language compiler"},
+  {vsn,          "0.1.0"},
+  {registered,   []},
+  {modules,      []},
+  {applications, [kernel, stdlib, getopt]},
+  {env,          []},
+  {licenses,     ["MIT"]}
+]}.

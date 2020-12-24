@@ -9,7 +9,7 @@
 %% -----------------------------------------------------------------------------
 
 %% Entrypoint.
-main([<<"compile">> | Args]) ->
+main(["compile" | Args]) ->
   case parse_args(Args) of
     {ok, {Options, []}} ->
       Input = proplists:get_value(input, Options),
@@ -57,8 +57,7 @@ write_output({error, _} = Error) ->
 
 %% Use getopt to parse arguments.
 parse_args(Args) ->
-  ListArgs = lists:map(fun binary_to_list/1, Args),
-  getopt:parse(getopt_spec(), ListArgs).
+  getopt:parse(getopt_spec(), Args).
 
 %% Display how to use command-line interface and exit.
 show_usage() ->
