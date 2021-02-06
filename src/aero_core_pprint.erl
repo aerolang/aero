@@ -164,10 +164,13 @@ pprint({c_type_dict, _, K, V}, Level) ->
 pprint({c_type_func, _, TArgs, TResult}, Level) ->
   format([func | TArgs] ++ [TResult], Level);
 
-pprint({c_type_wld, _}, _Level) ->
-  "wld";
+pprint({c_type_any, _}, _Level) ->
+  "any";
 pprint({c_type_never, _}, _Level) ->
   "never";
+
+pprint({c_type_wld, _}, _Level) ->
+  "wld";
 pprint({c_type_mbox, _, T}, Level) ->
   format([mbox, T], Level);
 pprint({c_type_addr, _, T}, Level) ->
