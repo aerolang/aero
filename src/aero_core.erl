@@ -18,8 +18,8 @@
          c_pat_tuple/2, c_pat_cons/3, c_pat_nil/1, c_pat_dict/2, c_pat_var/2, c_pat_args/2]).
 -export([c_type_bool/1, c_type_int/1, c_type_float/1, c_type_atom/1, c_type_str/1, c_type_bytes/1,
          c_type_bits/1, c_type_ref/1, c_type_unit/1, c_type_tuple/2, c_type_list/2, c_type_dict/3,
-         c_type_func/3, c_type_uniq/2, c_type_dyn/2, c_type_wld/1, c_type_never/1, c_type_mbox/2,
-         c_type_addr/2, c_type_var/2, c_type_path/2, c_type_tag/2, c_type_struct/3,
+         c_type_func/3, c_type_uniq/2, c_type_dyn/2, c_type_any/1, c_type_never/1, c_type_wld/1,
+         c_type_mbox/2, c_type_addr/2, c_type_var/2, c_type_path/2, c_type_tag/2, c_type_struct/3,
          c_type_proto/3, c_type_union/2, c_type_inter/2, c_type_where/3]).
 
 -export_type([c_any/0]).
@@ -33,9 +33,9 @@
 -export_type([c_type/0, c_type_bool/0, c_type_int/0, c_type_float/0, c_type_atom/0, c_type_str/0,
               c_type_bytes/0, c_type_bits/0, c_type_ref/0, c_type_unit/0, c_type_tuple/0,
               c_type_list/0, c_type_dict/0, c_type_func/0, c_type_uniq/0, c_type_dyn/0,
-              c_type_wld/0, c_type_never/0, c_type_mbox/0, c_type_addr/0, c_type_var/0,
-              c_type_path/0, c_type_tag/0, c_type_struct/0, c_type_proto/0, c_type_union/0,
-              c_type_inter/0, c_type_where/0]).
+              c_type_any/0, c_type_never/0, c_type_wld/0, c_type_mbox/0, c_type_addr/0,
+              c_type_var/0, c_type_path/0, c_type_tag/0, c_type_struct/0, c_type_proto/0,
+              c_type_union/0, c_type_inter/0, c_type_where/0]).
 
 %% -----------------------------------------------------------------------------
 %% Public API
@@ -242,11 +242,14 @@
 -type c_type_uniq() :: {c_type_uniq, meta(), c_type()}.
 -type c_type_dyn()  :: {c_type_dyn, meta(), c_type()}.
 
-%% Concurrent primitives.
--type c_type_wld()   :: {c_type_wld, meta()}.
+%% Top and bottom types.
+-type c_type_any()   :: {c_type_any, meta()}.
 -type c_type_never() :: {c_type_never, meta()}.
--type c_type_mbox()  :: {c_type_mbox, meta(), c_type()}.
--type c_type_addr()  :: {c_type_addr, meta(), c_type()}.
+
+%% Concurrent primitives.
+-type c_type_wld()  :: {c_type_wld, meta()}.
+-type c_type_mbox() :: {c_type_mbox, meta(), c_type()}.
+-type c_type_addr() :: {c_type_addr, meta(), c_type()}.
 
 %% Type variables.
 -type c_type_var() :: {c_type_var, meta(), atom()}.
@@ -531,15 +534,20 @@ c_type_uniq(Meta, Type) ->
 c_type_dyn(Meta, Type) ->
   {c_type_dyn, Meta, Type}.
 
-%% Create a world type.
--spec c_type_wld(meta()) -> c_type_wld().
-c_type_wld(Meta) ->
-  {c_type_wld, Meta}.
+%% Create an any type.
+-spec c_type_any(meta()) -> c_type_any().
+c_type_any(Meta) ->
+  {c_type_any, Meta}.
 
 %% Create a never type.
 -spec c_type_never(meta()) -> c_type_never().
 c_type_never(Meta) ->
   {c_type_never, Meta}.
+
+%% Create a world type.
+-spec c_type_wld(meta()) -> c_type_wld().
+c_type_wld(Meta) ->
+  {c_type_wld, Meta}.
 
 %% Create a mailbox type.
 -spec c_type_mbox(meta(), c_type()) -> c_type_mbox().

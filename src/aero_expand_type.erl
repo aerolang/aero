@@ -55,11 +55,15 @@ expand_type({expand, _, {op, _, Arrow}, [{args, _, Args}, Result]}, Env) when Ar
 
   {aero_core:c_type_func([], ArgTypes, ResultType), TypeEnv};
 
+%% Top and bottom types.
+expand_type({ident, _, any}, Env) ->
+  {aero_core:c_type_any([]), Env};
+expand_type({ident, _, never}, Env) ->
+  {aero_core:c_type_never([]), Env};
+
 %% Concurrent primitives.
 expand_type({ident, _, wld}, Env) ->
   {aero_core:c_type_wld([]), Env};
-expand_type({ident, _, never}, Env) ->
-  {aero_core:c_type_never([]), Env};
 expand_type({expand, _, {ident, _, mbox}, [T]}, Env) ->
   {Type, TypeEnv} = expand_type(T, Env),
 
