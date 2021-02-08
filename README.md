@@ -28,9 +28,10 @@ $ asdf install erlang 23.2
 Building the compiler uses [Rebar3](https://rebar3.org).
 
 ```sh
-$ rebar3 get-deps
-$ rebar3 eunit
-$ rebar3 escriptize
+$ rebar3 fetch
+$ rebar3 build
+$ rebar3 check
+$ rebar3 test
 ```
 
 This generates an Escript in `_build/default/bin` called `aero` which can be

@@ -2,10 +2,11 @@ language: erlang
 otp_release:
   - '23.0'
 install:
-  - rebar3 get-deps
+  - rebar3 fetch
 script:
-  - rebar3 eunit
-  - rebar3 dialyzer
+  - rebar3 build
+  - rebar3 check
+  - rebar3 test
 notifications:
   email: false
   slack:
