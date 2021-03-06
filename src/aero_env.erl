@@ -37,7 +37,7 @@
               counter        :: counters:counters_ref()}).
 
 %% Environment.
--type t() :: #env{}.
+-opaque t() :: #env{}.
 
 %% Create a new environment.
 -spec new(binary(), aero_core:c_path()) -> t().

@@ -13,7 +13,9 @@
 %% -----------------------------------------------------------------------------
 
 -record(span, {start :: non_neg_integer(), stop :: non_neg_integer()}).
--type t() :: #span{}.
+
+%% Source span.
+-opaque t() :: #span{}.
 
 %% Create a new span with start and stop positions.
 -spec new(non_neg_integer(), non_neg_integer()) -> t().

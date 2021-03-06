@@ -17,7 +17,7 @@
                   mode    :: mode()}).
 
 %% Aero compiler session.
--type t() :: #session{}.
+-opaque t() :: #session{}.
 
 -type mode() :: beam | escript | core.
 
