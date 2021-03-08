@@ -267,22 +267,22 @@ expr_prefix({op, LeftMeta, '#['},
             _Mode) ->
   Meta = merge_meta([LeftMeta, RightMeta]),
 
-  {attribute, Meta, {args, InnerMeta, InnerExprs}, RightExpr};
+  {attr, Meta, {args, InnerMeta, InnerExprs}, RightExpr};
 expr_prefix({op, LeftMeta, '#['}, {op, RightMeta, ']'}, [RightExpr, InnerExprs], _Mode) ->
   Meta = merge_meta([LeftMeta, RightMeta]),
 
-  {attribute, Meta, {args, merge_meta(aero_ast:metas(InnerExprs)), InnerExprs}, RightExpr};
+  {attr, Meta, {args, merge_meta(aero_ast:metas(InnerExprs)), InnerExprs}, RightExpr};
 expr_prefix({op, LeftMeta, '#!['},
             {op, RightMeta, ']'},
             [{expand, [op_args | InnerMeta], _, [{args, _, InnerExprs}]}],
             _Mode) ->
   Meta = merge_meta([LeftMeta, RightMeta]),
 
-  {inner_attribute, Meta, {args, InnerMeta, InnerExprs}};
+  {inner_attr, Meta, {args, InnerMeta, InnerExprs}};
 expr_prefix({op, LeftMeta, '#!['}, {op, RightMeta, ']'}, InnerExprs, _Mode) ->
   Meta = merge_meta([LeftMeta, RightMeta]),
 
-  {inner_attribute, Meta, {args, merge_meta(aero_ast:metas(InnerExprs)), InnerExprs}};
+  {inner_attr, Meta, {args, merge_meta(aero_ast:metas(InnerExprs)), InnerExprs}};
 expr_prefix({op, LeftMeta, LeftOp}, {op, RightMeta, RightOp}, InnerExprs, _Mode) ->
   LeftOpBinary = atom_to_binary(LeftOp, utf8),
   RightOpBinary = atom_to_binary(RightOp, utf8),

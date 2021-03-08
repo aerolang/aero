@@ -54,8 +54,8 @@
 
 %% Tags and attributes.
 -type tag()        :: {tag, meta(), t(), t()}.
--type attr()       :: {attr, meta(), t(), t()}.
--type inner_attr() :: {inner_attr, meta(), t()}.
+-type attr()       :: {attr, meta(), args(), t()}.
+-type inner_attr() :: {inner_attr, meta(), args()}.
 
 %% AST metadata.
 -type meta() :: [term()].
