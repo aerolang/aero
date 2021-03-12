@@ -1,0 +1,20 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches:
+      - master
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+      - name: Install Erlang
+        uses: gleam-lang/setup-erlang@v1
+        with:
+          otp-version: 23.2
+      - run: rebar3 fetch
+      - run: rebar3 do build, check
+      - run: rebar3 test
