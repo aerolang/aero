@@ -283,7 +283,7 @@ expand_expr({expand, _, {op, _, '_++_'}, [Left, Right]}, Env) ->
 %% Comparison operators.
 expand_expr({expand, _, {op, _, '_==_'}, [Left, Right]}, Env) ->
   erl_call(erlang, '=:=', [expand_expr(Left, Env), expand_expr(Right, Env)]);
-expand_expr({expand, _, {op, _, '_<>_'}, [Left, Right]}, Env) ->
+expand_expr({expand, _, {op, _, '_/=_'}, [Left, Right]}, Env) ->
   erl_call(erlang, '=/=', [expand_expr(Left, Env), expand_expr(Right, Env)]);
 expand_expr({expand, _, {op, _, '_<_'}, [Left, Right]}, Env) ->
   erl_call(erlang, '<', [expand_expr(Left, Env), expand_expr(Right, Env)]);
