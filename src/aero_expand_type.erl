@@ -19,7 +19,7 @@ expand_type({ident, _, int}, Env) ->
 expand_type({ident, _, float}, Env) ->
   {aero_core:c_type_float([]), Env};
 expand_type({ident, _, atom}, Env) ->
-  {aero_core:c_type_atom([]), Env};
+  {aero_core:c_type_sym([]), Env};
 expand_type({ident, _, str}, Env) ->
   {aero_core:c_type_str([]), Env};
 expand_type({ident, _, bytes}, Env) ->

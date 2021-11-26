@@ -128,8 +128,8 @@ gen_expr({c_int, _, Integer}) ->
   cerl:abstract(Integer);
 gen_expr({c_float, _, Float}) ->
   cerl:abstract(Float);
-gen_expr({c_atom, _, Atom}) ->
-  cerl:abstract(Atom);
+gen_expr({c_sym, _, Symbol}) ->
+  cerl:abstract(Symbol);
 gen_expr({c_str, _, String}) ->
   cerl:abstract(String);
 
@@ -215,8 +215,8 @@ gen_pat({c_pat_int, _, Integer}) ->
   cerl:abstract(Integer);
 gen_pat({c_pat_float, _, Float}) ->
   cerl:abstract(Float);
-gen_pat({c_pat_atom, _, Atom}) ->
-  cerl:abstract(Atom);
+gen_pat({c_pat_sym, _, Symbol}) ->
+  cerl:abstract(Symbol);
 gen_pat({c_pat_str, _, String}) ->
   cerl:abstract(String);
 

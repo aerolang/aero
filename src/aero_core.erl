@@ -11,12 +11,12 @@
 -module(aero_core).
 
 -export([c_pkg/3, c_mod/4, c_def_func/4, c_def_const/5, c_def_mod/3]).
--export([c_block/2, c_bool/2, c_int/2, c_float/2, c_atom/2, c_str/2, c_unit/1, c_tuple/2,
+-export([c_block/2, c_bool/2, c_int/2, c_float/2, c_sym/2, c_str/2, c_unit/1, c_tuple/2,
          c_cons/3, c_nil/1, c_dict/2, c_func/5, c_call/3, c_apply/3, c_var/2, c_path/2, c_let/4,
          c_letrec/4, c_match/3, c_args/2]).
--export([c_pat_bool/2, c_pat_int/2, c_pat_float/2, c_pat_atom/2, c_pat_str/2, c_pat_unit/1,
+-export([c_pat_bool/2, c_pat_int/2, c_pat_float/2, c_pat_sym/2, c_pat_str/2, c_pat_unit/1,
          c_pat_tuple/2, c_pat_cons/3, c_pat_nil/1, c_pat_dict/2, c_pat_var/2, c_pat_args/2]).
--export([c_type_bool/1, c_type_int/1, c_type_float/1, c_type_atom/1, c_type_str/1, c_type_bytes/1,
+-export([c_type_bool/1, c_type_int/1, c_type_float/1, c_type_sym/1, c_type_str/1, c_type_bytes/1,
          c_type_bits/1, c_type_ref/1, c_type_unit/1, c_type_tuple/2, c_type_list/2, c_type_dict/3,
          c_type_func/3, c_type_uniq/2, c_type_dyn/2, c_type_any/1, c_type_never/1, c_type_wld/1,
          c_type_mbox/2, c_type_addr/2, c_type_var/2, c_type_path/2, c_type_tag/2, c_type_struct/3,
@@ -24,13 +24,13 @@
 
 -export_type([c_any/0]).
 -export_type([c_pkg/0, c_mod/0, c_def/0, c_def_func/0, c_def_const/0, c_def_mod/0, c_vis/0]).
--export_type([c_expr/0, c_block/0, c_bool/0, c_int/0, c_float/0, c_atom/0, c_str/0, c_unit/0,
+-export_type([c_expr/0, c_block/0, c_bool/0, c_int/0, c_float/0, c_sym/0, c_str/0, c_unit/0,
               c_tuple/0, c_cons/0, c_nil/0,  c_dict/0, c_func/0, c_call/0, c_apply/0, c_var/0,
               c_path/0, c_let/0, c_letrec/0, c_match/0, c_args/0]).
--export_type([c_pat/0, c_pat_bool/0, c_pat_int/0, c_pat_float/0, c_pat_atom/0, c_pat_str/0,
+-export_type([c_pat/0, c_pat_bool/0, c_pat_int/0, c_pat_float/0, c_pat_sym/0, c_pat_str/0,
               c_pat_unit/0, c_pat_tuple/0, c_pat_cons/0, c_pat_nil/0, c_pat_dict/0, c_pat_var/0,
               c_pat_args/0]).
--export_type([c_type/0, c_type_bool/0, c_type_int/0, c_type_float/0, c_type_atom/0, c_type_str/0,
+-export_type([c_type/0, c_type_bool/0, c_type_int/0, c_type_float/0, c_type_sym/0, c_type_str/0,
               c_type_bytes/0, c_type_bits/0, c_type_ref/0, c_type_unit/0, c_type_tuple/0,
               c_type_list/0, c_type_dict/0, c_type_func/0, c_type_uniq/0, c_type_dyn/0,
               c_type_any/0, c_type_never/0, c_type_wld/0, c_type_mbox/0, c_type_addr/0,
@@ -54,7 +54,7 @@
 
 %% Modules.
 -type c_mod()       :: {c_mod, meta(), c_path(), c_mod_attrs(), [c_def()]}.
--type c_mod_attrs() :: [{c_atom(), c_expr()}].
+-type c_mod_attrs() :: [{c_sym(), c_expr()}].
 
 %% Definitions.
 -type c_def() :: c_def_func()
@@ -74,7 +74,7 @@
                 | c_bool()
                 | c_int()
                 | c_float()
-                | c_atom()
+                | c_sym()
                 | c_str()
                 | c_unit()
                 | c_tuple()
@@ -98,7 +98,7 @@
 -type c_bool()  :: {c_bool, meta(), boolean()}.
 -type c_int()   :: {c_int, meta(), integer()}.
 -type c_float() :: {c_float, meta(), float()}.
--type c_atom()  :: {c_atom, meta(), atom()}.
+-type c_sym()   :: {c_sym, meta(), atom()}.
 -type c_str()   :: {c_str, meta(), binary()}.
 
 %% Unit value.
@@ -152,7 +152,7 @@
 -type c_pat() :: c_pat_bool()
                | c_pat_int()
                | c_pat_float()
-               | c_pat_atom()
+               | c_pat_sym()
                | c_pat_str()
                | c_pat_unit()
                | c_pat_tuple()
@@ -166,7 +166,7 @@
 -type c_pat_bool()  :: {c_pat_bool, meta(), boolean()}.
 -type c_pat_int()   :: {c_pat_int, meta(), integer()}.
 -type c_pat_float() :: {c_pat_float, meta(), float()}.
--type c_pat_atom()  :: {c_pat_atom, meta(), atom()}.
+-type c_pat_sym()   :: {c_pat_sym, meta(), atom()}.
 -type c_pat_str()   :: {c_pat_str, meta(), binary()}.
 
 %% Unit pattern.
@@ -188,7 +188,7 @@
 -type c_type() :: c_type_bool()
                 | c_type_int()
                 | c_type_float()
-                | c_type_atom()
+                | c_type_sym()
                 | c_type_str()
                 | c_type_bytes()
                 | c_type_bits()
@@ -217,7 +217,7 @@
 -type c_type_bool()  :: {c_type_bool, meta()}.
 -type c_type_int()   :: {c_type_int, meta()}.
 -type c_type_float() :: {c_type_float, meta()}.
--type c_type_atom()  :: {c_type_atom, meta()}.
+-type c_type_sym()   :: {c_type_sym, meta()}.
 -type c_type_str()   :: {c_type_str, meta()}.
 
 %% Bytes and bits types.
@@ -320,9 +320,9 @@ c_float(Meta, Float) ->
   {c_float, Meta, Float}.
 
 %% Create an atom expression.
--spec c_atom(meta(), atom()) -> c_atom().
-c_atom(Meta, Atom) ->
-  {c_atom, Meta, Atom}.
+-spec c_sym(meta(), atom()) -> c_sym().
+c_sym(Meta, Symbol) ->
+  {c_sym, Meta, Symbol}.
 
 %% Create a string expression.
 -spec c_str(meta(), binary()) -> c_str().
@@ -415,9 +415,9 @@ c_pat_float(Meta, Float) ->
   {c_pat_float, Meta, Float}.
 
 %% Create an atom pattern.
--spec c_pat_atom(meta(), atom()) -> c_pat_atom().
-c_pat_atom(Meta, Atom) ->
-  {c_pat_atom, Meta, Atom}.
+-spec c_pat_sym(meta(), atom()) -> c_pat_sym().
+c_pat_sym(Meta, Symbol) ->
+  {c_pat_sym, Meta, Symbol}.
 
 %% Create a string pattern.
 -spec c_pat_str(meta(), binary()) -> c_pat_str().
@@ -475,9 +475,9 @@ c_type_float(Meta) ->
   {c_type_float, Meta}.
 
 %% Create an atom type.
--spec c_type_atom(meta()) -> c_type_atom().
-c_type_atom(Meta) ->
-  {c_type_atom, Meta}.
+-spec c_type_sym(meta()) -> c_type_sym().
+c_type_sym(Meta) ->
+  {c_type_sym, Meta}.
 
 %% Create a string type.
 -spec c_type_str(meta()) -> c_type_str().

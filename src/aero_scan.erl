@@ -67,9 +67,9 @@ next_token([S1 | _] = Input, Pos) when ?is_digit(S1) ->
     {Int, Rest}                -> integer_token(Rest, Pos, Int, 10, "")
   end;
 
-%% Atoms.
+%% Symbols.
 next_token([$:, S2 | _] = Input, Pos) when ?is_ident_start(S2); S2 =:= $" ->
-  atom_token(Input, Pos);
+  symbol_token(Input, Pos);
 
 %% Strings.
 next_token([$" | _] = Input, Pos) ->
@@ -181,12 +181,12 @@ float_token(Rest, Pos, IntSource, FractSource, SignSource) ->
       {token, Rest2, NewPos, {float_lit, meta(Pos, Length), list_to_float(FloatFiltered)}}
   end.
 
-atom_token([$: | Cont], Pos) when hd(Cont) =:= $" ->
+symbol_token([$: | Cont], Pos) when hd(Cont) =:= $" ->
   {token, Rest, NewPos, {str_lit, Meta, String}} = string_token(Cont, shift(Pos, 1, 0, 1)),
-  {token, Rest, NewPos, {atom_lit, meta(Pos, span_size(Meta) + 1), binary_to_atom(String, utf8)}};
-atom_token([$: | Cont], Pos) ->
+  {token, Rest, NewPos, {sym_lit, meta(Pos, span_size(Meta) + 1), binary_to_atom(String, utf8)}};
+symbol_token([$: | Cont], Pos) ->
   {token, Rest, NewPos, {ident, Meta, Ident}} = ident_token(Cont, shift(Pos, 1, 0, 1)),
-  {token, Rest, NewPos, {atom_lit, meta(Pos, span_size(Meta) + 1), Ident}}.
+  {token, Rest, NewPos, {sym_lit, meta(Pos, span_size(Meta) + 1), Ident}}.
 
 string_token([$" | Cont], Pos) ->
   string_token(Cont, shift(Pos, 1, 0, 1), Pos, "").

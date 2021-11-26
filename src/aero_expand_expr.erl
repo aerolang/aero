@@ -102,8 +102,8 @@ expand_expr({int_lit, _, Integer}, _Env) ->
   aero_core:c_int([], Integer);
 expand_expr({float_lit, _, Float}, _Env) ->
   aero_core:c_float([], Float);
-expand_expr({atom_lit, _, Atom}, _Env) ->
-  aero_core:c_atom([], Atom);
+expand_expr({sym_lit, _, Symbol}, _Env) ->
+  aero_core:c_sym([], Symbol);
 expand_expr({str_lit, _, String}, _Env) ->
   aero_core:c_str([], String);
 
@@ -132,7 +132,7 @@ expand_expr({expand, _, {op, _, '#{_}'}, [{args, _, Args}]}, Env) ->
         % We can have a tag in a dictionary for #{ atom: expr } syntax.
         % Needing to corece the left side into an atom.
         {tag, _, {ident, _, Key}, Value} ->
-          {aero_core:c_atom([], Key), expand_expr(Value, Env)}
+          {aero_core:c_sym([], Key), expand_expr(Value, Env)}
       end
     end, Args),
   aero_core:c_dict([], Pairs);
@@ -388,10 +388,10 @@ expand_expr({expand, Meta, {ident, _, 'if'}, [Cond, Next]}, Env) ->
     {block, _, _} = Then ->
       Cases = [
         {aero_core:c_pat_bool([], true), aero_core:c_tuple([], [
-          aero_core:c_atom([], some),
+          aero_core:c_sym([], some),
           expand_expr(Then, Env)
         ])},
-        {aero_env:wildcard_pat_var(Env), aero_core:c_atom([], none)}
+        {aero_env:wildcard_pat_var(Env), aero_core:c_sym([], none)}
       ],
       aero_core:c_match([], expand_expr(Cond, Env), Cases);
 
@@ -405,7 +405,7 @@ expand_expr({expand, Meta, {ident, _, 'if'}, _}, _Env) ->
 %% Logs.
 expand_expr({expand, _, {ident, _, log}, [Message]}, Env) ->
   Args = [
-    aero_core:c_atom([], standard_io),
+    aero_core:c_sym([], standard_io),
     aero_core:c_cons([],
       expand_expr(Message, Env),
       aero_core:c_cons([],

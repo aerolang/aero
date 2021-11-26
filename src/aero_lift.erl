@@ -189,7 +189,7 @@ is_simple(Expr) ->
 is_literal({c_bool, _, _})  -> true;
 is_literal({c_int, _, _})   -> true;
 is_literal({c_float, _, _}) -> true;
-is_literal({c_atom, _, _})  -> true;
+is_literal({c_sym, _, _})  -> true;
 is_literal({c_str, _, _})   -> true;
 is_literal({c_nil, _})      -> true;
 is_literal({c_unit, _})     -> true;

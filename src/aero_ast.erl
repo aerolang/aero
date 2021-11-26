@@ -5,7 +5,7 @@
 -export([meta/1, metas/1]).
 
 -export_type([t/0, source/0]).
--export_type([int_lit/0, float_lit/0, atom_lit/0, str_lit/0]).
+-export_type([int_lit/0, float_lit/0, sym_lit/0, str_lit/0]).
 -export_type([ident/0, type_param/0, blank/0, op/0]).
 -export_type([block/0, expand/0, args/0, tag/0, attr/0, inner_attr/0]).
 
@@ -17,7 +17,7 @@
 -type t() :: source()
            | int_lit()
            | float_lit() 
-           | atom_lit()
+           | sym_lit()
            | str_lit()
            | ident()
            | type_param()
@@ -36,7 +36,7 @@
 %% Literals.
 -type int_lit()   :: {int_lit, meta(), integer()}.
 -type float_lit() :: {float_lit, meta(), float()}.
--type atom_lit()  :: {atom_lit, meta(), atom()}.
+-type sym_lit()   :: {sym_lit, meta(), atom()}.
 -type str_lit()   :: {str_lit, meta(), binary()}.
 
 %% Names and operators.
@@ -65,7 +65,7 @@
 meta({source, Meta, _})     -> Meta;
 meta({int_lit, Meta, _})    -> Meta;
 meta({float_lit, Meta, _})  -> Meta;
-meta({atom_lit, Meta, _})   -> Meta;
+meta({sym_lit, Meta, _})    -> Meta;
 meta({str_lit, Meta, _})    -> Meta;
 meta({ident, Meta, _})      -> Meta;
 meta({type_param, Meta, _}) -> Meta;

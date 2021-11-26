@@ -48,8 +48,8 @@ pprint({c_int, _, Integer}, _Level) ->
   integer_to_list(Integer);
 pprint({c_float, _, Float}, _Level) ->
   float_to_list(Float);
-pprint({c_atom, _, Atom}, _Level) ->
-  [$:, printable_atom(Atom)];
+pprint({c_sym, _, Symbol}, _Level) ->
+  [$:, printable_symbol(Symbol)];
 pprint({c_str, _, String}, _Level) ->
   [$", printable_string(String), $"];
 
@@ -80,10 +80,10 @@ pprint({c_apply, _, Callee, Args}, Level) ->
   format([apply, Callee | pprint_args(arg, Args, Level)], Level);
 
 pprint({c_var, _, Name}, _Level) ->
-  [$%, printable_atom(Name)];
+  [$%, printable_symbol(Name)];
 
 pprint({c_path, _, Vars}, _Level) ->
-  [$$ | lists:join("::", [printable_atom(Name) || {c_var, _, Name} <- Vars])];
+  [$$ | lists:join("::", [printable_symbol(Name) || {c_var, _, Name} <- Vars])];
 
 pprint({c_let, _, Left, Type, Right}, Level) ->
   format(['let', Left, Type, Right], Level);
@@ -109,8 +109,8 @@ pprint({c_pat_int, _, Integer}, _Level) ->
   integer_to_list(Integer);
 pprint({c_pat_float, _, Float}, _Level) ->
   float_to_list(Float);
-pprint({c_pat_atom, _, Atom}, _Level) ->
-  [$:, printable_atom(Atom)];
+pprint({c_pat_sym, _, Symbol}, _Level) ->
+  [$:, printable_symbol(Symbol)];
 pprint({c_pat_str, _, String}, _Level) ->
   [$", printable_string(String), $"];
 
@@ -130,7 +130,7 @@ pprint({c_pat_dict, _, Pairs}, Level) ->
   format([dict, PairStrs], Level);
 
 pprint({c_pat_var, _, Name}, _Level) ->
-  [$%, printable_atom(Name)];
+  [$%, printable_symbol(Name)];
 
 %% Types.
 
@@ -140,7 +140,7 @@ pprint({c_type_int, _}, _Level) ->
   "int";
 pprint({c_type_float, _}, _Level) ->
   "float";
-pprint({c_type_atom, _}, _Level) ->
+pprint({c_type_sym, _}, _Level) ->
   "atom";
 pprint({c_type_str, _}, _Level) ->
   "str";
@@ -177,11 +177,11 @@ pprint({c_type_addr, _, T}, Level) ->
   format([addr, T], Level);
 
 pprint({c_type_var, _, Name}, _Level) ->
-  [$', printable_atom(Name)];
+  [$', printable_symbol(Name)];
 pprint({c_type_path, _, TypeVars}, _Level) ->
-  [$$ | lists:join("::", [printable_atom(Name) || {c_type_var, _, Name} <- TypeVars])];
+  [$$ | lists:join("::", [printable_symbol(Name) || {c_type_var, _, Name} <- TypeVars])];
 pprint({c_type_tag, _, Name}, _Level) ->
-  [$:, printable_atom(Name)];
+  [$:, printable_symbol(Name)];
 
 pprint({c_type_struct, _, Path, TArgs}, Level) ->
   format([struct, Path | pprint_args(arg, TArgs, Level)], Level);
@@ -232,24 +232,24 @@ format_inner(Nodes, Level) ->
 spaces(Level) ->
   lists:duplicate(Level, $\s).
 
-printable_atom(Atom) ->
-  Str = atom_to_list(Atom),
-  case lists:all(fun unquoted_atom_char/1, Str) of
+printable_symbol(Symbol) ->
+  Str = atom_to_list(Symbol),
+  case lists:all(fun unquoted_symbol_char/1, Str) of
     true  -> Str;
     false -> [$\", printable_string(Str), $\"]
   end.
 
-%% Core Aero atoms also allow "-" and "." where Aero ones do not and can start
+%% Core Aero symbols also allow "-" and "." where Aero ones do not and can start
 %% with a number as well.
-unquoted_atom_char($_) ->
+unquoted_symbol_char($_) ->
   true;
-unquoted_atom_char($-) ->
+unquoted_symbol_char($-) ->
   true;
-unquoted_atom_char($.) ->
+unquoted_symbol_char($.) ->
   true;
-unquoted_atom_char(C) when C >= $a, C =< $z; C >= $A, C =< $Z; C >= $0, C =< $9 ->
+unquoted_symbol_char(C) when C >= $a, C =< $z; C >= $A, C =< $Z; C >= $0, C =< $9 ->
   true;
-unquoted_atom_char(_) ->
+unquoted_symbol_char(_) ->
   false.
 
 %% Convert to printable ASCII and escape characters.

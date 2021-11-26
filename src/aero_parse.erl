@@ -227,8 +227,8 @@ expr_single({type_param, Meta, TypeParam}, _Mode) ->
   {type_param, Meta, TypeParam};
 expr_single({blank, Meta}, _Mode) ->
   {blank, Meta};
-expr_single({atom_lit, Meta, Atom}, _Mode) ->
-  {atom_lit, Meta, Atom};
+expr_single({sym_lit, Meta, Symbol}, _Mode) ->
+  {sym_lit, Meta, Symbol};
 expr_single({str_lit, Meta, String}, _Mode) ->
   {str_lit, Meta, String};
 expr_single({int_lit, Meta, Integer}, _Mode) ->

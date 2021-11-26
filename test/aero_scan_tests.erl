@@ -53,14 +53,14 @@ identifier_test() ->
     {ident, _, '__TEST_1__'}, {eof, _}
   ], scan(<<"test Test __TEST__ test_1 Test1 __TEST_1__">>)).
 
-atom_test_() ->
+symbol_test_() ->
   [
-    % Basic atoms.
+    % Basic symbols.
     ?_assertMatch([
-      {atom_lit, _, test}, {space, _}, {atom_lit, _, test_1}, {eof, _}
+      {sym_lit, _, test}, {space, _}, {sym_lit, _, test_1}, {eof, _}
     ], scan(<<":test :test_1">>)),
-    % Escaped atoms.
+    % Escaped symbols.
     ?_assertMatch([
-      {atom_lit, _, 'Test'}, {space, _}, {atom_lit, _, '& ,#'}, {eof, _}
+      {sym_lit, _, 'Test'}, {space, _}, {sym_lit, _, '& ,#'}, {eof, _}
     ], scan(<<":\"Test\" :\"& ,#\"">>))
   ].

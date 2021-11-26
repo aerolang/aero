@@ -40,8 +40,8 @@ expand_pat_inner({int_lit, _, Integer}, Env) ->
   {aero_core:c_pat_int([], Integer), Env};
 expand_pat_inner({float_lit, _, Float}, Env) ->
   {aero_core:c_pat_float([], Float), Env};
-expand_pat_inner({atom_lit, _, Atom}, Env) ->
-  {aero_core:c_pat_atom([], Atom), Env};
+expand_pat_inner({sym_lit, _, Symbol}, Env) ->
+  {aero_core:c_pat_sym([], Symbol), Env};
 expand_pat_inner({str_lit, _, String}, Env) ->
   {aero_core:c_pat_str([], String), Env};
 
@@ -82,7 +82,7 @@ expand_pat_inner({expand, _, {op, _, '#{_}'}, [{args, _, Args}]}, Env) ->
         % We can have a tag in a dictionary pattern for #{ atom: pat } syntax.
         % Needing to corece the left side into an atom.
         {tag, _, {ident, _, Key}, Value} ->
-          KeyPat = aero_core:c_pat_atom([], Key),
+          KeyPat = aero_core:c_pat_sym([], Key),
           {ValuePat, ValueEnv} = expand_pat_inner(Value, AccEnv),
 
           {[{KeyPat, ValuePat} | Acc], ValueEnv}
