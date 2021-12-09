@@ -12,9 +12,9 @@ jobs:
     steps:
       - uses: actions/checkout@v2
       - name: Install Erlang
-        uses: gleam-lang/setup-erlang@v1.1.2
+        uses: erlef/setup-beam@v1
         with:
-          otp-version: 23.2
+          otp-version: '24'
       - run: rebar3 fetch
       - run: rebar3 do build, check
       - run: rebar3 test
