@@ -314,34 +314,22 @@ expand_expr({expand, _, {op, _, '_or_'}, [Left, Right]}, Env) ->
   aero_core:c_match([], expand_expr(Left, Env), Cases);
 
 %% `match` expression.
-expand_expr({expand, Meta, {ident, _, 'match'}, Args}, _Env) when length(Args) < 2 ->
+expand_expr({expand, _, {op, _, '_match_'}, [Expr, {block, _, BlockArgs}]}, Env) ->
+  CoreExpr = expand_expr(Expr, Env),
+  Cases =
+    lists:map(fun
+      ({expand, _, {op, _, '_=>_'}, [Pat, Body]}) ->
+        {CorePat, PatEnv} = aero_expand_pat:expand_pat(Pat, Env),
+        CoreBody = expand_expr(Body, PatEnv),
+
+        {CorePat, CoreBody};
+      (CaseExpr) ->
+        throw({expand_error, {match_case_invalid, aero_ast:meta(CaseExpr)}})
+    end, BlockArgs),
+
+  aero_core:c_match([], CoreExpr, Cases);
+expand_expr({expand, Meta, {ident, _, '_match_'}, _}, _Env) ->
   throw({expand_error, {match_invalid, Meta}});
-expand_expr({expand, Meta, {ident, _, 'match'}, Args}, Env) ->
-  case lists:last(Args) of
-    {block, _, BlockArgs} ->
-      % Be permissive with multiple arguments before a block: they are
-      % converted into a tuple (even though they really shouldn't be) for
-      % ergonomic reasons.
-      CoreExpr =
-        case lists:droplast(Args) of
-          [Expr] -> expand_expr(Expr, Env);
-          Exprs  -> aero_core:c_tuple([], [expand_expr(Expr, Env) || Expr <- Exprs])
-        end,
-      Cases =
-        lists:map(fun
-          ({expand, _, {op, _, '_=>_'}, [Pat, Body]}) ->
-            {CorePat, PatEnv} = aero_expand_pat:expand_pat(Pat, Env),
-            CoreBody = expand_expr(Body, PatEnv),
-
-            {CorePat, CoreBody};
-          (CaseExpr) ->
-            throw({expand_error, {match_case_invalid, aero_ast:meta(CaseExpr)}})
-        end, BlockArgs),
-
-      aero_core:c_match([], CoreExpr, Cases);
-    _ ->
-      throw({expand_error, {match_invalid, Meta}})
-  end;
 
 %% `when` expression.
 expand_expr({expand, Meta, {ident, _, 'when'}, [{block, _, BlockArgs}]}, Env) ->
@@ -398,7 +386,6 @@ expand_expr({expand, Meta, {ident, _, 'if'}, [Cond, Next]}, Env) ->
     _ ->
       throw({expand_error, {if_invalid, Meta}})
   end;
-
 expand_expr({expand, Meta, {ident, _, 'if'}, _}, _Env) ->
   throw({expand_error, {if_invalid, Meta}});
 

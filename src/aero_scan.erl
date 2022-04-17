@@ -24,7 +24,7 @@ scan(Input) ->
                                               (S1 >= $A andalso S1 =< $Z))).
 -define(is_ident_continue(S1), (?is_ident_start(S1) orelse ?is_digit(S1))).
 -define(is_ident_op(S), S =:= 'if'; S =:= else; S =:= 'and'; S =:= 'or'; S =:= 'not'; S =:= for;
-                        S =:= while; S =:= where; S =:= as).
+                        S =:= while; S =:= where; S =:= as; S =:= match).
 
 -define(is_whitespace_start_1(S), S =:= "\s"; S =:= "\t"; S =:= "\n"; S =:= ["\r\n"]; S =:= ";").
 -define(is_whitespace_start_2(S), S =:= "//").

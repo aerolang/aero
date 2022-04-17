@@ -530,12 +530,13 @@ op(_,   infix,   '->>')  -> {30,  right};  %                      ->>
 op(_,   infix,   '=')    -> {25,  right};  %  25  infix    right  =
 op(_,   infix,   '<-')   -> {25,  right};  %                      <-
 op(_,   infix,   '=>')   -> {25,  right};  %                      =>
-op(_,   infix,   'if')   -> {20,  right};  %  20  infix    right  if
-op(_,   infix,   else)   -> {20,  right};  %                      else
-op(_,   infix,   for)    -> {20,  right};  %                      for
-op(_,   infix,   while)  -> {20,  right};  %                      while
-op(_,   infix,   where)  -> {20,  right};  %                      where
-op(_,   infix,   as)     -> {20,  right};  %                      as
+op(_,   infix,   match)  -> {20,  left};   %  20  infix    left   match
+op(_,   infix,   'if')   -> {15,  right};  %  15  infix    right  if
+op(_,   infix,   else)   -> {15,  right};  %                      else
+op(_,   infix,   for)    -> {15,  right};  %                      for
+op(_,   infix,   while)  -> {15,  right};  %                      while
+op(_,   infix,   where)  -> {15,  right};  %                      where
+op(_,   infix,   as)     -> {15,  right};  %                      as
 op(_,   infix,   ',')    -> {10,  right};  %  10  infix    right  ,
 op(_,   infix,   '$')    -> {10,  right};  %                      $
 op(_,   infix,   ' ')    -> {10,  right};  %                      (space)
@@ -664,7 +665,8 @@ merge_meta([Meta | Tail], Line, Column, Span) ->
   end.
 
 %% Convert operators to tokens if possible.
-op_to_tokens({op, Meta, Op}) when Op =:= 'if'; Op =:= else; Op =:= for; Op =:= while ->
+op_to_tokens({op, Meta, Op}) when Op =:= 'if'; Op =:= else; Op =:= for; Op =:= while;
+                                  Op =:= match ->
   % These infix operators are converted to idents when used in a prefix way.
   [{ident, Meta, Op}];
 op_to_tokens(_T) ->

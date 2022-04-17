@@ -10,7 +10,7 @@ func fizzbuzz_1(x: int) -> str {
 
 // Fizzbuzz using pattern matching.
 func fizzbuzz_2(x: int) -> str {
-  match (x % 3, x % 5) {
+  (x % 3, x % 5) match {
     0, 0 => "fizzbuzz"
     0, _ => "fizz"
     _, 0 => "buzz"
