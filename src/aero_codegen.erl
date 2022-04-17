@@ -133,7 +133,7 @@ gen_expr({c_sym, _, Symbol}) ->
 gen_expr({c_str, _, String}) ->
   cerl:abstract(String);
 
-gen_expr({c_unit, _}) ->
+gen_expr({c_void, _}) ->
   cerl:abstract(ok);
 
 gen_expr({c_tuple, _, Exprs}) ->
@@ -220,7 +220,7 @@ gen_pat({c_pat_sym, _, Symbol}) ->
 gen_pat({c_pat_str, _, String}) ->
   cerl:abstract(String);
 
-gen_pat({c_pat_unit, _}) ->
+gen_pat({c_pat_void, _}) ->
   cerl:abstract(ok);
 
 gen_pat({c_pat_tuple, _, Exprs}) ->

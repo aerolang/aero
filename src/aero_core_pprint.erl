@@ -53,8 +53,8 @@ pprint({c_sym, _, Symbol}, _Level) ->
 pprint({c_str, _, String}, _Level) ->
   [$", printable_string(String), $"];
 
-pprint({c_unit, _}, _Level) ->
-  "unit";
+pprint({c_void, _}, _Level) ->
+  "void";
 
 pprint({c_tuple, _, Exprs}, Level) ->
   format([tuple | Exprs], Level);
@@ -114,8 +114,8 @@ pprint({c_pat_sym, _, Symbol}, _Level) ->
 pprint({c_pat_str, _, String}, _Level) ->
   [$", printable_string(String), $"];
 
-pprint({c_pat_unit, _}, _Level) ->
-  "unit";
+pprint({c_pat_void, _}, _Level) ->
+  "void";
 
 pprint({c_pat_tuple, _, Pats}, Level) ->
   format([tuple | Pats], Level);
@@ -151,8 +151,8 @@ pprint({c_type_bits, _}, _Level) ->
 pprint({c_type_ref, _}, _Level) ->
   "ref";
 
-pprint({c_type_unit, _}, _Level) ->
-  "unit";
+pprint({c_type_void, _}, _Level) ->
+  "void";
 
 pprint({c_type_tuple, _, TArgs}, Level) ->
   format([tuple | TArgs], Level);

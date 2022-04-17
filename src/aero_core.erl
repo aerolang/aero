@@ -11,27 +11,27 @@
 -module(aero_core).
 
 -export([c_pkg/3, c_mod/4, c_def_func/4, c_def_const/5, c_def_mod/3]).
--export([c_block/2, c_bool/2, c_int/2, c_float/2, c_sym/2, c_str/2, c_unit/1, c_tuple/2,
+-export([c_block/2, c_bool/2, c_int/2, c_float/2, c_sym/2, c_str/2, c_void/1, c_tuple/2,
          c_cons/3, c_nil/1, c_dict/2, c_func/5, c_call/3, c_apply/3, c_var/2, c_path/2, c_let/4,
          c_letrec/4, c_match/3, c_args/2]).
--export([c_pat_bool/2, c_pat_int/2, c_pat_float/2, c_pat_sym/2, c_pat_str/2, c_pat_unit/1,
+-export([c_pat_bool/2, c_pat_int/2, c_pat_float/2, c_pat_sym/2, c_pat_str/2, c_pat_void/1,
          c_pat_tuple/2, c_pat_cons/3, c_pat_nil/1, c_pat_dict/2, c_pat_var/2, c_pat_args/2]).
 -export([c_type_bool/1, c_type_int/1, c_type_float/1, c_type_sym/1, c_type_str/1, c_type_bytes/1,
-         c_type_bits/1, c_type_ref/1, c_type_unit/1, c_type_tuple/2, c_type_list/2, c_type_dict/3,
+         c_type_bits/1, c_type_ref/1, c_type_void/1, c_type_tuple/2, c_type_list/2, c_type_dict/3,
          c_type_func/3, c_type_uniq/2, c_type_dyn/2, c_type_any/1, c_type_never/1, c_type_wld/1,
          c_type_mbox/2, c_type_addr/2, c_type_var/2, c_type_path/2, c_type_tag/2, c_type_struct/3,
          c_type_proto/3, c_type_union/2, c_type_inter/2, c_type_where/3]).
 
 -export_type([c_any/0]).
 -export_type([c_pkg/0, c_mod/0, c_def/0, c_def_func/0, c_def_const/0, c_def_mod/0, c_vis/0]).
--export_type([c_expr/0, c_block/0, c_bool/0, c_int/0, c_float/0, c_sym/0, c_str/0, c_unit/0,
+-export_type([c_expr/0, c_block/0, c_bool/0, c_int/0, c_float/0, c_sym/0, c_str/0, c_void/0,
               c_tuple/0, c_cons/0, c_nil/0,  c_dict/0, c_func/0, c_call/0, c_apply/0, c_var/0,
               c_path/0, c_let/0, c_letrec/0, c_match/0, c_args/0]).
 -export_type([c_pat/0, c_pat_bool/0, c_pat_int/0, c_pat_float/0, c_pat_sym/0, c_pat_str/0,
-              c_pat_unit/0, c_pat_tuple/0, c_pat_cons/0, c_pat_nil/0, c_pat_dict/0, c_pat_var/0,
+              c_pat_void/0, c_pat_tuple/0, c_pat_cons/0, c_pat_nil/0, c_pat_dict/0, c_pat_var/0,
               c_pat_args/0]).
 -export_type([c_type/0, c_type_bool/0, c_type_int/0, c_type_float/0, c_type_sym/0, c_type_str/0,
-              c_type_bytes/0, c_type_bits/0, c_type_ref/0, c_type_unit/0, c_type_tuple/0,
+              c_type_bytes/0, c_type_bits/0, c_type_ref/0, c_type_void/0, c_type_tuple/0,
               c_type_list/0, c_type_dict/0, c_type_func/0, c_type_uniq/0, c_type_dyn/0,
               c_type_any/0, c_type_never/0, c_type_wld/0, c_type_mbox/0, c_type_addr/0,
               c_type_var/0, c_type_path/0, c_type_tag/0, c_type_struct/0, c_type_proto/0,
@@ -76,7 +76,7 @@
                 | c_float()
                 | c_sym()
                 | c_str()
-                | c_unit()
+                | c_void()
                 | c_tuple()
                 | c_cons()
                 | c_nil()
@@ -101,8 +101,8 @@
 -type c_sym()   :: {c_sym, meta(), atom()}.
 -type c_str()   :: {c_str, meta(), binary()}.
 
-%% Unit value.
--type c_unit() :: {c_unit, meta()}.
+%% Void value.
+-type c_void() :: {c_void, meta()}.
 
 %% Collections.
 -type c_tuple() :: {c_tuple, meta(), [c_expr()]}.
@@ -154,7 +154,7 @@
                | c_pat_float()
                | c_pat_sym()
                | c_pat_str()
-               | c_pat_unit()
+               | c_pat_void()
                | c_pat_tuple()
                | c_pat_cons()
                | c_pat_nil()
@@ -169,8 +169,8 @@
 -type c_pat_sym()   :: {c_pat_sym, meta(), atom()}.
 -type c_pat_str()   :: {c_pat_str, meta(), binary()}.
 
-%% Unit pattern.
--type c_pat_unit() :: {c_pat_unit, meta()}.
+%% Void pattern.
+-type c_pat_void() :: {c_pat_void, meta()}.
 
 %% Collection patterns.
 -type c_pat_cons()  :: {c_pat_cons, meta(), c_pat(), c_pat()}.
@@ -193,7 +193,7 @@
                 | c_type_bytes()
                 | c_type_bits()
                 | c_type_ref()
-                | c_type_unit()
+                | c_type_void()
                 | c_type_tuple()
                 | c_type_list()
                 | c_type_dict()
@@ -227,8 +227,8 @@
 %% References type.
 -type c_type_ref() :: {c_type_ref, meta()}.
 
-%% Unit type.
--type c_type_unit() :: {c_type_unit, meta()}.
+%% Void type.
+-type c_type_void() :: {c_type_void, meta()}.
 
 %% Collection types.
 -type c_type_tuple() :: {c_type_tuple, meta(), [c_type()]}.
@@ -329,10 +329,10 @@ c_sym(Meta, Symbol) ->
 c_str(Meta, String) ->
   {c_str, Meta, String}.
 
-%% Create a unit expression.
--spec c_unit(meta()) -> c_unit().
-c_unit(Meta) ->
-  {c_unit, Meta}.
+%% Create a void expression.
+-spec c_void(meta()) -> c_void().
+c_void(Meta) ->
+  {c_void, Meta}.
 
 %% Create a tuple expression.
 -spec c_tuple(meta(), [c_expr()]) -> c_tuple().
@@ -424,10 +424,10 @@ c_pat_sym(Meta, Symbol) ->
 c_pat_str(Meta, String) ->
   {c_pat_str, Meta, String}.
 
-%% Create a unit pattern.
--spec c_pat_unit(meta()) -> c_pat_unit().
-c_pat_unit(Meta) ->
-  {c_pat_unit, Meta}.
+%% Create a void pattern.
+-spec c_pat_void(meta()) -> c_pat_void().
+c_pat_void(Meta) ->
+  {c_pat_void, Meta}.
 
 %% Create a cons pattern.
 -spec c_pat_cons(meta(), c_pat(), c_pat()) -> c_pat_cons().
@@ -499,10 +499,10 @@ c_type_bits(Meta) ->
 c_type_ref(Meta) ->
   {c_type_ref, Meta}.
 
-%% Create a unit type.
--spec c_type_unit(meta()) -> c_type_unit().
-c_type_unit(Meta) ->
-  {c_type_unit, Meta}.
+%% Create a void type.
+-spec c_type_void(meta()) -> c_type_void().
+c_type_void(Meta) ->
+  {c_type_void, Meta}.
 
 %% Create a tuple type.
 -spec c_type_tuple(meta(), [c_type()]) -> c_type_tuple().

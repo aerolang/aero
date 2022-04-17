@@ -29,9 +29,9 @@ expand_type({ident, _, bits}, Env) ->
 expand_type({ident, _, ref}, Env) ->
   {aero_core:c_type_ref([]), Env};
 
-%% Unit type.
+%% Void type.
 expand_type({expand, _, {op, _, '(_)'}, [{args, _, []}]}, Env) ->
-  {aero_core:c_type_unit([]), Env};
+  {aero_core:c_type_void([]), Env};
 
 %% Collections.
 expand_type({expand, _, {op, _, '(_)'}, [{args, _, Args}]}, Env) when length(Args) > 1 ->

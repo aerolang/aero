@@ -189,10 +189,10 @@ is_simple(Expr) ->
 is_literal({c_bool, _, _})  -> true;
 is_literal({c_int, _, _})   -> true;
 is_literal({c_float, _, _}) -> true;
-is_literal({c_sym, _, _})  -> true;
+is_literal({c_sym, _, _})   -> true;
 is_literal({c_str, _, _})   -> true;
 is_literal({c_nil, _})      -> true;
-is_literal({c_unit, _})     -> true;
+is_literal({c_void, _})     -> true;
 is_literal(_)               -> false.
 
 is_var({c_var, _, _})  -> true;

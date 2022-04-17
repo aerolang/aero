@@ -45,9 +45,9 @@ expand_pat_inner({sym_lit, _, Symbol}, Env) ->
 expand_pat_inner({str_lit, _, String}, Env) ->
   {aero_core:c_pat_str([], String), Env};
 
-%% Unit pattern.
+%% Void pattern.
 expand_pat_inner({expand, _, {op, _, '(_)'}, [{args, _, []}]}, Env) ->
-  {aero_core:c_pat_unit([]), Env};
+  {aero_core:c_pat_void([]), Env};
 
 %% Tuple pattern.
 expand_pat_inner({expand, _, {op, _, '(_)'}, [{args, _, Args}]}, Env) when length(Args) > 1 ->

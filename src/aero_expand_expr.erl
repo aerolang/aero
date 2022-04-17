@@ -13,7 +13,7 @@
 
 %% Blocks.
 expand_expr({block, _, []}, _Env) ->
-  aero_core:c_unit([]);
+  aero_core:c_void([]);
 expand_expr({block, _, [{expand, _, {op, _, Arrow}, _} | _] = BlockExprs}, Env)
     when Arrow =:= '_->_'; Arrow =:= '_->>_' ->
   % When the first entry in the block is a function, this whole thing is treated
@@ -107,9 +107,9 @@ expand_expr({sym_lit, _, Symbol}, _Env) ->
 expand_expr({str_lit, _, String}, _Env) ->
   aero_core:c_str([], String);
 
-%% Unit value.
+%% Void value.
 expand_expr({expand, _, {op, _, '(_)'}, [{args, _, []}]}, _Env) ->
-  aero_core:c_unit([]);
+  aero_core:c_void([]);
 
 %% Tuples.
 expand_expr({expand, _, {op, _, '(_)'}, [{args, _, Args}]}, Env) when length(Args) > 1 ->
