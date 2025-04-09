@@ -1,0 +1,43 @@
+load("@crates//:defs.bzl", "aliases", "all_crate_deps")
+load("@cxx.rs//tools/bazel:rust_cxx_bridge.bzl", "rust_cxx_bridge")
+load("@rules_cc//cc:cc_library.bzl", "cc_library")
+load("@rules_rust//rust:defs.bzl", "rust_library")
+
+rust_library(
+    name = "airc-codegen",
+    srcs = glob(["src/**/*.rs"]),
+    aliases = aliases(),
+    proc_macro_deps = all_crate_deps(proc_macro = True),
+    visibility = ["//compiler:__subpackages__"],
+    deps = all_crate_deps(normal = True) + [
+        ":codegen",
+        ":codegen-bridge",
+    ],
+)
+
+rust_cxx_bridge(
+    name = "codegen-bridge",
+    src = "src/lib.rs",
+    deps = [":codegen-include"],
+)
+
+cc_library(
+    name = "codegen",
+    srcs = ["lib/codegen.cpp"],
+    deps = [
+        ":air-ast",
+        ":codegen-bridge/include",
+        ":codegen-include",
+    ],
+)
+
+cc_library(
+    name = "codegen-include",
+    hdrs = ["include/codegen.h"],
+)
+
+cc_library(
+    name = "air-ast",
+    srcs = ["lib/air-ast.cpp"],
+    hdrs = ["include/air-ast.h"],
+)

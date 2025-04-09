@@ -12,3 +12,9 @@ erl_crash.dump
 
 # Output
 /out
+
+# Bazel
+/bazel-*
+
+# Rust
+/target
