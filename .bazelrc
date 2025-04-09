@@ -1,1 +1,4 @@
 build --cxxopt=-std=c++17 --host_cxxopt=-std=c++17
+
+# lld is faster for linking.
+build --linkopt=-fuse-ld=lld --host_linkopt=-fuse-ld=lld

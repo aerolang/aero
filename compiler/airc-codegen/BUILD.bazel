@@ -1,5 +1,6 @@
 load("@crates//:defs.bzl", "aliases", "all_crate_deps")
 load("@cxx.rs//tools/bazel:rust_cxx_bridge.bzl", "rust_cxx_bridge")
+load("@rules_cc//cc:cc_binary.bzl", "cc_binary")
 load("@rules_cc//cc:cc_library.bzl", "cc_library")
 load("@rules_rust//rust:defs.bzl", "rust_library")
 
@@ -40,4 +41,13 @@ cc_library(
     name = "air-ast",
     srcs = ["lib/air-ast.cpp"],
     hdrs = ["include/air-ast.h"],
+)
+
+cc_binary(
+    name = "air-opt",
+    srcs = ["tools/air-opt.cpp"],
+    deps = [
+        "@llvm-project//mlir:AllPassesAndDialects",
+        "@llvm-project//mlir:MlirOptLib",
+    ],
 )
