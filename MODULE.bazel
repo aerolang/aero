@@ -63,6 +63,7 @@ crate.from_cargo(
         "//:Cargo.toml",
         "//compiler/airc:Cargo.toml",
         "//compiler/airc-codegen:Cargo.toml",
+        "//compiler/airc-syntax:Cargo.toml",
     ],
     supported_platform_triples = [
         "aarch64-apple-darwin",

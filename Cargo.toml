@@ -1,3 +1,3 @@
 [workspace]
 resolver = "2"
-members = ["compiler/airc", "compiler/airc-codegen"]
+members = ["compiler/airc", "compiler/airc-codegen", "compiler/airc-syntax"]

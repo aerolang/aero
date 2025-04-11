@@ -1,0 +1,7 @@
+[package]
+name = "airc-syntax"
+edition = "2024"
+
+[dependencies]
+pest = "2.8.0"
+pest_derive = "2.8.0"

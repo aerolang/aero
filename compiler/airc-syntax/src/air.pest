@@ -1,0 +1,20 @@
+Source = { SOI ~ Defs ~ EOI }
+
+Defs = _{ Whitespace? ~ Def ~ (Whitespace ~ Def)* ~ Whitespace? }
+Def = _{
+  "(" ~ Whitespace? ~ "def" ~ Whitespace ~ Vis ~ Whitespace ~ DefInner
+  ~ Whitespace? ~ ")"
+}
+DefInner = _{ FuncDef }
+
+Vis = _{ Pub | Priv }
+Pub = @{ "pub" }
+Priv = @{ "priv" }
+
+FuncDef = {"func"}
+
+Whitespace = _{ Space | Newline }
+Space = _{ (" " | "\t")+ }
+Newline = _{
+  Space? ~ ((";" ~ (!("\n" | "\r") ~ ANY)*)? ~ ("\n" | "\r\n" | "\r") ~ Space?)+
+}
