@@ -1,9 +1,8 @@
 Source = { SOI ~ Defs ~ EOI }
 
-Defs = _{ Whitespace? ~ Def ~ (Whitespace ~ Def)* ~ Whitespace? }
+Defs = _{ Ws? ~ Def ~ (Ws ~ Def)* ~ Ws? }
 Def = _{
-  "(" ~ Whitespace? ~ "def" ~ Whitespace ~ Vis ~ Whitespace ~ DefInner
-  ~ Whitespace? ~ ")"
+  "(" ~ Ws? ~ "def" ~ Ws ~ Vis ~ Ws ~ DefInner ~ Ws? ~ ")"
 }
 DefInner = _{ FuncDef }
 
@@ -11,9 +10,42 @@ Vis = _{ Pub | Priv }
 Pub = @{ "pub" }
 Priv = @{ "priv" }
 
-FuncDef = {"func"}
+FuncDef = {
+  "func" ~ Ws ~ DefName ~ Ws ~ "->" ~ Ws ~ Type ~ Ws ~ "do:" ~ Ws
+  ~ (Assign ~ Ws)* ~ SimpleExpr ~ Ws?
+}
 
-Whitespace = _{ Space | Newline }
+Assign = { VarName ~ Ws ~ Type ~ Ws ~ "=" ~ Ws ~ Expr }
+
+Expr = _{ SimpleExpr | Call }
+SimpleExpr = _{ Void | Str | Sym | VarName | DefName }
+
+Void = { "(" ~ Ws? ~ ")" }
+
+Str = { "\"" ~ StrContent ~ "\"" }
+StrContent = @{ (!"\"" ~ ANY)* }
+
+Call = _{ "(" ~ Ws? ~ CallInner ~ Ws? ~ ")" }
+CallInner = _{ LogCall }
+
+LogCall = { "log" ~ Ws ~ SimpleExpr }
+
+Type = _{ IntType | StrType | VoidType }
+
+IntType = @{ "Int" }
+StrType = @{ "Str" }
+VoidType = @{ "Void" }
+
+Label = { Name ~ ":" }
+Sym = { "." ~ Name }
+GlobalPath = { ("/" ~ Name)+ }
+LocalPath = { Name ~ ("/" ~ Name)+ }
+DefName = { "$" ~ Name }
+VarName = { "%" ~ Name }
+
+Name = { (ASCII_ALPHA | "_") ~ (ASCII_ALPHANUMERIC | "-")* }
+
+Ws = _{ Space | Newline }
 Space = _{ (" " | "\t")+ }
 Newline = _{
   Space? ~ ((";" ~ (!("\n" | "\r") ~ ANY)*)? ~ ("\n" | "\r\n" | "\r") ~ Space?)+

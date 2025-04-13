@@ -3184,9 +3184,9 @@
         "recordedFileInputs": {
           "@@//Cargo.lock": "0a118dd3616ad2903c34243bbfa8785d7c461cbb4f887a23e04326bef3c1e323",
           "@@//Cargo.toml": "6bf0d287ecd770f6342b91a53f18b158f462dd6b155927a106d09da8711bd0a8",
-          "@@//compiler/airc-codegen/Cargo.toml": "b18a4524843730756163055661dcd4fdcd1f41bc5e575618b4d30ac9cf380455",
-          "@@//compiler/airc-syntax/Cargo.toml": "32a24d2290c20a6736d72849588c2f06b09058706b788b21555a5ff2cfce278c",
-          "@@//compiler/airc/Cargo.toml": "c3dd4ba3955225c678cdc7a16120ac5cb81d6685a84d60dc1757f07e3d5f5024"
+          "@@//compiler/airc-codegen/Cargo.toml": "a485a56fdf7342efaf21d3c7b9508169d18623d69ae619ddf9d6a738159ef796",
+          "@@//compiler/airc-syntax/Cargo.toml": "18d82f670b1c421b83794a569dc38a356eb43214d034902408154d9e0caae576",
+          "@@//compiler/airc/Cargo.toml": "db848315ba7729664d5a23f186d25f2c59b675584fa32e301ec18d8fcc6b9f29"
         },
         "recordedDirentsInputs": {},
         "envVariables": {

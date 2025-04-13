@@ -1,5 +1,6 @@
 [package]
 name = "airc-syntax"
+version = "0.0.0"
 edition = "2024"
 
 [dependencies]
