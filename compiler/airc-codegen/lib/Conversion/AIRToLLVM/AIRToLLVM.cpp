@@ -67,14 +67,20 @@ struct FuncOpConversion : public OpConversionPattern<air::FuncOp> {
     if (failed(typeConverter->convertTypes(funcType.getResults(), resultTypes)))
       return failure();
 
+    // Rename main to air_main - the runtime will provide the real main wrapper
+    StringRef funcName = op.getSymName();
+    if (funcName == "main") {
+      funcName = "air_main";
+    }
+
     // LLVM function uses LLVM function type, not standard MLIR FunctionType
     auto llvmFuncType = LLVM::LLVMFunctionType::get(
         resultTypes.empty() ? LLVM::LLVMVoidType::get(op.getContext()) : resultTypes[0],
         argTypes);
 
-    // Create LLVM function using getSymName instead of getName
+    // Create LLVM function
     auto llvmFunc = rewriter.create<LLVM::LLVMFuncOp>(
-        op.getLoc(), op.getSymName(), llvmFuncType);
+        op.getLoc(), funcName, llvmFuncType);
 
     // Inline the function body
     rewriter.inlineRegionBefore(op.getBody(), llvmFunc.getBody(),
