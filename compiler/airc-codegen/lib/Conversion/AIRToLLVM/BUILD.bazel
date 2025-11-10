@@ -1,0 +1,45 @@
+load("@llvm-project//mlir:tblgen.bzl", "gentbl_cc_library")
+
+package(
+    default_visibility = ["//visibility:public"],
+)
+
+# Generate pass declarations
+gentbl_cc_library(
+    name = "pass_inc_gen",
+    tbl_outs = [
+        (
+            [
+                "-gen-pass-decls",
+                "-name=AIRToLLVM",
+            ],
+            "AIRToLLVM.h.inc",
+        ),
+    ],
+    tblgen = "@llvm-project//mlir:mlir-tblgen",
+    td_file = "//compiler/airc-codegen/include/AIR:AIRToLLVM.td",
+    deps = [
+        "@llvm-project//mlir:OpBaseTdFiles",
+        "@llvm-project//mlir:PassBaseTdFiles",
+    ],
+)
+
+# AIR to LLVM conversion pass
+cc_library(
+    name = "AIRToLLVM",
+    srcs = ["AIRToLLVM.cpp"],
+    hdrs = ["//compiler/airc-codegen/include/AIR:AIRToLLVM.h"],
+    includes = ["../../../include"],
+    deps = [
+        ":pass_inc_gen",
+        "//compiler/airc-codegen/lib/AIR",
+        "@llvm-project//llvm:Support",
+        "@llvm-project//mlir:FuncDialect",
+        "@llvm-project//mlir:IR",
+        "@llvm-project//mlir:LLVMCommonConversion",
+        "@llvm-project//mlir:LLVMDialect",
+        "@llvm-project//mlir:Pass",
+        "@llvm-project//mlir:Support",
+        "@llvm-project//mlir:TransformUtils",
+    ],
+)

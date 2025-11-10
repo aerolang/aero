@@ -19,7 +19,9 @@ rust_library(
 rust_cxx_bridge(
     name = "codegen-bridge",
     src = "src/lib.rs",
-    deps = [":codegen-include"],
+    deps = [
+        ":codegen-include",
+    ],
 )
 
 cc_library(
@@ -29,12 +31,26 @@ cc_library(
         ":air-ast",
         ":codegen-bridge/include",
         ":codegen-include",
+        "//compiler/airc-codegen/lib/AIR",
+        "//compiler/airc-codegen/lib/Conversion/AIRToLLVM",
+        "@llvm-project//llvm:Core",
+        "@llvm-project//llvm:Support",
+        "@llvm-project//mlir:AllPassesAndDialects",
+        "@llvm-project//mlir:IR",
+        "@llvm-project//mlir:LLVMDialect",
+        "@llvm-project//mlir:Pass",
+        "@llvm-project//mlir:ToLLVMIRTranslation",
+        "@llvm-project//mlir:ToLLVMIRTranslationRegistration",
     ],
 )
 
 cc_library(
     name = "codegen-include",
     hdrs = ["include/codegen.h"],
+    includes = ["include"],
+    deps = [
+        "@cxx.rs//:cxx",
+    ],
 )
 
 cc_library(
@@ -47,6 +63,8 @@ cc_binary(
     name = "air-opt",
     srcs = ["tools/air-opt.cpp"],
     deps = [
+        "//compiler/airc-codegen/lib/AIR",
+        "//compiler/airc-codegen/lib/Conversion/AIRToLLVM",
         "@llvm-project//mlir:AllPassesAndDialects",
         "@llvm-project//mlir:MlirOptLib",
     ],

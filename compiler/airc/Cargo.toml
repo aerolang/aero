@@ -5,3 +5,4 @@ edition = "2024"
 
 [dependencies]
 airc-codegen = { path = "../airc-codegen" }
+clap = { version = "4", features = ["derive"] }

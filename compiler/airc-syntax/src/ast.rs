@@ -5,11 +5,17 @@ pub struct Source<'a> {
 
 pub struct Def<'a> {
     pub span: Span<'a>,
+    pub vis: Visibility,
     pub data: DefData<'a>,
 }
 
+pub enum Visibility {
+    Pub,
+    Priv,
+}
+
 pub enum DefData<'a> {
-    Func { name: DefName<'a>, body: Block<'a> }
+    Func { name: DefName<'a>, return_type: Type<'a>, body: Block<'a> }
 }
 
 pub struct Block<'a> {
@@ -20,7 +26,9 @@ pub struct Block<'a> {
 
 pub struct Assign<'a> {
     pub span: Span<'a>,
-    pub var: VarName<'a>, 
+    pub var: VarName<'a>,
+    pub ty: Type<'a>,
+    pub expr: Expr<'a>,
 }
 
 pub struct Expr<'a> {
@@ -71,6 +79,17 @@ pub struct VarName<'a> {
 pub struct DefName<'a> {
     pub span: Span<'a>,
     pub value: &'a str,
+}
+
+pub struct Type<'a> {
+    pub span: Span<'a>,
+    pub data: TypeData,
+}
+
+pub enum TypeData {
+    Int,
+    Str,
+    Void,
 }
 
 pub struct Span<'a> {

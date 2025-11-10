@@ -1,0 +1,19 @@
+package(
+    default_visibility = ["//visibility:public"],
+)
+
+# TableGen files
+exports_files([
+    "AIRDialect.td",
+    "AIRTypes.td",
+    "AIROps.td",
+    "AIRToLLVM.td",
+])
+
+# Header files
+exports_files([
+    "AIRDialect.h",
+    "AIRTypes.h",
+    "AIROps.h",
+    "AIRToLLVM.h",
+])

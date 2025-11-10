@@ -1,0 +1,3 @@
+(def pub func $main -> Void do:
+  (log "Hello, World!")
+)
