@@ -1,12 +1,21 @@
 load("@crates//:defs.bzl", "aliases", "all_crate_deps")
 load("@rules_rust//rust:defs.bzl", "rust_binary")
+load("@bazel_skylib//rules:copy_file.bzl", "copy_file")
 
 rust_binary(
     name = "airc",
     srcs = glob(["src/**/*.rs"]),
     aliases = aliases(),
+    data = [":runtime/libair_runtime.a"],
     proc_macro_deps = all_crate_deps(proc_macro = True),
     deps = all_crate_deps(normal = True) + [
         "//compiler/airc-codegen",
     ],
+)
+
+# Copy the runtime library output to runtime/libair_runtime.a sibling to airc binary
+copy_file(
+    name = "runtime_lib_copy",
+    src = "//runtime:libair_runtime.a",
+    out = "runtime/libair_runtime.a",
 )

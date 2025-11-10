@@ -21,10 +21,21 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     println!("Compiling {} to {}", args.input.display(), args.output.display());
 
+    // Find the runtime library relative to the binary
+    let exe_path = std::env::current_exe()?;
+    let exe_dir = exe_path.parent().ok_or("Failed to get executable directory")?;
+    let runtime_path = exe_dir.join("runtime/libair_runtime.a");
+
+    if !runtime_path.exists() {
+        eprintln!("Error: Runtime library not found at {}", runtime_path.display());
+        std::process::exit(1);
+    }
+
     // Compile using the codegen backend
     airc_codegen::compile_air(
         &source,
-        args.output.to_str().unwrap()
+        args.output.to_str().unwrap(),
+        runtime_path.to_str().unwrap()
     );
 
     Ok(())

@@ -9,3 +9,10 @@ cc_library(
     srcs = ["air_runtime.c"],
     hdrs = ["air_runtime.h"],
 )
+
+# Expose the library output for copying
+filegroup(
+    name = "libair_runtime.a",
+    srcs = [":air_runtime"],
+    output_group = "archive",
+)

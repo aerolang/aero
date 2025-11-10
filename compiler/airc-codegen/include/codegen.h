@@ -14,7 +14,7 @@ namespace codegen {
 void do_stuff();
 
 // Compile AIR source to an executable
-void compile_air(rust::Str source, rust::Str output_path);
+void compile_air(rust::Str source, rust::Str output_path, rust::Str runtime_path);
 
 }  // namespace codegen
 }  // namespace airc

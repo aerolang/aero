@@ -67,9 +67,10 @@ struct SimpleAIRParser {
     }
 };
 
-void compile_air(rust::Str source, rust::Str output_path) {
+void compile_air(rust::Str source, rust::Str output_path, rust::Str runtime_path) {
     std::string sourceStr(source.data(), source.size());
     std::string outputStr(output_path.data(), output_path.size());
+    std::string runtimePath(runtime_path.data(), runtime_path.size());
 
     // Parse AIR source (simplified for now)
     SimpleAIRParser parser;
@@ -196,13 +197,17 @@ void compile_air(rust::Str source, rust::Str output_path) {
 
     std::cout << "Compiled to object file: " << objPath << std::endl;
 
-    // Link with runtime library
+    // Use the provided runtime library path
+    if (!llvm::sys::fs::exists(runtimePath)) {
+        std::cerr << "Error: Could not find air_runtime library at " << runtimePath << std::endl;
+        return;
+    }
+
     std::vector<llvm::StringRef> linkArgs = {
         "clang",
         objPath,
         "-o", outputStr,
-        // Use bazel-bin path for runtime library
-        "bazel-bin/runtime/libair_runtime.a"
+        runtimePath
     };
 
     result = llvm::sys::ExecuteAndWait(
@@ -210,7 +215,7 @@ void compile_air(rust::Str source, rust::Str output_path) {
 
     if (result != 0) {
         std::cerr << "Linking failed: " << errMsg << std::endl;
-        std::cerr << "Try running manually: clang " << objPath << " -o " << outputStr << " <runtime-lib-path>" << std::endl;
+        std::cerr << "Try running manually: clang " << objPath << " -o " << outputStr << " " << runtimePath << std::endl;
         return;
     }
 
