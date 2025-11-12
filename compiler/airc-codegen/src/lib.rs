@@ -6,7 +6,7 @@ mod ffi {
     struct FuncInfo {
         name: String,
         is_pub: bool,
-        log_message: String,  // Simplified for hello world
+        log_messages: Vec<String>,  // All log statements in the function
     }
 
     unsafe extern "C++" {
@@ -24,35 +24,46 @@ pub fn extract_funcs<'a>(ast_source: &ast::Source<'a>) -> Vec<ffi::FuncInfo> {
         if let ast::DefData::Func { name, body, .. } = &def.data {
             let is_pub = matches!(def.vis, ast::Visibility::Pub);
 
-            // For now, extract log message if the body result has a log call
-            let log_message = match &body.result.data {
-                ast::ExprData::Call(call_data) => {
-                    if let ast::CalleeData::Name("log") = call_data.callee.data {
-                        if let Some(arg) = call_data.args.first() {
-                            if let ast::SimpleData::Str(s) = arg.data {
-                                s.to_string()
-                            } else {
-                                String::new()
-                            }
-                        } else {
-                            String::new()
-                        }
-                    } else {
-                        String::new()
-                    }
+            // Extract all log messages from assigns and result
+            let mut log_messages = Vec::new();
+
+            // Extract logs from assigns
+            for assign in &body.assigns {
+                if let Some(msg) = extract_log_message(&assign.expr) {
+                    log_messages.push(msg);
                 }
-                _ => String::new(),
-            };
+            }
+
+            // Extract log from result expression
+            if let Some(msg) = extract_log_message(&body.result) {
+                log_messages.push(msg);
+            }
 
             funcs.push(ffi::FuncInfo {
                 name: name.value.to_string(),
                 is_pub,
-                log_message,
+                log_messages,
             });
         }
     }
 
     funcs
+}
+
+fn extract_log_message(expr: &ast::Expr) -> Option<String> {
+    match &expr.data {
+        ast::ExprData::Call(call_data) => {
+            if let ast::CalleeData::Name("log") = call_data.callee.data {
+                if let Some(arg) = call_data.args.first() {
+                    if let ast::SimpleData::Str(s) = arg.data {
+                        return Some(s.to_string());
+                    }
+                }
+            }
+            None
+        }
+        _ => None,
+    }
 }
 
 pub fn compile_air_ast(funcs: Vec<ffi::FuncInfo>, output_path: &str, runtime_path: &str) {

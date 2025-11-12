@@ -24,6 +24,11 @@ pub struct Block<'a> {
     pub result: Expr<'a>,
 }
 
+pub enum Stmt<'a> {
+    Assign(Assign<'a>),
+    Expr(Expr<'a>),
+}
+
 pub struct Assign<'a> {
     pub span: Span<'a>,
     pub var: VarName<'a>,

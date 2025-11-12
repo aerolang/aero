@@ -98,7 +98,7 @@ fn parse_def<'a>(source: &'a str, pair: Pair<'a, air::Rule>, vis: Visibility) ->
     let span = make_span(source, &pair);
 
     // FuncDef is the only DefInner currently
-    // Grammar: "func" ~ DefName ~ "->" ~ Type ~ "do:" ~ (Assign)* ~ SimpleExpr
+    // Grammar: "func" ~ DefName ~ "->" ~ Type ~ "do:" ~ (Assign)* ~ Expr
 
     let inner = pair.into_inner();
     let mut name = None;
@@ -118,10 +118,7 @@ fn parse_def<'a>(source: &'a str, pair: Pair<'a, air::Rule>, vis: Visibility) ->
                 assigns.push(parse_assign(source, part));
             }
             air::Rule::Void | air::Rule::Str | air::Rule::Sym |
-            air::Rule::VarName | air::Rule::DefName => {
-                result = Some(parse_expr(source, part));
-            }
-            air::Rule::LogCall => {
+            air::Rule::VarName | air::Rule::DefName | air::Rule::LogCall => {
                 result = Some(parse_expr(source, part));
             }
             _ => {}

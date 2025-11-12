@@ -45,7 +45,7 @@ void compile_air_ast(rust::Vec<FuncInfo> funcs, rust::Str output_path, rust::Str
 
     // Find the main function (must be pub)
     std::string mainFuncName;
-    std::string mainLogMessage;
+    std::vector<std::string> mainLogMessages;
     bool foundMain = false;
 
     for (const auto& func : funcs) {
@@ -53,7 +53,10 @@ void compile_air_ast(rust::Vec<FuncInfo> funcs, rust::Str output_path, rust::Str
         if (funcName == "main" && func.is_pub) {
             foundMain = true;
             mainFuncName = funcName;
-            mainLogMessage = std::string(func.log_message.data(), func.log_message.size());
+            // Extract all log messages
+            for (const auto& msg : func.log_messages) {
+                mainLogMessages.push_back(std::string(msg.data(), msg.size()));
+            }
             break;
         }
     }
@@ -94,14 +97,14 @@ void compile_air_ast(rust::Vec<FuncInfo> funcs, rust::Str output_path, rust::Str
     auto* entryBlock = builder.createBlock(&bodyRegion);
     builder.setInsertionPointToStart(entryBlock);
 
-    // Create string constant
+    // Create log operations for each message
     auto strType = mlir::air::StrType::get(&context);
-    auto strAttr = builder.getStringAttr(mainLogMessage);
-    auto constOp = builder.create<mlir::air::ConstantOp>(
-        loc, strType, strAttr);
-
-    // Create log operation
-    builder.create<mlir::air::LogOp>(loc, constOp.getResult());
+    for (const auto& logMessage : mainLogMessages) {
+        auto strAttr = builder.getStringAttr(logMessage);
+        auto constOp = builder.create<mlir::air::ConstantOp>(
+            loc, strType, strAttr);
+        builder.create<mlir::air::LogOp>(loc, constOp.getResult());
+    }
 
     // Create return operation (no operands for void return)
     builder.create<mlir::air::ReturnOp>(loc, mlir::Value());
