@@ -34,50 +34,32 @@ void registerLLVMDialectTranslation(DialectRegistry &);
 namespace airc {
 namespace codegen {
 
-void do_stuff() {
-    std::cout << "AIR Codegen initialized" << std::endl;
-}
-
-// Simple AIR source parser (minimal - for hello world)
-// In production, this would use the Rust parser via FFI
-struct SimpleAIRParser {
-    std::string funcName;
-    std::string logMessage;
-    bool isValid = false;
-
-    void parse(const std::string& source) {
-        // Very simple parser for: (def pub func $main -> Void do: (log "message"))
-        size_t funcPos = source.find("func $");
-        if (funcPos == std::string::npos) return;
-
-        size_t nameStart = funcPos + 6;
-        size_t nameEnd = source.find(" ", nameStart);
-        if (nameEnd == std::string::npos) return;
-        funcName = source.substr(nameStart, nameEnd - nameStart);
-
-        size_t logPos = source.find("(log \"");
-        if (logPos == std::string::npos) return;
-
-        size_t msgStart = logPos + 6;
-        size_t msgEnd = source.find("\")", msgStart);
-        if (msgEnd == std::string::npos) return;
-        logMessage = source.substr(msgStart, msgEnd - msgStart);
-
-        isValid = true;
-    }
-};
-
-void compile_air(rust::Str source, rust::Str output_path, rust::Str runtime_path) {
-    std::string sourceStr(source.data(), source.size());
+void compile_air_ast(rust::Vec<FuncInfo> funcs, rust::Str output_path, rust::Str runtime_path) {
     std::string outputStr(output_path.data(), output_path.size());
     std::string runtimePath(runtime_path.data(), runtime_path.size());
 
-    // Parse AIR source (simplified for now)
-    SimpleAIRParser parser;
-    parser.parse(sourceStr);
+    if (funcs.empty()) {
+        std::cerr << "No functions to compile" << std::endl;
+        return;
+    }
 
-    if (!parser.isValid) {
-        std::cerr << "Failed to parse AIR source" << std::endl;
+    // Find the main function (must be pub)
+    std::string mainFuncName;
+    std::string mainLogMessage;
+    bool foundMain = false;
+
+    for (const auto& func : funcs) {
+        std::string funcName(func.name.data(), func.name.size());
+        if (funcName == "main" && func.is_pub) {
+            foundMain = true;
+            mainFuncName = funcName;
+            mainLogMessage = std::string(func.log_message.data(), func.log_message.size());
+            break;
+        }
+    }
+
+    if (!foundMain) {
+        std::cerr << "No public main function found" << std::endl;
         return;
     }
 
@@ -105,7 +87,7 @@ void compile_air(rust::Str source, rust::Str output_path, rust::Str runtime_path
 
     // Create AIR function
     auto func = builder.create<mlir::air::FuncOp>(
-        loc, builder.getStringAttr(parser.funcName), mlir::TypeAttr::get(funcType));
+        loc, builder.getStringAttr(mainFuncName), mlir::TypeAttr::get(funcType));
 
     // Create function body - manually add a region and block
     auto& bodyRegion = func.getBody();
@@ -114,7 +96,7 @@ void compile_air(rust::Str source, rust::Str output_path, rust::Str runtime_path
 
     // Create string constant
     auto strType = mlir::air::StrType::get(&context);
-    auto strAttr = builder.getStringAttr(parser.logMessage);
+    auto strAttr = builder.getStringAttr(mainLogMessage);
     auto constOp = builder.create<mlir::air::ConstantOp>(
         loc, strType, strAttr);
 

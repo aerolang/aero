@@ -10,6 +10,7 @@ rust_binary(
     proc_macro_deps = all_crate_deps(proc_macro = True),
     deps = all_crate_deps(normal = True) + [
         "//compiler/airc-codegen",
+        "//compiler/airc-syntax",
     ],
 )
 

@@ -1,20 +1,23 @@
 #ifndef AIRC_CODEGEN_CODEGEN_H_
 #define AIRC_CODEGEN_CODEGEN_H_
 
-// Forward declare rust::Str from cxx.h (will be defined by cxxbridge generated code)
+// Forward declare rust types from cxx.h (will be defined by cxxbridge generated code)
 namespace rust {
 inline namespace cxxbridge1 {
 class Str;
+template<typename T>
+class Vec;
 }
 }
 
 namespace airc {
 namespace codegen {
 
-void do_stuff();
+// Forward declare FuncInfo (will be defined by cxxbridge)
+struct FuncInfo;
 
-// Compile AIR source to an executable
-void compile_air(rust::Str source, rust::Str output_path, rust::Str runtime_path);
+// Compile AIR AST to an executable
+void compile_air_ast(rust::Vec<FuncInfo> funcs, rust::Str output_path, rust::Str runtime_path);
 
 }  // namespace codegen
 }  // namespace airc

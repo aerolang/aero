@@ -13,6 +13,7 @@ rust_library(
     deps = all_crate_deps(normal = True) + [
         ":codegen",
         ":codegen-bridge",
+        "//compiler/airc-syntax",
     ],
 )
 

@@ -60,10 +60,29 @@ fn parse_source<'a>(source: &'a str, pair: Pair<'a, air::Rule>) -> Source<'a> {
     let span = make_span(source, &pair);
     let mut defs = Vec::new();
 
-    for inner in pair.into_inner() {
+    let mut inner_iter = pair.into_inner().peekable();
+
+    while let Some(inner) = inner_iter.next() {
         match inner.as_rule() {
+            air::Rule::Pub => {
+                // Next item should be FuncDef
+                if let Some(func_def) = inner_iter.next() {
+                    if let Some(def) = parse_def(source, func_def, Visibility::Pub) {
+                        defs.push(def);
+                    }
+                }
+            }
+            air::Rule::Priv => {
+                // Next item should be FuncDef
+                if let Some(func_def) = inner_iter.next() {
+                    if let Some(def) = parse_def(source, func_def, Visibility::Priv) {
+                        defs.push(def);
+                    }
+                }
+            }
             air::Rule::FuncDef => {
-                if let Some(def) = parse_def(source, inner) {
+                // FuncDef without explicit visibility (default to Priv)
+                if let Some(def) = parse_def(source, inner, Visibility::Priv) {
                     defs.push(def);
                 }
             }
@@ -75,14 +94,13 @@ fn parse_source<'a>(source: &'a str, pair: Pair<'a, air::Rule>) -> Source<'a> {
     Source { span, data: defs }
 }
 
-fn parse_def<'a>(source: &'a str, pair: Pair<'a, air::Rule>) -> Option<Def<'a>> {
+fn parse_def<'a>(source: &'a str, pair: Pair<'a, air::Rule>, vis: Visibility) -> Option<Def<'a>> {
     let span = make_span(source, &pair);
 
     // FuncDef is the only DefInner currently
     // Grammar: "func" ~ DefName ~ "->" ~ Type ~ "do:" ~ (Assign)* ~ SimpleExpr
 
-    let mut inner = pair.into_inner();
-    let vis = Visibility::Priv; // Default
+    let inner = pair.into_inner();
     let mut name = None;
     let mut return_type = None;
     let mut assigns = Vec::new();
@@ -100,21 +118,24 @@ fn parse_def<'a>(source: &'a str, pair: Pair<'a, air::Rule>) -> Option<Def<'a>> 
                 assigns.push(parse_assign(source, part));
             }
             air::Rule::Void | air::Rule::Str | air::Rule::Sym |
-            air::Rule::VarName | air::Rule::DefName | air::Rule::LogCall => {
-                result = Some(parse_simple(source, part));
+            air::Rule::VarName | air::Rule::DefName => {
+                result = Some(parse_expr(source, part));
+            }
+            air::Rule::LogCall => {
+                result = Some(parse_expr(source, part));
             }
             _ => {}
         }
     }
 
     Some(Def {
-        span,
+        span: span.clone(),
         vis,
         data: DefData::Func {
             name: name?,
             return_type: return_type?,
             body: Block {
-                span: span.clone(),
+                span,
                 assigns,
                 result: result?,
             },
@@ -170,7 +191,7 @@ fn parse_simple<'a>(source: &'a str, pair: Pair<'a, air::Rule>) -> Simple<'a> {
     Simple { span, data }
 }
 
-fn parse_simple_data<'a>(source: &'a str, pair: Pair<'a, air::Rule>) -> SimpleData<'a> {
+fn parse_simple_data<'a>(_source: &'a str, pair: Pair<'a, air::Rule>) -> SimpleData<'a> {
     match pair.as_rule() {
         air::Rule::Void => SimpleData::Void,
         air::Rule::Str => {

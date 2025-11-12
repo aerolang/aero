@@ -21,7 +21,7 @@ pub enum DefData<'a> {
 pub struct Block<'a> {
     pub span: Span<'a>,
     pub assigns: Vec<Assign<'a>>,
-    pub result: Simple<'a>,
+    pub result: Expr<'a>,
 }
 
 pub struct Assign<'a> {
@@ -92,6 +92,7 @@ pub enum TypeData {
     Void,
 }
 
+#[derive(Clone)]
 pub struct Span<'a> {
     pub str: &'a str,
     pub range: (u32, u32),

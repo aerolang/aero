@@ -12,7 +12,7 @@ Priv = @{ "priv" }
 
 FuncDef = {
   "func" ~ Ws ~ DefName ~ Ws ~ "->" ~ Ws ~ Type ~ Ws ~ "do:" ~ Ws
-  ~ (Assign ~ Ws)* ~ SimpleExpr ~ Ws?
+  ~ (Assign ~ Ws)* ~ Expr ~ Ws?
 }
 
 Assign = { VarName ~ Ws ~ Type ~ Ws ~ "=" ~ Ws ~ Expr }

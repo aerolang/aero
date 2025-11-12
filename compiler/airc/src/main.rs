@@ -31,9 +31,26 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         std::process::exit(1);
     }
 
-    // Compile using the codegen backend
-    airc_codegen::compile_air(
-        &source,
+    // Parse the AIR source using the Rust parser
+    let ast = match airc_syntax::parse_air(&source) {
+        Ok(ast) => ast,
+        Err(e) => {
+            eprintln!("Parse error: {}", e);
+            std::process::exit(1);
+        }
+    };
+
+    // Extract function information from AST
+    let funcs = airc_codegen::extract_funcs(&ast);
+
+    println!("Found {} function(s)", funcs.len());
+    for func in &funcs {
+        println!("  - {} (pub: {})", func.name, func.is_pub);
+    }
+
+    // Compile using the new AST-based codegen backend
+    airc_codegen::compile_air_ast(
+        funcs,
         args.output.to_str().unwrap(),
         runtime_path.to_str().unwrap()
     );

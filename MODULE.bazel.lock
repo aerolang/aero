@@ -3131,11 +3131,11 @@
         "bzlTransitiveDigest": "fZiZd/98SxroknVi1wUHIJHIFTzlG/XPqQfCjbRemCU=",
         "usagesDigest": "++OZ8vLLfNoczQ+FGSCMaNJCYa3FDN4ftTwH95WU9BU=",
         "recordedFileInputs": {
-          "@@//Cargo.lock": "67d93f6f93a3c76bbd06525a77b35c35970f1cf44e0be4988172a88b6be27ac6",
+          "@@//Cargo.lock": "0186728b20a82180d81527b5951245a95e283b7336a15d2072c4f0869c660538",
           "@@//Cargo.toml": "6bf0d287ecd770f6342b91a53f18b158f462dd6b155927a106d09da8711bd0a8",
-          "@@//compiler/airc-codegen/Cargo.toml": "a485a56fdf7342efaf21d3c7b9508169d18623d69ae619ddf9d6a738159ef796",
+          "@@//compiler/airc-codegen/Cargo.toml": "62125dc6095bf7f2792d4269c5940318cd31b6b01159677d0f6fe74eb97f98f0",
           "@@//compiler/airc-syntax/Cargo.toml": "18d82f670b1c421b83794a569dc38a356eb43214d034902408154d9e0caae576",
-          "@@//compiler/airc/Cargo.toml": "d2440468b55b750a755fb97757e50e9ab29a67981b38f0b15e8890908b6bbff3"
+          "@@//compiler/airc/Cargo.toml": "ac0c42ec4edb4b1ea0d9857bddbb74373f8718607dd8919a5102e00dd6d2861a"
         },
         "recordedDirentsInputs": {},
         "envVariables": {
