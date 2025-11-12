@@ -40,17 +40,18 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         }
     };
 
-    // Extract function information from AST
-    let funcs = airc_codegen::extract_funcs(&ast);
+    // Convert AST to FFI format
+    let source_data = airc_codegen::convert_ast_to_ffi(&ast);
 
-    println!("Found {} function(s)", funcs.len());
-    for func in &funcs {
-        println!("  - {} (pub: {})", func.name, func.is_pub);
+    println!("Found {} function(s)", source_data.defs.len());
+    for def in &source_data.defs {
+        println!("  - {} (pub: {})", def.name, def.is_pub);
     }
 
     // Compile using the new AST-based codegen backend
+    // Pass the source as a single-element vector
     airc_codegen::compile_air_ast(
-        funcs,
+        vec![source_data],
         args.output.to_str().unwrap(),
         runtime_path.to_str().unwrap()
     );

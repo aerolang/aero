@@ -3,69 +3,131 @@ use airc_syntax::ast;
 #[cxx::bridge(namespace = "airc::codegen")]
 mod ffi {
     // Expose AST types to C++ (using owned strings for CXX compatibility)
-    struct FuncInfo {
+    struct SourceData {
+        defs: Vec<DefData>,
+    }
+
+    struct DefData {
         name: String,
         is_pub: bool,
-        log_messages: Vec<String>,  // All log statements in the function
+        assigns: Vec<AssignData>,
+        result: ExprData,
+    }
+
+    struct AssignData {
+        var_name: String,
+        expr: ExprData,
+    }
+
+    struct ExprData {
+        kind: String,  // "call" or "simple"
+        // For calls
+        callee: String,
+        args: Vec<SimpleData>,
+        // For simple exprs
+        simple: SimpleData,
+    }
+
+    struct SimpleData {
+        kind: String,  // "void", "str", "sym", "varname", "defname"
+        value: String, // The actual value (empty for void)
     }
 
     unsafe extern "C++" {
         include!("compiler/airc-codegen/include/codegen.h");
 
-        fn compile_air_ast(funcs: Vec<FuncInfo>, output_path: &str, runtime_path: &str);
+        fn compile_air_ast(sources: Vec<SourceData>, output_path: &str, runtime_path: &str);
     }
 }
 
-// Extract function information from AST
-pub fn extract_funcs<'a>(ast_source: &ast::Source<'a>) -> Vec<ffi::FuncInfo> {
-    let mut funcs = Vec::new();
+// Convert AST to FFI types
+pub fn convert_ast_to_ffi(ast_source: &ast::Source) -> ffi::SourceData {
+    let mut defs = Vec::new();
 
     for def in &ast_source.data {
         if let ast::DefData::Func { name, body, .. } = &def.data {
             let is_pub = matches!(def.vis, ast::Visibility::Pub);
 
-            // Extract all log messages from assigns and result
-            let mut log_messages = Vec::new();
+            let assigns = body.assigns.iter().map(|assign| ffi::AssignData {
+                var_name: assign.var.value.to_string(),
+                expr: convert_expr(&assign.expr),
+            }).collect();
 
-            // Extract logs from assigns
-            for assign in &body.assigns {
-                if let Some(msg) = extract_log_message(&assign.expr) {
-                    log_messages.push(msg);
-                }
-            }
+            let result = convert_expr(&body.result);
 
-            // Extract log from result expression
-            if let Some(msg) = extract_log_message(&body.result) {
-                log_messages.push(msg);
-            }
-
-            funcs.push(ffi::FuncInfo {
+            defs.push(ffi::DefData {
                 name: name.value.to_string(),
                 is_pub,
-                log_messages,
+                assigns,
+                result,
             });
         }
     }
 
-    funcs
+    ffi::SourceData { defs }
 }
 
-fn extract_log_message(expr: &ast::Expr) -> Option<String> {
+fn convert_expr(expr: &ast::Expr) -> ffi::ExprData {
     match &expr.data {
         ast::ExprData::Call(call_data) => {
-            if let ast::CalleeData::Name("log") = call_data.callee.data {
-                if let Some(arg) = call_data.args.first() {
-                    if let ast::SimpleData::Str(s) = arg.data {
-                        return Some(s.to_string());
-                    }
-                }
+            let callee = match &call_data.callee.data {
+                ast::CalleeData::Name(n) => n.to_string(),
+                ast::CalleeData::VarName(n) => format!("%{}", n),
+                ast::CalleeData::DefName(n) => format!("${}", n),
+            };
+
+            let args = call_data.args.iter().map(|arg| convert_simple(&arg.data)).collect();
+
+            ffi::ExprData {
+                kind: "call".to_string(),
+                callee,
+                args,
+                simple: ffi::SimpleData {
+                    kind: "void".to_string(),
+                    value: String::new(),
+                },
             }
-            None
         }
-        _ => None,
+        ast::ExprData::Simple(simple_data) => {
+            ffi::ExprData {
+                kind: "simple".to_string(),
+                callee: String::new(),
+                args: Vec::new(),
+                simple: convert_simple(simple_data),
+            }
+        }
     }
 }
 
-pub fn compile_air_ast(funcs: Vec<ffi::FuncInfo>, output_path: &str, runtime_path: &str) {
-    ffi::compile_air_ast(funcs, output_path, runtime_path);
+fn convert_simple(simple_data: &ast::SimpleData) -> ffi::SimpleData {
+    match simple_data {
+        ast::SimpleData::Void => ffi::SimpleData {
+            kind: "void".to_string(),
+            value: String::new(),
+        },
+        ast::SimpleData::Str(s) => ffi::SimpleData {
+            kind: "str".to_string(),
+            value: s.to_string(),
+        },
+        ast::SimpleData::Sym(s) => ffi::SimpleData {
+            kind: "sym".to_string(),
+            value: s.to_string(),
+        },
+        ast::SimpleData::Name(n) => ffi::SimpleData {
+            kind: "name".to_string(),
+            value: n.to_string(),
+        },
+        ast::SimpleData::VarName(n) => ffi::SimpleData {
+            kind: "varname".to_string(),
+            value: n.to_string(),
+        },
+        ast::SimpleData::DefName(n) => ffi::SimpleData {
+            kind: "defname".to_string(),
+            value: n.to_string(),
+        },
+    }
+}
+
+pub fn compile_air_ast(sources: Vec<ffi::SourceData>, output_path: &str, runtime_path: &str) {
+    ffi::compile_air_ast(sources, output_path, runtime_path);
 }

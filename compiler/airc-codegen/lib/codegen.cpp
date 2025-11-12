@@ -34,37 +34,35 @@ void registerLLVMDialectTranslation(DialectRegistry &);
 namespace airc {
 namespace codegen {
 
-void compile_air_ast(rust::Vec<FuncInfo> funcs, rust::Str output_path, rust::Str runtime_path) {
+void compile_air_ast(rust::Vec<SourceData> sources, rust::Str output_path, rust::Str runtime_path) {
     std::string outputStr(output_path.data(), output_path.size());
     std::string runtimePath(runtime_path.data(), runtime_path.size());
 
-    if (funcs.empty()) {
-        std::cerr << "No functions to compile" << std::endl;
+    if (sources.empty()) {
+        std::cerr << "No sources to compile" << std::endl;
         return;
     }
 
-    // Find the main function (must be pub)
-    std::string mainFuncName;
-    std::vector<std::string> mainLogMessages;
-    bool foundMain = false;
+    // Find the main function (must be pub) across all sources
+    const DefData* mainDef = nullptr;
 
-    for (const auto& func : funcs) {
-        std::string funcName(func.name.data(), func.name.size());
-        if (funcName == "main" && func.is_pub) {
-            foundMain = true;
-            mainFuncName = funcName;
-            // Extract all log messages
-            for (const auto& msg : func.log_messages) {
-                mainLogMessages.push_back(std::string(msg.data(), msg.size()));
+    for (const auto& source : sources) {
+        for (const auto& def : source.defs) {
+            std::string funcName(def.name.data(), def.name.size());
+            if (funcName == "main" && def.is_pub) {
+                mainDef = &def;
+                break;
             }
-            break;
         }
+        if (mainDef) break;
     }
 
-    if (!foundMain) {
+    if (!mainDef) {
         std::cerr << "No public main function found" << std::endl;
         return;
     }
+
+    std::string mainFuncName(mainDef->name.data(), mainDef->name.size());
 
     // Create MLIR context and register dialects
     mlir::DialectRegistry registry;
@@ -97,14 +95,40 @@ void compile_air_ast(rust::Vec<FuncInfo> funcs, rust::Str output_path, rust::Str
     auto* entryBlock = builder.createBlock(&bodyRegion);
     builder.setInsertionPointToStart(entryBlock);
 
-    // Create log operations for each message
-    auto strType = mlir::air::StrType::get(&context);
-    for (const auto& logMessage : mainLogMessages) {
-        auto strAttr = builder.getStringAttr(logMessage);
-        auto constOp = builder.create<mlir::air::ConstantOp>(
-            loc, strType, strAttr);
-        builder.create<mlir::air::LogOp>(loc, constOp.getResult());
+    // Helper to process an expression and generate MLIR ops
+    auto processExpr = [&](const ExprData& expr) {
+        std::string kind(expr.kind.data(), expr.kind.size());
+
+        if (kind == "call") {
+            std::string callee(expr.callee.data(), expr.callee.size());
+
+            if (callee == "log") {
+                // Extract the string argument
+                if (!expr.args.empty()) {
+                    const auto& arg = expr.args[0];
+                    std::string argKind(arg.kind.data(), arg.kind.size());
+
+                    if (argKind == "str") {
+                        std::string strValue(arg.value.data(), arg.value.size());
+                        auto strType = mlir::air::StrType::get(&context);
+                        auto strAttr = builder.getStringAttr(strValue);
+                        auto constOp = builder.create<mlir::air::ConstantOp>(
+                            loc, strType, strAttr);
+                        builder.create<mlir::air::LogOp>(loc, constOp.getResult());
+                    }
+                }
+            }
+        }
+        // For simple expressions, we don't need to generate ops unless they're used
+    };
+
+    // Process all assigns (side effects like discarded log calls)
+    for (const auto& assign : mainDef->assigns) {
+        processExpr(assign.expr);
     }
+
+    // Process the result expression
+    processExpr(mainDef->result);
 
     // Create return operation (no operands for void return)
     builder.create<mlir::air::ReturnOp>(loc, mlir::Value());

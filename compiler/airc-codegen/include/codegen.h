@@ -13,11 +13,15 @@ class Vec;
 namespace airc {
 namespace codegen {
 
-// Forward declare FuncInfo (will be defined by cxxbridge)
-struct FuncInfo;
+// Forward declare AST types (will be defined by cxxbridge)
+struct SourceData;
+struct DefData;
+struct AssignData;
+struct ExprData;
+struct SimpleData;
 
 // Compile AIR AST to an executable
-void compile_air_ast(rust::Vec<FuncInfo> funcs, rust::Str output_path, rust::Str runtime_path);
+void compile_air_ast(rust::Vec<SourceData> sources, rust::Str output_path, rust::Str runtime_path);
 
 }  // namespace codegen
 }  // namespace airc
