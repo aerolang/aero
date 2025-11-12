@@ -1,16 +1,22 @@
 const std = @import("std");
 
-pub export fn air_log(msg: [*:0]const u8) callconv(.c) void {
+const AeroStr = extern struct {
+    ptr: [*]const u8,
+    len: u64,
+};
+
+pub export fn aero_log(msg: AeroStr) void {
     var stdout_buffer: [4096]u8 = undefined;
     var stdout_writer = std.fs.File.stdout().writer(&stdout_buffer);
     const stdout = &stdout_writer.interface;
-    stdout.print("{s}\n", .{msg}) catch {};
+    const str = msg.ptr[0..msg.len];
+    stdout.print("{s}\n", .{str}) catch {};
     stdout.flush() catch {};
 }
 
-extern fn air_main() void;
+extern fn aero_main() void;
 
-pub export fn main() callconv(.c) c_int {
-    air_main();
+pub export fn main() c_int {
+    aero_main();
     return 0;
 }

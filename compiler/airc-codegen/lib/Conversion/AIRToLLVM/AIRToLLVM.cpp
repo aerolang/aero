@@ -37,7 +37,10 @@ public:
       return IntegerType::get(ctx, 64); // Int -> i64
     });
     addConversion([ctx](StrType type) {
-      return LLVM::LLVMPointerType::get(ctx); // Str -> ptr
+      // Str -> struct { ptr, i64 }
+      auto ptrType = LLVM::LLVMPointerType::get(ctx);
+      auto i64Type = IntegerType::get(ctx, 64);
+      return LLVM::LLVMStructType::getLiteral(ctx, {ptrType, i64Type});
     });
     addConversion([](VoidType type) {
       return LLVM::LLVMVoidType::get(type.getContext()); // Void -> void
@@ -67,10 +70,10 @@ struct FuncOpConversion : public OpConversionPattern<air::FuncOp> {
     if (failed(typeConverter->convertTypes(funcType.getResults(), resultTypes)))
       return failure();
 
-    // Rename main to air_main - the runtime will provide the real main wrapper
+    // Rename main to aero_main - the runtime will provide the real main wrapper
     StringRef funcName = op.getSymName();
     if (funcName == "main") {
-      funcName = "air_main";
+      funcName = "aero_main";
     }
 
     // LLVM function uses LLVM function type, not standard MLIR FunctionType
@@ -109,29 +112,43 @@ struct ConstantOpConversion : public OpConversionPattern<air::ConstantOp> {
       if (!stringAttr)
         return failure();
 
-      // Create a global string constant
+      // Create a global string constant (without null terminator)
       auto moduleOp = op->getParentOfType<ModuleOp>();
       OpBuilder::InsertionGuard guard(rewriter);
       rewriter.setInsertionPointToStart(moduleOp.getBody());
 
       std::string globalName = "str_" + std::to_string(reinterpret_cast<uintptr_t>(op.getOperation()));
+      size_t strLen = stringAttr.getValue().size();
+
       rewriter.create<LLVM::GlobalOp>(
           op.getLoc(),
-          LLVM::LLVMArrayType::get(IntegerType::get(op.getContext(), 8),
-                                   stringAttr.getValue().size() + 1),
+          LLVM::LLVMArrayType::get(IntegerType::get(op.getContext(), 8), strLen),
           /*isConstant=*/true,
           LLVM::Linkage::Private,
           globalName,
-          rewriter.getStringAttr(stringAttr.getValue().str() + '\0'));
+          rewriter.getStringAttr(stringAttr.getValue().str()));
 
-      // Get address of global
+      // Create struct { ptr, i64 } with pointer to the string data and its length
       rewriter.setInsertionPoint(op);
       auto addressOf = rewriter.create<LLVM::AddressOfOp>(
           op.getLoc(),
           LLVM::LLVMPointerType::get(op.getContext()),
           globalName);
 
-      rewriter.replaceOp(op, addressOf.getResult());
+      auto ptrType = LLVM::LLVMPointerType::get(op.getContext());
+      auto i64Type = IntegerType::get(op.getContext(), 64);
+      auto structType = LLVM::LLVMStructType::getLiteral(op.getContext(), {ptrType, i64Type});
+
+      // Create an undef struct and insert the pointer and length
+      auto undefStruct = rewriter.create<LLVM::UndefOp>(op.getLoc(), structType);
+      auto structWithPtr = rewriter.create<LLVM::InsertValueOp>(
+          op.getLoc(), undefStruct, addressOf, 0);
+      auto lenConst = rewriter.create<LLVM::ConstantOp>(
+          op.getLoc(), i64Type, rewriter.getI64IntegerAttr(strLen));
+      auto finalStruct = rewriter.create<LLVM::InsertValueOp>(
+          op.getLoc(), structWithPtr, lenConst, 1);
+
+      rewriter.replaceOp(op, finalStruct.getResult());
       return success();
     }
 
@@ -154,21 +171,24 @@ struct LogOpConversion : public OpConversionPattern<air::LogOp> {
                   ConversionPatternRewriter &rewriter) const override {
     auto moduleOp = op->getParentOfType<ModuleOp>();
 
-    // Declare air_log function if not already declared
+    // Declare aero_log function if not already declared
     LLVM::LLVMFuncOp logFuncOp;
-    if (!(logFuncOp = moduleOp.lookupSymbol<LLVM::LLVMFuncOp>("air_log"))) {
+    if (!(logFuncOp = moduleOp.lookupSymbol<LLVM::LLVMFuncOp>("aero_log"))) {
       OpBuilder::InsertionGuard guard(rewriter);
       rewriter.setInsertionPointToStart(moduleOp.getBody());
 
+      // aero_log takes a struct { ptr, i64 }
       auto ptrType = LLVM::LLVMPointerType::get(op.getContext());
+      auto i64Type = IntegerType::get(op.getContext(), 64);
+      auto structType = LLVM::LLVMStructType::getLiteral(op.getContext(), {ptrType, i64Type});
       auto voidType = LLVM::LLVMVoidType::get(op.getContext());
-      auto funcType = LLVM::LLVMFunctionType::get(voidType, {ptrType});
+      auto funcType = LLVM::LLVMFunctionType::get(voidType, {structType});
 
       logFuncOp = rewriter.create<LLVM::LLVMFuncOp>(
-          op.getLoc(), "air_log", funcType);
+          op.getLoc(), "aero_log", funcType);
     }
 
-    // Create call to air_log
+    // Create call to aero_log
     rewriter.replaceOpWithNewOp<LLVM::CallOp>(
         op, logFuncOp, adaptor.getValue());
 
