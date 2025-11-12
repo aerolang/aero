@@ -6,7 +6,7 @@ rust_binary(
     name = "airc",
     srcs = glob(["src/**/*.rs"]),
     aliases = aliases(),
-    data = [":runtime/libair_runtime.a"],
+    data = [":runtime/libruntime.a"],
     proc_macro_deps = all_crate_deps(proc_macro = True),
     deps = all_crate_deps(normal = True) + [
         "//compiler/airc-codegen",
@@ -14,9 +14,9 @@ rust_binary(
     ],
 )
 
-# Copy the runtime library output to runtime/libair_runtime.a sibling to airc binary
+# Copy the runtime library output to runtime/libruntime.a sibling to airc binary
 copy_file(
     name = "runtime_lib_copy",
-    src = "//runtime:libair_runtime.a",
-    out = "runtime/libair_runtime.a",
+    src = "//runtime:runtime",
+    out = "runtime/libruntime.a",
 )

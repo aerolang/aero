@@ -24,7 +24,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     // Find the runtime library relative to the binary
     let exe_path = std::env::current_exe()?;
     let exe_dir = exe_path.parent().ok_or("Failed to get executable directory")?;
-    let runtime_path = exe_dir.join("runtime/libair_runtime.a");
+    let runtime_path = exe_dir.join("runtime/libruntime.a");
 
     if !runtime_path.exists() {
         eprintln!("Error: Runtime library not found at {}", runtime_path.display());

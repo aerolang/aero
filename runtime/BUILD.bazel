@@ -1,18 +1,7 @@
-load("@rules_cc//cc:cc_library.bzl", "cc_library")
+load("@rules_zig//zig:defs.bzl", "zig_static_library")
 
-package(
-    default_visibility = ["//visibility:public"],
-)
-
-cc_library(
-    name = "air_runtime",
-    srcs = ["air_runtime.c"],
-    hdrs = ["air_runtime.h"],
-)
-
-# Expose the library output for copying
-filegroup(
-    name = "libair_runtime.a",
-    srcs = [":air_runtime"],
-    output_group = "archive",
+zig_static_library(
+    name = "runtime",
+    main = "runtime.zig",
+    visibility = ["//visibility:public"]
 )

@@ -3,6 +3,7 @@ module(name = "aero")
 bazel_dep(name = "cxx.rs", version = "1.0.153")
 bazel_dep(name = "rules_cc", version = "0.1.1")
 bazel_dep(name = "rules_rust", version = "0.59.2")
+bazel_dep(name = "rules_zig", version = "0.12.2")
 
 # LLVM doesn't support bzlmod yet, so it's fetched as an HTTP archive.
 LLVM_COMMIT = "58df0ef89dd64126512e4ee27b4ac3fd8ddf6247"
@@ -75,6 +76,9 @@ crate.from_cargo(
     ],
 )
 use_repo(crate, "crates")
+
+zig = use_extension("@rules_zig//zig:extensions.bzl", "zig")
+zig.toolchain(default = True, zig_version = "0.15.1")
 
 # Hedron's Compile Commands Extractor for Bazel
 # https://github.com/hedronvision/bazel-compile-commands-extractor
