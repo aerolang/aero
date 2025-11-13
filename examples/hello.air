@@ -1,4 +1,3 @@
 (def pub func $main -> Void do:
-  %_ Void = (log "Hello, World!")
-  (log "Goodbye, World!")
+  (log "Hello, World!")
 )

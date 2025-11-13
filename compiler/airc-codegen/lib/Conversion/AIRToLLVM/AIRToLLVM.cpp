@@ -70,7 +70,7 @@ struct FuncOpConversion : public OpConversionPattern<air::FuncOp> {
     if (failed(typeConverter->convertTypes(funcType.getResults(), resultTypes)))
       return failure();
 
-    // Rename main to aero_main - the runtime will provide the real main wrapper
+    // Rename main to aero_main - we'll create the real main wrapper
     StringRef funcName = op.getSymName();
     if (funcName == "main") {
       funcName = "aero_main";
@@ -231,6 +231,32 @@ struct ConvertAIRToLLVMPass
 
     if (failed(applyPartialConversion(module, target, std::move(patterns))))
       signalPassFailure();
+
+    // After conversion, create a aero$entrypoint function that wraps aero_main
+    OpBuilder builder(context);
+    builder.setInsertionPointToEnd(module.getBody());
+
+    // Check if aero_main exists
+    auto aeroMainFunc = module.lookupSymbol<LLVM::LLVMFuncOp>("aero_main");
+    if (aeroMainFunc) {
+      // Create aero$entrypoint function: i32 @aero$entrypoint()
+      auto i32Type = IntegerType::get(context, 32);
+      auto entrypointFuncType = LLVM::LLVMFunctionType::get(i32Type, {});
+      auto entrypointFunc = builder.create<LLVM::LLVMFuncOp>(
+          module.getLoc(), "aero$entrypoint", entrypointFuncType);
+
+      // Create the function body
+      auto *entryBlock = entrypointFunc.addEntryBlock(builder);
+      builder.setInsertionPointToStart(entryBlock);
+
+      // Call aero_main()
+      builder.create<LLVM::CallOp>(module.getLoc(), aeroMainFunc, ValueRange{});
+
+      // Return 0
+      auto zero = builder.create<LLVM::ConstantOp>(
+          module.getLoc(), i32Type, builder.getI32IntegerAttr(0));
+      builder.create<LLVM::ReturnOp>(module.getLoc(), ValueRange{zero});
+    }
   }
 };
 

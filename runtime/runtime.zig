@@ -13,10 +13,3 @@ pub export fn aero_log(msg: AeroStr) void {
     stdout.print("{s}\n", .{str}) catch {};
     stdout.flush() catch {};
 }
-
-extern fn aero_main() void;
-
-pub export fn main() c_int {
-    aero_main();
-    return 0;
-}

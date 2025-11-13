@@ -212,10 +212,20 @@ void compile_air_ast(rust::Vec<SourceData> sources, rust::Str output_path, rust:
         return;
     }
 
+    // On macOS/Darwin, the linker adds an extra underscore prefix to symbols
+    // So @aero$entrypoint becomes _aero$entrypoint in the object file
+    std::string entrypoint;
+#ifdef __APPLE__
+    entrypoint = "_aero$entrypoint";
+#else
+    entrypoint = "aero$entrypoint";
+#endif
+
     std::vector<llvm::StringRef> linkArgs = {
         "clang",
         objPath,
         "-o", outputStr,
+        "-e", entrypoint,
         runtimePath
     };
 
