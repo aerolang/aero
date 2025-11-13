@@ -97,47 +97,83 @@ fn parse_source<'a>(source: &'a str, pair: Pair<'a, air::Rule>) -> Source<'a> {
 fn parse_def<'a>(source: &'a str, pair: Pair<'a, air::Rule>, vis: Visibility) -> Option<Def<'a>> {
     let span = make_span(source, &pair);
 
-    // FuncDef is the only DefInner currently
-    // Grammar: "func" ~ DefName ~ "->" ~ Type ~ "do:" ~ (Assign)* ~ Expr
+    let rule = pair.as_rule();
 
-    let inner = pair.into_inner();
-    let mut name = None;
-    let mut return_type = None;
-    let mut assigns = Vec::new();
-    let mut result = None;
+    match rule {
+        air::Rule::MainDef => {
+            // Grammar: "main" ~ "do:" ~ (Assign)* ~ Expr
+            let inner = pair.into_inner();
+            let mut assigns = Vec::new();
+            let mut result = None;
 
-    for part in inner {
-        match part.as_rule() {
-            air::Rule::DefName => {
-                name = Some(parse_defname(source, part));
+            for part in inner {
+                match part.as_rule() {
+                    air::Rule::Assign => {
+                        assigns.push(parse_assign(source, part));
+                    }
+                    air::Rule::Void | air::Rule::Str | air::Rule::Sym |
+                    air::Rule::VarName | air::Rule::DefName | air::Rule::LogCall => {
+                        result = Some(parse_expr(source, part));
+                    }
+                    _ => {}
+                }
             }
-            air::Rule::IntType | air::Rule::StrType | air::Rule::VoidType => {
-                return_type = Some(parse_type(source, part));
-            }
-            air::Rule::Assign => {
-                assigns.push(parse_assign(source, part));
-            }
-            air::Rule::Void | air::Rule::Str | air::Rule::Sym |
-            air::Rule::VarName | air::Rule::DefName | air::Rule::LogCall => {
-                result = Some(parse_expr(source, part));
-            }
-            _ => {}
+
+            Some(Def {
+                span: span.clone(),
+                vis,
+                data: DefData::Main {
+                    body: Block {
+                        span,
+                        assigns,
+                        result: result?,
+                    },
+                },
+            })
         }
-    }
+        air::Rule::FuncDef => {
+            // Grammar: "func" ~ DefName ~ "->" ~ Type ~ "do:" ~ (Assign)* ~ Expr
+            let inner = pair.into_inner();
+            let mut name = None;
+            let mut return_type = None;
+            let mut assigns = Vec::new();
+            let mut result = None;
 
-    Some(Def {
-        span: span.clone(),
-        vis,
-        data: DefData::Func {
-            name: name?,
-            return_type: return_type?,
-            body: Block {
-                span,
-                assigns,
-                result: result?,
-            },
-        },
-    })
+            for part in inner {
+                match part.as_rule() {
+                    air::Rule::DefName => {
+                        name = Some(parse_defname(source, part));
+                    }
+                    air::Rule::IntType | air::Rule::StrType | air::Rule::VoidType => {
+                        return_type = Some(parse_type(source, part));
+                    }
+                    air::Rule::Assign => {
+                        assigns.push(parse_assign(source, part));
+                    }
+                    air::Rule::Void | air::Rule::Str | air::Rule::Sym |
+                    air::Rule::VarName | air::Rule::LogCall => {
+                        result = Some(parse_expr(source, part));
+                    }
+                    _ => {}
+                }
+            }
+
+            Some(Def {
+                span: span.clone(),
+                vis,
+                data: DefData::Func {
+                    name: name?,
+                    return_type: return_type?,
+                    body: Block {
+                        span,
+                        assigns,
+                        result: result?,
+                    },
+                },
+            })
+        }
+        _ => None,
+    }
 }
 
 fn parse_assign<'a>(source: &'a str, pair: Pair<'a, air::Rule>) -> Assign<'a> {

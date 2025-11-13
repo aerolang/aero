@@ -70,11 +70,7 @@ struct FuncOpConversion : public OpConversionPattern<air::FuncOp> {
     if (failed(typeConverter->convertTypes(funcType.getResults(), resultTypes)))
       return failure();
 
-    // Rename main to aero_main - we'll create the real main wrapper
     StringRef funcName = op.getSymName();
-    if (funcName == "main") {
-      funcName = "aero_main";
-    }
 
     // LLVM function uses LLVM function type, not standard MLIR FunctionType
     auto llvmFuncType = LLVM::LLVMFunctionType::get(
@@ -232,30 +228,31 @@ struct ConvertAIRToLLVMPass
     if (failed(applyPartialConversion(module, target, std::move(patterns))))
       signalPassFailure();
 
-    // After conversion, create a aero$entrypoint function that wraps aero_main
-    OpBuilder builder(context);
-    builder.setInsertionPointToEnd(module.getBody());
+    // Fix up the aero$entrypoint function to return i32 instead of void
+    auto entrypointFunc = module.lookupSymbol<LLVM::LLVMFuncOp>("aero$entrypoint");
+    if (entrypointFunc) {
+      // Create a new function with i32 return type
+      OpBuilder builder(context);
+      builder.setInsertionPoint(entrypointFunc);
 
-    // Check if aero_main exists
-    auto aeroMainFunc = module.lookupSymbol<LLVM::LLVMFuncOp>("aero_main");
-    if (aeroMainFunc) {
-      // Create aero$entrypoint function: i32 @aero$entrypoint()
       auto i32Type = IntegerType::get(context, 32);
-      auto entrypointFuncType = LLVM::LLVMFunctionType::get(i32Type, {});
-      auto entrypointFunc = builder.create<LLVM::LLVMFuncOp>(
-          module.getLoc(), "aero$entrypoint", entrypointFuncType);
+      auto newFuncType = LLVM::LLVMFunctionType::get(i32Type, {});
+      auto newFunc = builder.create<LLVM::LLVMFuncOp>(
+          entrypointFunc.getLoc(), "aero$entrypoint", newFuncType);
 
-      // Create the function body
-      auto *entryBlock = entrypointFunc.addEntryBlock(builder);
-      builder.setInsertionPointToStart(entryBlock);
+      // Move the body from old function to new function
+      newFunc.getBody().takeBody(entrypointFunc.getBody());
 
-      // Call aero_main()
-      builder.create<LLVM::CallOp>(module.getLoc(), aeroMainFunc, ValueRange{});
+      // Find the return op and replace it with one that returns 0
+      newFunc.walk([&](LLVM::ReturnOp returnOp) {
+        OpBuilder retBuilder(returnOp);
+        auto zero = retBuilder.create<LLVM::ConstantOp>(
+            returnOp.getLoc(), i32Type, retBuilder.getI32IntegerAttr(0));
+        retBuilder.create<LLVM::ReturnOp>(returnOp.getLoc(), ValueRange{zero});
+        returnOp.erase();
+      });
 
-      // Return 0
-      auto zero = builder.create<LLVM::ConstantOp>(
-          module.getLoc(), i32Type, builder.getI32IntegerAttr(0));
-      builder.create<LLVM::ReturnOp>(module.getLoc(), ValueRange{zero});
+      entrypointFunc.erase();
     }
   }
 };

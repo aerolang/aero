@@ -4,10 +4,17 @@ use airc_syntax::ast;
 mod ffi {
     // Expose AST types to C++ (using owned strings for CXX compatibility)
     struct SourceData {
-        defs: Vec<DefData>,
+        main_defs: Vec<MainDefData>,
+        func_defs: Vec<FuncDefData>,
     }
 
-    struct DefData {
+    struct MainDefData {
+        is_pub: bool,
+        assigns: Vec<AssignData>,
+        result: ExprData,
+    }
+
+    struct FuncDefData {
         name: String,
         is_pub: bool,
         assigns: Vec<AssignData>,
@@ -42,29 +49,46 @@ mod ffi {
 
 // Convert AST to FFI types
 pub fn convert_ast_to_ffi(ast_source: &ast::Source) -> ffi::SourceData {
-    let mut defs = Vec::new();
+    let mut main_defs = Vec::new();
+    let mut func_defs = Vec::new();
 
     for def in &ast_source.data {
-        if let ast::DefData::Func { name, body, .. } = &def.data {
-            let is_pub = matches!(def.vis, ast::Visibility::Pub);
+        let is_pub = matches!(def.vis, ast::Visibility::Pub);
 
-            let assigns = body.assigns.iter().map(|assign| ffi::AssignData {
-                var_name: assign.var.value.to_string(),
-                expr: convert_expr(&assign.expr),
-            }).collect();
+        match &def.data {
+            ast::DefData::Main { body } => {
+                let assigns = body.assigns.iter().map(|assign| ffi::AssignData {
+                    var_name: assign.var.value.to_string(),
+                    expr: convert_expr(&assign.expr),
+                }).collect();
 
-            let result = convert_expr(&body.result);
+                let result = convert_expr(&body.result);
 
-            defs.push(ffi::DefData {
-                name: name.value.to_string(),
-                is_pub,
-                assigns,
-                result,
-            });
+                main_defs.push(ffi::MainDefData {
+                    is_pub,
+                    assigns,
+                    result,
+                });
+            }
+            ast::DefData::Func { name, body, .. } => {
+                let assigns = body.assigns.iter().map(|assign| ffi::AssignData {
+                    var_name: assign.var.value.to_string(),
+                    expr: convert_expr(&assign.expr),
+                }).collect();
+
+                let result = convert_expr(&body.result);
+
+                func_defs.push(ffi::FuncDefData {
+                    name: name.value.to_string(),
+                    is_pub,
+                    assigns,
+                    result,
+                });
+            }
         }
     }
 
-    ffi::SourceData { defs }
+    ffi::SourceData { main_defs, func_defs }
 }
 
 fn convert_expr(expr: &ast::Expr) -> ffi::ExprData {

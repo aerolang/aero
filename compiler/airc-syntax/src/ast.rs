@@ -15,6 +15,7 @@ pub enum Visibility {
 }
 
 pub enum DefData<'a> {
+    Main { body: Block<'a> },
     Func { name: DefName<'a>, return_type: Type<'a>, body: Block<'a> }
 }
 

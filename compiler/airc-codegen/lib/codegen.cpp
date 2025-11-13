@@ -43,13 +43,12 @@ void compile_air_ast(rust::Vec<SourceData> sources, rust::Str output_path, rust:
         return;
     }
 
-    // Find the main function (must be pub) across all sources
-    const DefData* mainDef = nullptr;
+    // Find the main definition (must be pub) across all sources
+    const MainDefData* mainDef = nullptr;
 
     for (const auto& source : sources) {
-        for (const auto& def : source.defs) {
-            std::string funcName(def.name.data(), def.name.size());
-            if (funcName == "main" && def.is_pub) {
+        for (const auto& def : source.main_defs) {
+            if (def.is_pub) {
                 mainDef = &def;
                 break;
             }
@@ -58,11 +57,9 @@ void compile_air_ast(rust::Vec<SourceData> sources, rust::Str output_path, rust:
     }
 
     if (!mainDef) {
-        std::cerr << "No public main function found" << std::endl;
+        std::cerr << "No public main definition found" << std::endl;
         return;
     }
-
-    std::string mainFuncName(mainDef->name.data(), mainDef->name.size());
 
     // Create MLIR context and register dialects
     mlir::DialectRegistry registry;
@@ -82,13 +79,13 @@ void compile_air_ast(rust::Vec<SourceData> sources, rust::Str output_path, rust:
     // Build AIR IR
     builder.setInsertionPointToEnd(module.getBody());
 
-    // Create function type: () -> void
+    // Create function type for the entrypoint: () -> void (in AIR, will add i32 return in LLVM)
     auto voidType = mlir::air::VoidType::get(&context);
     auto funcType = builder.getFunctionType({}, {voidType});
 
-    // Create AIR function
+    // Create AIR function for the entrypoint
     auto func = builder.create<mlir::air::FuncOp>(
-        loc, builder.getStringAttr(mainFuncName), mlir::TypeAttr::get(funcType));
+        loc, builder.getStringAttr("aero$entrypoint"), mlir::TypeAttr::get(funcType));
 
     // Create function body - manually add a region and block
     auto& bodyRegion = func.getBody();
@@ -130,7 +127,7 @@ void compile_air_ast(rust::Vec<SourceData> sources, rust::Str output_path, rust:
     // Process the result expression
     processExpr(mainDef->result);
 
-    // Create return operation (no operands for void return)
+    // Return void (the LLVM conversion will add the i32 return)
     builder.create<mlir::air::ReturnOp>(loc, mlir::Value());
 
     // Verify the module
@@ -213,7 +210,7 @@ void compile_air_ast(rust::Vec<SourceData> sources, rust::Str output_path, rust:
     }
 
     // On macOS/Darwin, the linker adds an extra underscore prefix to symbols
-    // So @aero$entrypoint becomes _aero$entrypoint in the object file
+    // So aero$entrypoint becomes _aero$entrypoint in the object file
     std::string entrypoint;
 #ifdef __APPLE__
     entrypoint = "_aero$entrypoint";

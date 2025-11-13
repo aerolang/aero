@@ -4,11 +4,16 @@ Defs = _{ Ws? ~ Def ~ (Ws ~ Def)* ~ Ws? }
 Def = _{
   "(" ~ Ws? ~ "def" ~ Ws ~ Vis ~ Ws ~ DefInner ~ Ws? ~ ")"
 }
-DefInner = _{ FuncDef }
+DefInner = _{ MainDef | FuncDef }
 
 Vis = _{ Pub | Priv }
 Pub = @{ "pub" }
 Priv = @{ "priv" }
+
+MainDef = {
+  "main" ~ Ws ~ "do:" ~ Ws
+  ~ (Assign ~ Ws)* ~ Expr ~ Ws?
+}
 
 FuncDef = {
   "func" ~ Ws ~ DefName ~ Ws ~ "->" ~ Ws ~ Type ~ Ws ~ "do:" ~ Ws

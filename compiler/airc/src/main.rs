@@ -43,8 +43,12 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     // Convert AST to FFI format
     let source_data = airc_codegen::convert_ast_to_ffi(&ast);
 
-    println!("Found {} function(s)", source_data.defs.len());
-    for def in &source_data.defs {
+    let total_defs = source_data.main_defs.len() + source_data.func_defs.len();
+    println!("Found {} definition(s)", total_defs);
+    for def in &source_data.main_defs {
+        println!("  - main (pub: {})", def.is_pub);
+    }
+    for def in &source_data.func_defs {
         println!("  - {} (pub: {})", def.name, def.is_pub);
     }
 
