@@ -167,13 +167,13 @@ struct LogOpConversion : public OpConversionPattern<air::LogOp> {
                   ConversionPatternRewriter &rewriter) const override {
     auto moduleOp = op->getParentOfType<ModuleOp>();
 
-    // Declare aero_log function if not already declared
+    // Declare runtime$log function if not already declared
     LLVM::LLVMFuncOp logFuncOp;
-    if (!(logFuncOp = moduleOp.lookupSymbol<LLVM::LLVMFuncOp>("aero_log"))) {
+    if (!(logFuncOp = moduleOp.lookupSymbol<LLVM::LLVMFuncOp>("runtime$log"))) {
       OpBuilder::InsertionGuard guard(rewriter);
       rewriter.setInsertionPointToStart(moduleOp.getBody());
 
-      // aero_log takes a struct { ptr, i64 }
+      // runtime$log takes a struct { ptr, i64 }
       auto ptrType = LLVM::LLVMPointerType::get(op.getContext());
       auto i64Type = IntegerType::get(op.getContext(), 64);
       auto structType = LLVM::LLVMStructType::getLiteral(op.getContext(), {ptrType, i64Type});
@@ -181,10 +181,10 @@ struct LogOpConversion : public OpConversionPattern<air::LogOp> {
       auto funcType = LLVM::LLVMFunctionType::get(voidType, {structType});
 
       logFuncOp = rewriter.create<LLVM::LLVMFuncOp>(
-          op.getLoc(), "aero_log", funcType);
+          op.getLoc(), "runtime$log", funcType);
     }
 
-    // Create call to aero_log
+    // Create call to runtime$log
     rewriter.replaceOpWithNewOp<LLVM::CallOp>(
         op, logFuncOp, adaptor.getValue());
 
