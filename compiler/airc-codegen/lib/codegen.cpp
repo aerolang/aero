@@ -79,52 +79,165 @@ void compile_air_ast(rust::Vec<SourceData> sources, rust::Str output_path, rust:
     // Build AIR IR
     builder.setInsertionPointToEnd(module.getBody());
 
-    // Create function type for the entrypoint: () -> void (in AIR, will add i32 return in LLVM)
+    // Symbol table for tracking variables and their MLIR values
+    std::map<std::string, mlir::Value> symbolTable;
+
+    // Helper to convert type string to MLIR type
+    auto getAIRType = [&](const std::string& tyStr) -> mlir::Type {
+        if (tyStr == "Str") return mlir::air::StrType::get(&context);
+        if (tyStr == "Int") return mlir::air::IntType::get(&context);
+        return mlir::air::VoidType::get(&context);
+    };
+
+    // Helper to process an expression and return its MLIR value
+    std::function<mlir::Value(const ExprData&)> processExpr;
+    processExpr = [&](const ExprData& expr) -> mlir::Value {
+        std::string kind(expr.kind.data(), expr.kind.size());
+
+        if (kind == "simple") {
+            const auto& simple = expr.simple;
+            std::string simpleKind(simple.kind.data(), simple.kind.size());
+            std::string simpleValue(simple.value.data(), simple.value.size());
+
+            if (simpleKind == "str") {
+                auto strType = mlir::air::StrType::get(&context);
+                auto strAttr = builder.getStringAttr(simpleValue);
+                return builder.create<mlir::air::ConstantOp>(loc, strType, strAttr).getResult();
+            } else if (simpleKind == "varname") {
+                // Look up variable in symbol table
+                auto it = symbolTable.find(simpleValue);
+                if (it != symbolTable.end()) {
+                    return it->second;
+                }
+                std::cerr << "Undefined variable: %" << simpleValue << std::endl;
+                return nullptr;
+            } else if (simpleKind == "void") {
+                return nullptr;
+            }
+        } else if (kind == "call") {
+            std::string callee(expr.callee.data(), expr.callee.size());
+
+            // Evaluate arguments
+            std::vector<mlir::Value> argValues;
+            for (const auto& arg : expr.args) {
+                ExprData argExpr;
+                argExpr.kind = "simple";
+                argExpr.simple = arg;
+                argExpr.callee = "";
+                auto argValue = processExpr(argExpr);
+                if (argValue) {
+                    argValues.push_back(argValue);
+                }
+            }
+
+            if (callee == "log") {
+                if (!argValues.empty()) {
+                    builder.create<mlir::air::LogOp>(loc, argValues[0]);
+                }
+                return nullptr;
+            } else if (!callee.empty() && callee[0] == '$') {
+                // User-defined function call
+                std::string funcName = callee.substr(1);
+
+                // Create function call
+                auto funcRef = mlir::FlatSymbolRefAttr::get(&context, funcName);
+                builder.create<mlir::air::CallOp>(
+                    loc,
+                    mlir::TypeRange{}, // No results for void functions
+                    funcRef,
+                    argValues
+                );
+                return nullptr;
+            }
+        }
+
+        return nullptr;
+    };
+
+    // First, generate all user-defined functions
+    for (const auto& source : sources) {
+        for (const auto& funcDef : source.func_defs) {
+            std::string funcName(funcDef.name.data(), funcDef.name.size());
+
+            // Convert parameter types
+            std::vector<mlir::Type> paramTypes;
+            for (const auto& param : funcDef.params) {
+                std::string tyStr(param.ty.data(), param.ty.size());
+                paramTypes.push_back(getAIRType(tyStr));
+            }
+
+            // Return type is always void for now
+            auto voidType = mlir::air::VoidType::get(&context);
+            auto funcType = builder.getFunctionType(paramTypes, {voidType});
+
+            // Create AIR function
+            auto func = builder.create<mlir::air::FuncOp>(
+                loc, builder.getStringAttr(funcName), mlir::TypeAttr::get(funcType));
+
+            // Create function body
+            auto& bodyRegion = func.getBody();
+            auto* entryBlock = builder.createBlock(&bodyRegion);
+
+            // Add block arguments for parameters
+            for (size_t i = 0; i < funcDef.params.size(); ++i) {
+                entryBlock->addArgument(paramTypes[i], loc);
+            }
+
+            builder.setInsertionPointToStart(entryBlock);
+
+            // Clear symbol table for new function
+            symbolTable.clear();
+
+            // Map parameters to block arguments
+            for (size_t i = 0; i < funcDef.params.size(); ++i) {
+                std::string paramName(funcDef.params[i].name.data(), funcDef.params[i].name.size());
+                symbolTable[paramName] = entryBlock->getArgument(i);
+            }
+
+            // Process assignments
+            for (const auto& assign : funcDef.assigns) {
+                std::string varName(assign.var_name.data(), assign.var_name.size());
+                auto value = processExpr(assign.expr);
+                if (value) {
+                    symbolTable[varName] = value;
+                }
+            }
+
+            // Process result expression
+            processExpr(funcDef.result);
+
+            // Return void
+            builder.create<mlir::air::ReturnOp>(loc, mlir::Value());
+
+            // Reset insertion point for next function
+            builder.setInsertionPointToEnd(module.getBody());
+        }
+    }
+
+    // Now generate the entrypoint function
     auto voidType = mlir::air::VoidType::get(&context);
     auto funcType = builder.getFunctionType({}, {voidType});
 
-    // Create AIR function for the entrypoint
-    auto func = builder.create<mlir::air::FuncOp>(
+    auto entrypointFunc = builder.create<mlir::air::FuncOp>(
         loc, builder.getStringAttr("aero$entrypoint"), mlir::TypeAttr::get(funcType));
 
-    // Create function body - manually add a region and block
-    auto& bodyRegion = func.getBody();
+    auto& bodyRegion = entrypointFunc.getBody();
     auto* entryBlock = builder.createBlock(&bodyRegion);
     builder.setInsertionPointToStart(entryBlock);
 
-    // Helper to process an expression and generate MLIR ops
-    auto processExpr = [&](const ExprData& expr) {
-        std::string kind(expr.kind.data(), expr.kind.size());
+    // Clear symbol table for main
+    symbolTable.clear();
 
-        if (kind == "call") {
-            std::string callee(expr.callee.data(), expr.callee.size());
-
-            if (callee == "log") {
-                // Extract the string argument
-                if (!expr.args.empty()) {
-                    const auto& arg = expr.args[0];
-                    std::string argKind(arg.kind.data(), arg.kind.size());
-
-                    if (argKind == "str") {
-                        std::string strValue(arg.value.data(), arg.value.size());
-                        auto strType = mlir::air::StrType::get(&context);
-                        auto strAttr = builder.getStringAttr(strValue);
-                        auto constOp = builder.create<mlir::air::ConstantOp>(
-                            loc, strType, strAttr);
-                        builder.create<mlir::air::LogOp>(loc, constOp.getResult());
-                    }
-                }
-            }
-        }
-        // For simple expressions, we don't need to generate ops unless they're used
-    };
-
-    // Process all assigns (side effects like discarded log calls)
+    // Process main's assignments
     for (const auto& assign : mainDef->assigns) {
-        processExpr(assign.expr);
+        std::string varName(assign.var_name.data(), assign.var_name.size());
+        auto value = processExpr(assign.expr);
+        if (value) {
+            symbolTable[varName] = value;
+        }
     }
 
-    // Process the result expression
+    // Process main's result expression
     processExpr(mainDef->result);
 
     // Return void (the LLVM conversion will add the i32 return)

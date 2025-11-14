@@ -16,9 +16,12 @@ MainDef = {
 }
 
 FuncDef = {
-  "func" ~ Ws ~ DefName ~ Ws ~ "->" ~ Ws ~ Type ~ Ws ~ "do:" ~ Ws
+  "func" ~ Ws ~ DefName ~ Ws ~ ParamList ~ Ws ~ "->" ~ Ws ~ Type ~ Ws ~ "do:" ~ Ws
   ~ (Assign ~ Ws)* ~ Expr ~ Ws?
 }
+
+ParamList = { "(" ~ Ws? ~ (Param ~ (Ws ~ Param)*)? ~ Ws? ~ ")" }
+Param = { VarName ~ Ws ~ Type }
 
 Assign = { VarName ~ Ws ~ Type ~ Ws ~ "=" ~ Ws ~ Expr }
 
@@ -31,8 +34,9 @@ Str = { "\"" ~ StrContent ~ "\"" }
 StrContent = @{ (!"\"" ~ ANY)* }
 
 Call = _{ "(" ~ Ws? ~ CallInner ~ Ws? ~ ")" }
-CallInner = _{ LogCall }
+CallInner = _{ GenericCall | LogCall }
 
+GenericCall = { "call" ~ Ws ~ (DefName | VarName) ~ (Ws ~ SimpleExpr)* }
 LogCall = { "log" ~ Ws ~ SimpleExpr }
 
 Type = _{ IntType | StrType | VoidType }

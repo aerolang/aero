@@ -17,8 +17,14 @@ mod ffi {
     struct FuncDefData {
         name: String,
         is_pub: bool,
+        params: Vec<ParamData>,
         assigns: Vec<AssignData>,
         result: ExprData,
+    }
+
+    struct ParamData {
+        name: String,
+        ty: String,  // "Int", "Str", "Void"
     }
 
     struct AssignData {
@@ -70,7 +76,19 @@ pub fn convert_ast_to_ffi(ast_source: &ast::Source) -> ffi::SourceData {
                     result,
                 });
             }
-            ast::DefData::Func { name, body, .. } => {
+            ast::DefData::Func { name, params, body, .. } => {
+                let params_data = params.iter().map(|param| {
+                    let ty_str = match param.ty.data {
+                        ast::TypeData::Int => "Int",
+                        ast::TypeData::Str => "Str",
+                        ast::TypeData::Void => "Void",
+                    };
+                    ffi::ParamData {
+                        name: param.name.value.to_string(),
+                        ty: ty_str.to_string(),
+                    }
+                }).collect();
+
                 let assigns = body.assigns.iter().map(|assign| ffi::AssignData {
                     var_name: assign.var.value.to_string(),
                     expr: convert_expr(&assign.expr),
@@ -81,6 +99,7 @@ pub fn convert_ast_to_ffi(ast_source: &ast::Source) -> ffi::SourceData {
                 func_defs.push(ffi::FuncDefData {
                     name: name.value.to_string(),
                     is_pub,
+                    params: params_data,
                     assigns,
                     result,
                 });

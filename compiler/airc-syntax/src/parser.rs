@@ -65,25 +65,19 @@ fn parse_source<'a>(source: &'a str, pair: Pair<'a, air::Rule>) -> Source<'a> {
     while let Some(inner) = inner_iter.next() {
         match inner.as_rule() {
             air::Rule::Pub => {
-                // Next item should be FuncDef
-                if let Some(func_def) = inner_iter.next() {
-                    if let Some(def) = parse_def(source, func_def, Visibility::Pub) {
+                // Next item should be MainDef or FuncDef
+                if let Some(def_pair) = inner_iter.next() {
+                    if let Some(def) = parse_def(source, def_pair, Visibility::Pub) {
                         defs.push(def);
                     }
                 }
             }
             air::Rule::Priv => {
-                // Next item should be FuncDef
-                if let Some(func_def) = inner_iter.next() {
-                    if let Some(def) = parse_def(source, func_def, Visibility::Priv) {
+                // Next item should be MainDef or FuncDef
+                if let Some(def_pair) = inner_iter.next() {
+                    if let Some(def) = parse_def(source, def_pair, Visibility::Priv) {
                         defs.push(def);
                     }
-                }
-            }
-            air::Rule::FuncDef => {
-                // FuncDef without explicit visibility (default to Priv)
-                if let Some(def) = parse_def(source, inner, Visibility::Priv) {
-                    defs.push(def);
                 }
             }
             air::Rule::EOI => {}
@@ -112,7 +106,7 @@ fn parse_def<'a>(source: &'a str, pair: Pair<'a, air::Rule>, vis: Visibility) ->
                         assigns.push(parse_assign(source, part));
                     }
                     air::Rule::Void | air::Rule::Str | air::Rule::Sym |
-                    air::Rule::VarName | air::Rule::DefName | air::Rule::LogCall => {
+                    air::Rule::VarName | air::Rule::DefName | air::Rule::LogCall | air::Rule::GenericCall => {
                         result = Some(parse_expr(source, part));
                     }
                     _ => {}
@@ -132,9 +126,10 @@ fn parse_def<'a>(source: &'a str, pair: Pair<'a, air::Rule>, vis: Visibility) ->
             })
         }
         air::Rule::FuncDef => {
-            // Grammar: "func" ~ DefName ~ "->" ~ Type ~ "do:" ~ (Assign)* ~ Expr
+            // Grammar: "func" ~ DefName ~ ParamList ~ "->" ~ Type ~ "do:" ~ (Assign)* ~ Expr
             let inner = pair.into_inner();
             let mut name = None;
+            let mut params = Vec::new();
             let mut return_type = None;
             let mut assigns = Vec::new();
             let mut result = None;
@@ -144,6 +139,9 @@ fn parse_def<'a>(source: &'a str, pair: Pair<'a, air::Rule>, vis: Visibility) ->
                     air::Rule::DefName => {
                         name = Some(parse_defname(source, part));
                     }
+                    air::Rule::ParamList => {
+                        params = parse_param_list(source, part);
+                    }
                     air::Rule::IntType | air::Rule::StrType | air::Rule::VoidType => {
                         return_type = Some(parse_type(source, part));
                     }
@@ -151,7 +149,7 @@ fn parse_def<'a>(source: &'a str, pair: Pair<'a, air::Rule>, vis: Visibility) ->
                         assigns.push(parse_assign(source, part));
                     }
                     air::Rule::Void | air::Rule::Str | air::Rule::Sym |
-                    air::Rule::VarName | air::Rule::LogCall => {
+                    air::Rule::VarName | air::Rule::LogCall | air::Rule::GenericCall => {
                         result = Some(parse_expr(source, part));
                     }
                     _ => {}
@@ -163,6 +161,7 @@ fn parse_def<'a>(source: &'a str, pair: Pair<'a, air::Rule>, vis: Visibility) ->
                 vis,
                 data: DefData::Func {
                     name: name?,
+                    params,
                     return_type: return_type?,
                     body: Block {
                         span,
@@ -191,7 +190,7 @@ fn parse_expr<'a>(source: &'a str, pair: Pair<'a, air::Rule>) -> Expr<'a> {
     let span = make_span(source, &pair);
 
     let data = match pair.as_rule() {
-        air::Rule::LogCall => {
+        air::Rule::LogCall | air::Rule::GenericCall => {
             ExprData::Call(parse_call(source, pair))
         }
         _ => {
@@ -205,17 +204,67 @@ fn parse_expr<'a>(source: &'a str, pair: Pair<'a, air::Rule>) -> Expr<'a> {
 fn parse_call<'a>(source: &'a str, pair: Pair<'a, air::Rule>) -> CallData<'a> {
     let span = make_span(source, &pair);
 
-    // LogCall = { "log" ~ SimpleExpr }
-    let mut inner = pair.into_inner();
-    let arg = parse_simple(source, inner.next().unwrap());
+    match pair.as_rule() {
+        air::Rule::LogCall => {
+            // LogCall = { "log" ~ SimpleExpr }
+            let mut inner = pair.into_inner();
+            let arg = parse_simple(source, inner.next().unwrap());
 
-    CallData {
-        callee: Callee {
-            span,
-            data: CalleeData::Name("log"),
-        },
-        args: vec![arg],
+            CallData {
+                callee: Callee {
+                    span,
+                    data: CalleeData::Name("log"),
+                },
+                args: vec![arg],
+            }
+        }
+        air::Rule::GenericCall => {
+            // GenericCall = { "call" ~ (DefName | VarName) ~ (SimpleExpr)* }
+            let mut inner = pair.into_inner();
+            let callee_pair = inner.next().unwrap();
+
+            let callee_span = make_span(source, &callee_pair);
+            let callee_data = match callee_pair.as_rule() {
+                air::Rule::DefName => {
+                    let inner_name = callee_pair.into_inner().next().unwrap();
+                    CalleeData::DefName(inner_name.as_str())
+                }
+                air::Rule::VarName => {
+                    let inner_name = callee_pair.into_inner().next().unwrap();
+                    CalleeData::VarName(inner_name.as_str())
+                }
+                _ => panic!("Unexpected callee type"),
+            };
+
+            let args: Vec<Simple> = inner.map(|arg| parse_simple(source, arg)).collect();
+
+            CallData {
+                callee: Callee {
+                    span: callee_span,
+                    data: callee_data,
+                },
+                args,
+            }
+        }
+        _ => panic!("Unknown call type"),
     }
+}
+
+fn parse_param_list<'a>(source: &'a str, pair: Pair<'a, air::Rule>) -> Vec<Param<'a>> {
+    pair.into_inner()
+        .filter(|p| p.as_rule() == air::Rule::Param)
+        .map(|param_pair| parse_param(source, param_pair))
+        .collect()
+}
+
+fn parse_param<'a>(source: &'a str, pair: Pair<'a, air::Rule>) -> Param<'a> {
+    let span = make_span(source, &pair);
+    let mut inner = pair.into_inner();
+
+    let name = parse_varname(source, inner.next().unwrap());
+    let ty = parse_type(source, inner.next().unwrap());
+
+    Param { span, name, ty }
 }
 
 fn parse_simple<'a>(source: &'a str, pair: Pair<'a, air::Rule>) -> Simple<'a> {

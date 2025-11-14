@@ -16,7 +16,13 @@ pub enum Visibility {
 
 pub enum DefData<'a> {
     Main { body: Block<'a> },
-    Func { name: DefName<'a>, return_type: Type<'a>, body: Block<'a> }
+    Func { name: DefName<'a>, params: Vec<Param<'a>>, return_type: Type<'a>, body: Block<'a> }
+}
+
+pub struct Param<'a> {
+    pub span: Span<'a>,
+    pub name: VarName<'a>,
+    pub ty: Type<'a>,
 }
 
 pub struct Block<'a> {

@@ -192,6 +192,35 @@ struct LogOpConversion : public OpConversionPattern<air::LogOp> {
   }
 };
 
+struct CallOpConversion : public OpConversionPattern<air::CallOp> {
+  using OpConversionPattern::OpConversionPattern;
+
+  LogicalResult
+  matchAndRewrite(air::CallOp op, OpAdaptor adaptor,
+                  ConversionPatternRewriter &rewriter) const override {
+    auto moduleOp = op->getParentOfType<ModuleOp>();
+
+    // Look up the callee function
+    StringRef calleeName = op.getCallee();
+    auto calleeFunc = moduleOp.lookupSymbol<LLVM::LLVMFuncOp>(calleeName);
+    if (!calleeFunc) {
+      return failure();
+    }
+
+    // Convert operands
+    SmallVector<Value> convertedOperands;
+    for (auto operand : adaptor.getOperands()) {
+      convertedOperands.push_back(operand);
+    }
+
+    // Create LLVM call
+    rewriter.replaceOpWithNewOp<LLVM::CallOp>(
+        op, calleeFunc, convertedOperands);
+
+    return success();
+  }
+};
+
 struct ReturnOpConversion : public OpConversionPattern<air::ReturnOp> {
   using OpConversionPattern::OpConversionPattern;
 
@@ -219,7 +248,7 @@ struct ConvertAIRToLLVMPass
     RewritePatternSet patterns(context);
 
     patterns.add<FuncOpConversion, ConstantOpConversion, LogOpConversion,
-                 ReturnOpConversion>(typeConverter, context);
+                 CallOpConversion, ReturnOpConversion>(typeConverter, context);
 
     LLVMConversionTarget target(*context);
     target.addLegalDialect<LLVM::LLVMDialect>();

@@ -60,6 +60,26 @@ def AIR_ConstantOp : AIR_Op<"constant", [Pure, ConstantLike]> {
 }
 
 //===----------------------------------------------------------------------===//
+// CallOp
+//===----------------------------------------------------------------------===//
+
+def AIR_CallOp : AIR_Op<"call", []> {
+  let summary = "AIR function call operation";
+  let description = [{
+    Calls a function in AIR.
+  }];
+
+  let arguments = (ins
+    FlatSymbolRefAttr:$callee,
+    Variadic<AIR_AnyType>:$operands
+  );
+
+  let results = (outs Optional<AIR_AnyType>:$result);
+
+  let assemblyFormat = "$callee `(` $operands `)` attr-dict `:` functional-type($operands, results)";
+}
+
+//===----------------------------------------------------------------------===//
 // ReturnOp
 //===----------------------------------------------------------------------===//
 
