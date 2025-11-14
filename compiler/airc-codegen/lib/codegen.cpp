@@ -250,8 +250,16 @@ void compile_air_ast(rust::Vec<SourceData> sources, rust::Str output_path, rust:
         return;
     }
 
-    std::cout << "Generated AIR MLIR:" << std::endl;
-    module.dump();
+    // Write AIR MLIR to file
+    std::string airMlirPath = outputStr + ".air.mlir";
+    std::error_code ec;
+    llvm::raw_fd_ostream airMlirFile(airMlirPath, ec, llvm::sys::fs::OF_None);
+    if (ec) {
+        std::cerr << "Failed to open " << airMlirPath << ": " << ec.message() << std::endl;
+        return;
+    }
+    module.print(airMlirFile);
+    airMlirFile.close();
 
     // Run conversion pass: AIR -> LLVM dialect
     mlir::PassManager pm(&context);
@@ -262,8 +270,15 @@ void compile_air_ast(rust::Vec<SourceData> sources, rust::Str output_path, rust:
         return;
     }
 
-    std::cout << "\nAfter AIR->LLVM conversion:" << std::endl;
-    module.dump();
+    // Write LLVM dialect MLIR to file
+    std::string llvmMlirPath = outputStr + ".llvm.mlir";
+    llvm::raw_fd_ostream llvmMlirFile(llvmMlirPath, ec, llvm::sys::fs::OF_None);
+    if (ec) {
+        std::cerr << "Failed to open " << llvmMlirPath << ": " << ec.message() << std::endl;
+        return;
+    }
+    module.print(llvmMlirFile);
+    llvmMlirFile.close();
 
     // Translate MLIR to LLVM IR
     llvm::LLVMContext llvmContext;
@@ -274,12 +289,8 @@ void compile_air_ast(rust::Vec<SourceData> sources, rust::Str output_path, rust:
         return;
     }
 
-    std::cout << "\nGenerated LLVM IR:" << std::endl;
-    llvmModule->print(llvm::outs(), nullptr);
-
     // Write LLVM IR to file
     std::string llPath = outputStr + ".ll";
-    std::error_code ec;
     llvm::raw_fd_ostream llFile(llPath, ec, llvm::sys::fs::OF_None);
     if (ec) {
         std::cerr << "Failed to open " << llPath << ": " << ec.message() << std::endl;
@@ -287,8 +298,6 @@ void compile_air_ast(rust::Vec<SourceData> sources, rust::Str output_path, rust:
     }
     llvmModule->print(llFile, nullptr);
     llFile.close();
-
-    std::cout << "\nWrote LLVM IR to " << llPath << std::endl;
 
     // Compile LLVM IR to object file using clang
     std::string objPath = outputStr + ".o";
