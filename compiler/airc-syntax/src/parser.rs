@@ -106,7 +106,7 @@ fn parse_def<'a>(source: &'a str, pair: Pair<'a, air::Rule>, vis: Visibility) ->
                         assigns.push(parse_assign(source, part));
                     }
                     air::Rule::Void | air::Rule::Str | air::Rule::Sym |
-                    air::Rule::VarName | air::Rule::DefName | air::Rule::LogCall | air::Rule::GenericCall => {
+                    air::Rule::VarName | air::Rule::DefName | air::Rule::Call => {
                         result = Some(parse_expr(source, part));
                     }
                     _ => {}
@@ -149,7 +149,7 @@ fn parse_def<'a>(source: &'a str, pair: Pair<'a, air::Rule>, vis: Visibility) ->
                         assigns.push(parse_assign(source, part));
                     }
                     air::Rule::Void | air::Rule::Str | air::Rule::Sym |
-                    air::Rule::VarName | air::Rule::LogCall | air::Rule::GenericCall => {
+                    air::Rule::VarName | air::Rule::Call => {
                         result = Some(parse_expr(source, part));
                     }
                     _ => {}
@@ -190,7 +190,7 @@ fn parse_expr<'a>(source: &'a str, pair: Pair<'a, air::Rule>) -> Expr<'a> {
     let span = make_span(source, &pair);
 
     let data = match pair.as_rule() {
-        air::Rule::LogCall | air::Rule::GenericCall => {
+        air::Rule::Call => {
             ExprData::Call(parse_call(source, pair))
         }
         _ => {
@@ -202,51 +202,34 @@ fn parse_expr<'a>(source: &'a str, pair: Pair<'a, air::Rule>) -> Expr<'a> {
 }
 
 fn parse_call<'a>(source: &'a str, pair: Pair<'a, air::Rule>) -> CallData<'a> {
-    let span = make_span(source, &pair);
+    // Call = { "(" ~ Callee ~ (SimpleExpr)* ~ ")" }
+    let mut inner = pair.into_inner();
+    let callee_pair = inner.next().unwrap();
 
-    match pair.as_rule() {
-        air::Rule::LogCall => {
-            // LogCall = { "log" ~ SimpleExpr }
-            let mut inner = pair.into_inner();
-            let arg = parse_simple(source, inner.next().unwrap());
-
-            CallData {
-                callee: Callee {
-                    span,
-                    data: CalleeData::Name("log"),
-                },
-                args: vec![arg],
-            }
+    let callee_span = make_span(source, &callee_pair);
+    let callee_data = match callee_pair.as_rule() {
+        air::Rule::Builtin => {
+            CalleeData::Name(callee_pair.as_str())
         }
-        air::Rule::GenericCall => {
-            // GenericCall = { "call" ~ (DefName | VarName) ~ (SimpleExpr)* }
-            let mut inner = pair.into_inner();
-            let callee_pair = inner.next().unwrap();
-
-            let callee_span = make_span(source, &callee_pair);
-            let callee_data = match callee_pair.as_rule() {
-                air::Rule::DefName => {
-                    let inner_name = callee_pair.into_inner().next().unwrap();
-                    CalleeData::DefName(inner_name.as_str())
-                }
-                air::Rule::VarName => {
-                    let inner_name = callee_pair.into_inner().next().unwrap();
-                    CalleeData::VarName(inner_name.as_str())
-                }
-                _ => panic!("Unexpected callee type"),
-            };
-
-            let args: Vec<Simple> = inner.map(|arg| parse_simple(source, arg)).collect();
-
-            CallData {
-                callee: Callee {
-                    span: callee_span,
-                    data: callee_data,
-                },
-                args,
-            }
+        air::Rule::DefName => {
+            let inner_name = callee_pair.into_inner().next().unwrap();
+            CalleeData::DefName(inner_name.as_str())
         }
-        _ => panic!("Unknown call type"),
+        air::Rule::VarName => {
+            let inner_name = callee_pair.into_inner().next().unwrap();
+            CalleeData::VarName(inner_name.as_str())
+        }
+        _ => panic!("Unexpected callee type: {:?}", callee_pair.as_rule()),
+    };
+
+    let args: Vec<Simple> = inner.map(|arg| parse_simple(source, arg)).collect();
+
+    CallData {
+        callee: Callee {
+            span: callee_span,
+            data: callee_data,
+        },
+        args,
     }
 }
 

@@ -33,11 +33,9 @@ Void = { "(" ~ Ws? ~ ")" }
 Str = { "\"" ~ StrContent ~ "\"" }
 StrContent = @{ (!"\"" ~ ANY)* }
 
-Call = _{ "(" ~ Ws? ~ CallInner ~ Ws? ~ ")" }
-CallInner = _{ GenericCall | LogCall }
-
-GenericCall = { "call" ~ Ws ~ (DefName | VarName) ~ (Ws ~ SimpleExpr)* }
-LogCall = { "log" ~ Ws ~ SimpleExpr }
+Call = { "(" ~ Ws? ~ Callee ~ (Ws ~ SimpleExpr)* ~ Ws? ~ ")" }
+Callee = _{ Builtin | DefName | VarName }
+Builtin = @{ "log" }
 
 Type = _{ IntType | StrType | VoidType }
 

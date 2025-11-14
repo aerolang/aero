@@ -4,5 +4,5 @@
 
 (def pub main do:
   %name Str = "Bradley"
-  (call $say-hello %name)
+  ($say-hello %name)
 )
