@@ -130,25 +130,28 @@ void compile_air_ast(rust::Vec<SourceData> sources, rust::Str output_path, rust:
                 }
             }
 
+            // Determine the function name to call
+            std::string funcName;
             if (callee == "log") {
-                if (!argValues.empty()) {
-                    builder.create<mlir::air::LogOp>(loc, argValues[0]);
-                }
-                return nullptr;
+                // Map builtin 'log' to runtime function
+                funcName = "runtime$log";
             } else if (!callee.empty() && callee[0] == '$') {
-                // User-defined function call
-                std::string funcName = callee.substr(1);
-
-                // Create function call
-                auto funcRef = mlir::FlatSymbolRefAttr::get(&context, funcName);
-                builder.create<mlir::air::CallOp>(
-                    loc,
-                    mlir::TypeRange{}, // No results for void functions
-                    funcRef,
-                    argValues
-                );
+                // User-defined function call - strip the $
+                funcName = callee.substr(1);
+            } else {
+                // Unknown callee
                 return nullptr;
             }
+
+            // Create function call
+            auto funcRef = mlir::FlatSymbolRefAttr::get(&context, funcName);
+            builder.create<mlir::air::CallOp>(
+                loc,
+                mlir::TypeRange{}, // No results for void functions
+                funcRef,
+                argValues
+            );
+            return nullptr;
         }
 
         return nullptr;

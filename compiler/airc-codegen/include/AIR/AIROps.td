@@ -29,21 +29,6 @@ def AIR_FuncOp : AIR_Op<"func", [IsolatedFromAbove]> {
 }
 
 //===----------------------------------------------------------------------===//
-// LogOp
-//===----------------------------------------------------------------------===//
-
-def AIR_LogOp : AIR_Op<"log", []> {
-  let summary = "AIR log operation";
-  let description = [{
-    Logs a value to standard output.
-  }];
-
-  let arguments = (ins AIR_AnyType:$value);
-
-  let assemblyFormat = "$value attr-dict `:` type($value)";
-}
-
-//===----------------------------------------------------------------------===//
 // ConstantOp
 //===----------------------------------------------------------------------===//
 

@@ -159,39 +159,6 @@ struct ConstantOpConversion : public OpConversionPattern<air::ConstantOp> {
   }
 };
 
-struct LogOpConversion : public OpConversionPattern<air::LogOp> {
-  using OpConversionPattern::OpConversionPattern;
-
-  LogicalResult
-  matchAndRewrite(air::LogOp op, OpAdaptor adaptor,
-                  ConversionPatternRewriter &rewriter) const override {
-    auto moduleOp = op->getParentOfType<ModuleOp>();
-
-    // Declare runtime$log function if not already declared
-    LLVM::LLVMFuncOp logFuncOp;
-    if (!(logFuncOp = moduleOp.lookupSymbol<LLVM::LLVMFuncOp>("runtime$log"))) {
-      OpBuilder::InsertionGuard guard(rewriter);
-      rewriter.setInsertionPointToStart(moduleOp.getBody());
-
-      // runtime$log takes a struct { ptr, i64 }
-      auto ptrType = LLVM::LLVMPointerType::get(op.getContext());
-      auto i64Type = IntegerType::get(op.getContext(), 64);
-      auto structType = LLVM::LLVMStructType::getLiteral(op.getContext(), {ptrType, i64Type});
-      auto voidType = LLVM::LLVMVoidType::get(op.getContext());
-      auto funcType = LLVM::LLVMFunctionType::get(voidType, {structType});
-
-      logFuncOp = rewriter.create<LLVM::LLVMFuncOp>(
-          op.getLoc(), "runtime$log", funcType);
-    }
-
-    // Create call to runtime$log
-    rewriter.replaceOpWithNewOp<LLVM::CallOp>(
-        op, logFuncOp, adaptor.getValue());
-
-    return success();
-  }
-};
-
 struct CallOpConversion : public OpConversionPattern<air::CallOp> {
   using OpConversionPattern::OpConversionPattern;
 
@@ -203,6 +170,23 @@ struct CallOpConversion : public OpConversionPattern<air::CallOp> {
     // Look up the callee function
     StringRef calleeName = op.getCallee();
     auto calleeFunc = moduleOp.lookupSymbol<LLVM::LLVMFuncOp>(calleeName);
+
+    // If not found, check if it's a runtime function that needs declaration
+    if (!calleeFunc && calleeName == "runtime$log") {
+      OpBuilder::InsertionGuard guard(rewriter);
+      rewriter.setInsertionPointToStart(moduleOp.getBody());
+
+      // runtime$log takes a struct { ptr, i64 }
+      auto ptrType = LLVM::LLVMPointerType::get(op.getContext());
+      auto i64Type = IntegerType::get(op.getContext(), 64);
+      auto structType = LLVM::LLVMStructType::getLiteral(op.getContext(), {ptrType, i64Type});
+      auto voidType = LLVM::LLVMVoidType::get(op.getContext());
+      auto funcType = LLVM::LLVMFunctionType::get(voidType, {structType});
+
+      calleeFunc = rewriter.create<LLVM::LLVMFuncOp>(
+          op.getLoc(), "runtime$log", funcType);
+    }
+
     if (!calleeFunc) {
       return failure();
     }
@@ -247,7 +231,7 @@ struct ConvertAIRToLLVMPass
     AIRTypeConverter typeConverter(context);
     RewritePatternSet patterns(context);
 
-    patterns.add<FuncOpConversion, ConstantOpConversion, LogOpConversion,
+    patterns.add<FuncOpConversion, ConstantOpConversion,
                  CallOpConversion, ReturnOpConversion>(typeConverter, context);
 
     LLVMConversionTarget target(*context);
