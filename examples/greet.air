@@ -1,0 +1,12 @@
+(def priv func $greet (%name Str) -> Void do:
+  %hello Str = (str-concat "Hello, " %name)
+  %message Str = (str-concat %hello "!")
+  (log %message)
+)
+
+(def pub main do:
+  %name1 Str = "Bradley"
+  %_ Void = ($greet %name1)
+  %name2 Str = "World"
+  ($greet %name2)
+)

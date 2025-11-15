@@ -132,12 +132,25 @@ void compile_air_ast(rust::Vec<SourceData> sources, rust::Str output_path, rust:
 
             // Determine the function name to call
             std::string funcName;
+            mlir::TypeRange resultTypes;
             if (callee == "log") {
                 // Map builtin 'log' to runtime function
                 funcName = "runtime$log";
+                resultTypes = mlir::TypeRange{}; // void return
+            } else if (callee == "str-concat") {
+                // Map builtin 'str-concat' to runtime function
+                funcName = "runtime$str_concat";
+                // Returns a string
+                auto strType = mlir::air::StrType::get(&context);
+                resultTypes = mlir::TypeRange{strType};
+            } else if (callee == "free") {
+                // Map builtin 'free' to runtime function
+                funcName = "runtime$free";
+                resultTypes = mlir::TypeRange{}; // void return
             } else if (!callee.empty() && callee[0] == '$') {
                 // User-defined function call - strip the $
                 funcName = callee.substr(1);
+                resultTypes = mlir::TypeRange{}; // TODO: handle non-void returns
             } else {
                 // Unknown callee
                 return nullptr;
@@ -145,12 +158,17 @@ void compile_air_ast(rust::Vec<SourceData> sources, rust::Str output_path, rust:
 
             // Create function call
             auto funcRef = mlir::FlatSymbolRefAttr::get(&context, funcName);
-            builder.create<mlir::air::CallOp>(
+            auto callOp = builder.create<mlir::air::CallOp>(
                 loc,
-                mlir::TypeRange{}, // No results for void functions
+                resultTypes,
                 funcRef,
                 argValues
             );
+
+            // Return the result value if there is one
+            if (callOp.getNumResults() > 0) {
+                return callOp.getResult();
+            }
             return nullptr;
         }
 

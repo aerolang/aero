@@ -172,19 +172,35 @@ struct CallOpConversion : public OpConversionPattern<air::CallOp> {
     auto calleeFunc = moduleOp.lookupSymbol<LLVM::LLVMFuncOp>(calleeName);
 
     // If not found, check if it's a runtime function that needs declaration
-    if (!calleeFunc && calleeName == "runtime$log") {
+    if (!calleeFunc) {
       OpBuilder::InsertionGuard guard(rewriter);
       rewriter.setInsertionPointToStart(moduleOp.getBody());
 
-      // runtime$log takes a struct { ptr, i64 }
       auto ptrType = LLVM::LLVMPointerType::get(op.getContext());
       auto i64Type = IntegerType::get(op.getContext(), 64);
       auto structType = LLVM::LLVMStructType::getLiteral(op.getContext(), {ptrType, i64Type});
-      auto voidType = LLVM::LLVMVoidType::get(op.getContext());
-      auto funcType = LLVM::LLVMFunctionType::get(voidType, {structType});
 
-      calleeFunc = rewriter.create<LLVM::LLVMFuncOp>(
-          op.getLoc(), "runtime$log", funcType);
+      if (calleeName == "runtime$log") {
+        // runtime$log takes a struct { ptr, i64 } and returns void
+        auto voidType = LLVM::LLVMVoidType::get(op.getContext());
+        auto funcType = LLVM::LLVMFunctionType::get(voidType, {structType});
+
+        calleeFunc = rewriter.create<LLVM::LLVMFuncOp>(
+            op.getLoc(), "runtime$log", funcType);
+      } else if (calleeName == "runtime$str_concat") {
+        // runtime$str_concat takes two struct { ptr, i64 } and returns struct { ptr, i64 }
+        auto funcType = LLVM::LLVMFunctionType::get(structType, {structType, structType});
+
+        calleeFunc = rewriter.create<LLVM::LLVMFuncOp>(
+            op.getLoc(), "runtime$str_concat", funcType);
+      } else if (calleeName == "runtime$free") {
+        // runtime$free takes a struct { ptr, i64 } and returns void
+        auto voidType = LLVM::LLVMVoidType::get(op.getContext());
+        auto funcType = LLVM::LLVMFunctionType::get(voidType, {structType});
+
+        calleeFunc = rewriter.create<LLVM::LLVMFuncOp>(
+            op.getLoc(), "runtime$free", funcType);
+      }
     }
 
     if (!calleeFunc) {

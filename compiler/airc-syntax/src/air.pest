@@ -35,7 +35,7 @@ StrContent = @{ (!"\"" ~ ANY)* }
 
 Call = { "(" ~ Ws? ~ Callee ~ (Ws ~ SimpleExpr)* ~ Ws? ~ ")" }
 Callee = _{ Builtin | DefName | VarName }
-Builtin = @{ "log" }
+Builtin = @{ "log" | "str-concat" | "free" }
 
 Type = _{ IntType | StrType | VoidType }
 
