@@ -31,34 +31,11 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         std::process::exit(1);
     }
 
-    // Parse the AIR source using the Rust parser
-    let ast = match airc_syntax::parse_air(&source) {
-        Ok(ast) => ast,
-        Err(e) => {
-            eprintln!("Parse error: {}", e);
-            std::process::exit(1);
-        }
-    };
-
-    // Convert AST to FFI format
-    let source_data = airc_codegen::convert_ast_to_ffi(&ast);
-
-    let total_defs = source_data.main_defs.len() + source_data.func_defs.len();
-    println!("Found {} definition(s)", total_defs);
-    for def in &source_data.main_defs {
-        println!("  - main (pub: {})", def.is_pub);
-    }
-    for def in &source_data.func_defs {
-        println!("  - {} (pub: {})", def.name, def.is_pub);
-    }
-
-    // Compile using the new AST-based codegen backend
-    // Pass the source as a single-element vector
-    airc_codegen::compile_air_ast(
-        vec![source_data],
+    airc::compile_air(
+        &source,
         args.output.to_str().unwrap(),
-        runtime_path.to_str().unwrap()
-    );
+        runtime_path.to_str().unwrap(),
+    )?;
 
     Ok(())
 }

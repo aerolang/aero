@@ -1,16 +1,41 @@
 load("@crates//:defs.bzl", "aliases", "all_crate_deps")
-load("@rules_rust//rust:defs.bzl", "rust_binary")
+load("@rules_rust//rust:defs.bzl", "rust_binary", "rust_library", "rust_test")
 load("@bazel_skylib//rules:copy_file.bzl", "copy_file")
+
+rust_library(
+    name = "airc_lib",
+    srcs = ["src/lib.rs"],
+    aliases = aliases(),
+    crate_name = "airc",
+    deps = all_crate_deps(normal = True) + [
+        "//compiler/airc-codegen",
+        "//compiler/airc-syntax",
+    ],
+)
 
 rust_binary(
     name = "airc",
-    srcs = glob(["src/**/*.rs"]),
+    srcs = ["src/main.rs"],
     aliases = aliases(),
     data = [":runtime/libruntime.a"],
     proc_macro_deps = all_crate_deps(proc_macro = True),
     deps = all_crate_deps(normal = True) + [
+        ":airc_lib",
         "//compiler/airc-codegen",
         "//compiler/airc-syntax",
+    ],
+)
+
+rust_test(
+    name = "integration_test",
+    srcs = ["tests/integration_test.rs"],
+    aliases = aliases(),
+    data = [":runtime/libruntime.a"],
+    env = {
+        "RUNTIME_LIB_PATH": "$(rootpath :runtime/libruntime.a)",
+    },
+    deps = all_crate_deps(normal = True, normal_dev = True) + [
+        ":airc_lib",
     ],
 )
 

@@ -1,4 +1,0 @@
-(def pub main do:
-  %greeting Str = (str-concat "Hello, " "World!")
-  (log %greeting)
-)

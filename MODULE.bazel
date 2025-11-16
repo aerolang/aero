@@ -7,9 +7,11 @@ bazel_dep(name = "rules_zig", version = "0.12.2")
 
 # LLVM doesn't support bzlmod yet, so it's fetched as an HTTP archive.
 LLVM_COMMIT = "58df0ef89dd64126512e4ee27b4ac3fd8ddf6247"
+
 LLVM_INTEGRITY = "sha256-LW6qxqQw0Muy9vIzTbckB1mtWfd12LHKvwF98Z6TUoM="
 
 http_archive = use_repo_rule("@bazel_tools//tools/build_defs/repo:http.bzl", "http_archive")
+
 http_archive(
     name = "llvm-raw",
     build_file_content = "# empty",
@@ -32,6 +34,7 @@ http_archive(
         "https://github.com/zlib-ng/zlib-ng/archive/refs/tags/2.0.7.zip",
     ],
 )
+
 http_archive(
     name = "llvm_zstd",
     build_file = "@llvm-raw//utils/bazel/third_party_build:zstd.BUILD",
@@ -47,16 +50,26 @@ http_archive(
 # Bazel currently fails if not loading the NVPTX target since some tests are
 # dependent on it. See https://github.com/llvm/llvm-project/issues/63135.
 llvm_configure = use_repo_rule("@llvm-raw//utils/bazel:configure.bzl", "llvm_configure")
-llvm_configure(name = "llvm-project", targets = ["X86", "AArch64", "NVPTX"])
+
+llvm_configure(
+    name = "llvm-project",
+    targets = [
+        "X86",
+        "AArch64",
+        "NVPTX",
+    ],
+)
 
 rust = use_extension("@rules_rust//rust:extensions.bzl", "rust")
-
-rust.toolchain(edition = "2024", versions = ["1.85.1"])
+rust.toolchain(
+    edition = "2024",
+    versions = ["1.85.1"],
+)
 use_repo(rust, "rust_toolchains")
+
 register_toolchains("@rust_toolchains//:all")
 
 crate = use_extension("@rules_rust//crate_universe:extensions.bzl", "crate")
-
 crate.from_cargo(
     name = "crates",
     cargo_lockfile = "//:Cargo.lock",
@@ -78,7 +91,10 @@ crate.from_cargo(
 use_repo(crate, "crates")
 
 zig = use_extension("@rules_zig//zig:extensions.bzl", "zig")
-zig.toolchain(default = True, zig_version = "0.15.1")
+zig.toolchain(
+    default = True,
+    zig_version = "0.15.1",
+)
 
 # Hedron's Compile Commands Extractor for Bazel
 # https://github.com/hedronvision/bazel-compile-commands-extractor
@@ -89,6 +105,6 @@ zig.toolchain(default = True, zig_version = "0.15.1")
 bazel_dep(name = "hedron_compile_commands", dev_dependency = True)
 git_override(
     module_name = "hedron_compile_commands",
-    remote = "https://github.com/hedronvision/bazel-compile-commands-extractor.git",
     commit = "4f28899228fb3ad0126897876f147ca15026151e",
+    remote = "https://github.com/hedronvision/bazel-compile-commands-extractor.git",
 )

@@ -1,8 +1,0 @@
-(def priv func $say-hello (%name Str) -> Void do:
-  (log %name)
-)
-
-(def pub main do:
-  %name Str = "Bradley"
-  ($say-hello %name)
-)
