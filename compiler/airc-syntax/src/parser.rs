@@ -91,9 +91,7 @@ fn parse_source<'a>(source: &'a str, pair: Pair<'a, air::Rule>) -> Source<'a> {
 fn parse_def<'a>(source: &'a str, pair: Pair<'a, air::Rule>, vis: Visibility) -> Option<Def<'a>> {
     let span = make_span(source, &pair);
 
-    let rule = pair.as_rule();
-
-    match rule {
+    match pair.as_rule() {
         air::Rule::MainDef => {
             // Grammar: "main" ~ "do:" ~ (Assign)* ~ Expr
             let inner = pair.into_inner();
@@ -209,7 +207,8 @@ fn parse_call<'a>(source: &'a str, pair: Pair<'a, air::Rule>) -> CallData<'a> {
     let callee_span = make_span(source, &callee_pair);
     let callee_data = match callee_pair.as_rule() {
         air::Rule::Builtin => {
-            CalleeData::Name(callee_pair.as_str())
+            let inner_name = callee_pair.into_inner().next().unwrap();
+            CalleeData::Builtin(inner_name.as_str())
         }
         air::Rule::DefName => {
             let inner_name = callee_pair.into_inner().next().unwrap();
@@ -219,7 +218,7 @@ fn parse_call<'a>(source: &'a str, pair: Pair<'a, air::Rule>) -> CallData<'a> {
             let inner_name = callee_pair.into_inner().next().unwrap();
             CalleeData::VarName(inner_name.as_str())
         }
-        _ => panic!("Unexpected callee type: {:?}", callee_pair.as_rule()),
+        rule => panic!("Unexpected callee type: {:?}", rule),
     };
 
     let args: Vec<Simple> = inner.map(|arg| parse_simple(source, arg)).collect();
@@ -278,7 +277,7 @@ fn parse_simple_data<'a>(_source: &'a str, pair: Pair<'a, air::Rule>) -> SimpleD
         air::Rule::Name => {
             SimpleData::Name(pair.as_str())
         }
-        _ => SimpleData::Void, // Fallback
+        rule => panic!("Unexpected simple data type: {:?}", rule),
     }
 }
 
@@ -288,7 +287,7 @@ fn parse_type<'a>(source: &'a str, pair: Pair<'a, air::Rule>) -> Type<'a> {
         air::Rule::IntType => TypeData::Int,
         air::Rule::StrType => TypeData::Str,
         air::Rule::VoidType => TypeData::Void,
-        _ => TypeData::Void, // Fallback
+        rule => panic!("Unexpected type: {:?}", rule),
     };
 
     Type { span, data }

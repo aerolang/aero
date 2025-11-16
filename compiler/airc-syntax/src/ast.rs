@@ -64,7 +64,7 @@ pub struct Callee<'a> {
 }
 
 pub enum CalleeData<'a> {
-    Name(&'a str),
+    Builtin(&'a str),
     VarName(&'a str),
     DefName(&'a str),
 }

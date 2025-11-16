@@ -114,7 +114,7 @@ fn convert_expr(expr: &ast::Expr) -> ffi::ExprData {
     match &expr.data {
         ast::ExprData::Call(call_data) => {
             let callee = match &call_data.callee.data {
-                ast::CalleeData::Name(n) => n.to_string(),
+                ast::CalleeData::Builtin(n) => n.to_string(),
                 ast::CalleeData::VarName(n) => format!("%{}", n),
                 ast::CalleeData::DefName(n) => format!("${}", n),
             };
