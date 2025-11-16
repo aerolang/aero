@@ -24,12 +24,9 @@ pub fn compile_air(
     let ast = airc_syntax::parse_air(source)
         .map_err(|e| format!("Parse error: {}", e))?;
 
-    // Convert AST to FFI format
-    let source_data = airc_codegen::convert_ast_to_ffi(&ast);
-
     // Compile using the AST-based codegen backend
     airc_codegen::compile_air_ast(
-        vec![source_data],
+        vec![&ast],
         output_path,
         runtime_path,
     );

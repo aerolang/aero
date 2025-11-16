@@ -54,7 +54,7 @@ mod ffi {
 }
 
 // Convert AST to FFI types
-pub fn convert_ast_to_ffi(ast_source: &ast::Source) -> ffi::SourceData {
+fn convert_ast_to_ffi(ast_source: &ast::Source) -> ffi::SourceData {
     let mut main_defs = Vec::new();
     let mut func_defs = Vec::new();
 
@@ -171,6 +171,10 @@ fn convert_simple(simple_data: &ast::SimpleData) -> ffi::SimpleData {
     }
 }
 
-pub fn compile_air_ast(sources: Vec<ffi::SourceData>, output_path: &str, runtime_path: &str) {
-    ffi::compile_air_ast(sources, output_path, runtime_path);
+pub fn compile_air_ast(sources: Vec<&ast::Source>, output_path: &str, runtime_path: &str) {
+    let source_data: Vec<ffi::SourceData> = sources
+        .iter()
+        .map(|source| convert_ast_to_ffi(source))
+        .collect();
+    ffi::compile_air_ast(source_data, output_path, runtime_path);
 }
