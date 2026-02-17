@@ -11,15 +11,15 @@ If making a binary if/else, and the condition branch just returns void, flip the
 remove the else branch.
 
 ```
-;; DON'T
+; DON'T
 (if $condition => () else: (log "..."))
 
-;; DO
+; DO
 (if (not $condition) => (log "..."))
 
-;; DON'T
+; DON'T
 (if $a > $b => () else: (log "..."))
 
-;; DO
+; DO
 (if $a <= $b => (log "..."))
 ```

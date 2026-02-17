@@ -36,15 +36,15 @@ Terms can be used in 4 distinct contexts:
 
 Comments in Aero start with `;`. There are no block comments.
 
-Single `;` comments are for documentation. Docs are written as markdown. Double `;;` comments are
-for non-documentation text. 
+Single `;` comments are for regular non-documentation text. `:` comments are for documentation.
+Docs are written as markdown.
 
 Example:
 
 ```aero
-; This is a comment that supports **Markdown** and would be followed by something to document.
+: This is a comment that supports **Markdown** and would be followed by something to document.
 
-;; This is normal comment that isn't documentation.
+; This is normal comment that isn't documentation.
 ```
 
 ### Literals
@@ -52,16 +52,16 @@ Example:
 Literals are just direct representations of basic expressions.
 
 ```aero
-;; Integers
+; Integers
 1 2 3 10 100_000 -5
 
-;; Floats
+; Floats
 1.0 -3. 500_000.123_435
 
-;; Strings
+; Strings
 "Hello, world!" "one line\ntwo line"
 
-;; Symbols
+; Symbols
 .these .are .super_cool .symbols
 ```
 
@@ -97,12 +97,12 @@ Operators are formed with other characters (`?!@#$%^&*-+()[]{}|/\<>,:`) and are 
 infix, and limited postfix settings.
 
 ```aero
-;; `func` and `log` are macros which use unprefixed identifiers.
-;; `say_hello` is the name of the function we're defining.
-;; `str` and `void` are types.
-;; `$name` and `$message` are variables bound to values.
-;; `to:` and `do:` are labels.
-;; `->` is an operator.
+; `func` and `log` are macros which use unprefixed identifiers.
+; `say_hello` is the name of the function we're defining.
+; `str` and `void` are types.
+; `$name` and `$message` are variables bound to values.
+; `to:` and `do:` are labels.
+; `->` is an operator.
 (func say_hello to: $name str -> void do:
   $message = "Hello, \$name!"
   (log $message)
@@ -124,7 +124,7 @@ directly. Each argument is a subexpression. If the function definition has label
 be present at the callsite.
 
 ```aero
-;; Calling our `say_hello` function with one argument.
+; Calling our `say_hello` function with one argument.
 (say_hello to: "Bradley")
 ```
 
@@ -230,16 +230,16 @@ Dicts have a special syntax when the key is a symbol:
 ## String Interpolation
 
 ```aero
-;; You can use \$var_name in the simple case.
+; You can use \$var_name in the simple case.
 "Hello \$name."
 
-;; You can use \[...] to evaluate a group.
+; You can use \[...] to evaluate a group.
 "If my math is correct, you owe \[100 + 20] dollars"
 
-;; This is also useful for printing a var with a character immediately after it.
+; This is also useful for printing a var with a character immediately after it.
 "The plural of \$noun is \[$noun]s"
 
-;; You can use \(...) to call a function.
+; You can use \(...) to call a function.
 "The square root of 16 is \(find-sqrt 16)!"
 ```
 
@@ -341,11 +341,11 @@ condition evaluates to false. They can both be used at the same time.
 Ranges in Aero look like `1..10`. That is 1 to 10 inclusive. An infinite range looks like `1..`.
 
 ```aero
-;; Implement an integer pow using `for:`.
+; Implement an integer pow using `for:`.
 $base = 3
 $exp = 4
 $result = (loop $r = 1 for: 1..$exp do: $r * $base)
-(log $result)  ;; 81
+(log $result)  ; 81
 ```
 
 A non-infinite loop without an accumulator implicitly has one which is void.
@@ -362,7 +362,7 @@ $v =
     (log "\$i is \$remark")
   )
 
-;; $v has type void. So it's a bit useless.
+; $v has type void. So it's a bit useless.
 ```
 
 Use `while:` to stop accumulating. The loop will evaluate to the last value of the accumulator
@@ -374,7 +374,7 @@ $i =
     $i * $i
   )
 
-(log $i)  ;; 64
+(log $i)  ; 64
 ```
 
 Using both `for:` and `while:` will make iterating through elements stop if the condition stops.
@@ -385,7 +385,7 @@ $biggest_square_under_1000 =
     $i * $i
   )
 
-(log $biggest_square_under_1000)  ;; 81
+(log $biggest_square_under_1000)  ; 81
 ```
 
 An infinite loop just uses `loop`, it'll never return a value!
@@ -402,16 +402,16 @@ Anything after the loop is dead code.
 ```aero
 (loop $i = 0 do:
   $i = [$i + 1] % 100
-  (log $i)  ;; 0, 1, 2, ..., 99, 0, 1, 2, ...
+  (log $i)  ; 0, 1, 2, ..., 99, 0, 1, 2, ...
 
-  $i  ;; Remember we need $i at the end to set the next accumulator value.
+  $i  ; Remember we need $i at the end to set the next accumulator value.
 )
 ```
 
 Accumulators support patterns, so it can be a tuple also.
 
 ```aero
-;; Take the max until a negative number happens.
+; Take the max until a negative number happens.
 $values = #(array 1 2 3 -10 4)
 
 {_, $max} =
@@ -427,15 +427,15 @@ $values = #(array 1 2 3 -10 4)
     )
   )
 
-(log $max)  ;; 3
+(log $max)  ; 3
 
-;; NOTE: we could have simplified this to just include the stop condition directly in the while.
+; NOTE: we could have simplified this to just include the stop condition directly in the while.
 ```
 
 You can also have multiple `for:` clauses. The inner ones run for each iteration of the outer.
 
 ```aero
-; print 1 once, 2 twice, etc.
+: print 1 once, 2 twice, etc.
 (loop for: $i <- 1..10
       for: $j <- 1..$i do:
   (log $i)
@@ -451,37 +451,37 @@ The new variable can even have a different type.
 
 ```aero
 $a = 10
-(log $a)  ;; 10
+(log $a)  ; 10
 
 $a = "test"
-(log $a)  ;; test
+(log $a)  ; test
 ```
 
 With an if or loop expression, assignments inside DO NOT mutate the outer variable.
 
 ```aero
-;; This code incorrectly makes an attempt to change $a.
+; This code incorrectly makes an attempt to change $a.
 $a = 10
 (if $a < 11 =>
   $a = $a + 1
-  (log $a)  ;; 11
+  (log $a)  ; 11
 )
-(log $a)  ;; 10
+(log $a)  ; 10
 
-;; To accomplish the above correctly, you need to do it like this:
+; To accomplish the above correctly, you need to do it like this:
 $a = 10
 $a =
   (if $a < 11 =>
         $a = $a + 1
-        (log $a) ;; 11
+        (log $a) ; 11
         $a
       else:
         $a
   )
-(log $a)  ;; 11
+(log $a)  ; 11
 
-;; If you want to rebind a variable in the same scope using an `if`, you need use the result of an
-;; if expression with any cases covered.
+; If you want to rebind a variable in the same scope using an `if`, you need use the result of an
+; if expression with any cases covered.
 ```
 
 It's important to remember that loop expressions are just reduce operations, they cannot mutate
@@ -491,12 +491,12 @@ variables.
 $c = 10
 
 (loop for: $a <- 1..5 do:
-  ;; This is different variable called $c!
+  ; This is different variable called $c!
   $c = $a + 1
   (log $c)
 )
 
-(log $c)  ;; 10, it was NEVER mutated!
+(log $c)  ; 10, it was NEVER mutated!
 ```
 
 ## Main
@@ -531,8 +531,8 @@ parameter value is indicated with a `=` followed by the value.
 The body of the function follows the `do:`.
 
 ```aero
-; Split a string on a delimiter (by default a space).
+: Split a string on a delimiter (by default a space).
 (func split_str $str str on: $delim str = " " -> array[str] do:
-  ;; ...
+  ; ...
 )
 ```
