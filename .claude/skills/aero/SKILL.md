@@ -154,15 +154,19 @@ $c_squared =
 Blocks are often used implicitly, like in the body of a function with conventionally will be after
 a `do:` label.
 
-The vertical pipe `|` is an infix operator that supports piping the expression to the left as an
-argument to the right. By default it's the first argument unless the value is captured to a
-variable.
+The vertical pipe `|` is syntactic sugar that supports piping the expression to the left as an
+argument to the right. By default it's the first argument unless the value is placed with `$$`.
+Use `(some_func $arg1 $arg2 | another_function $arg1 | ...)` when the first thing is also a
+function call. Use `[$var | some_func $arg1 $arg2 | ...]` if there's no initial function call.
 
 ```aero
-(read_string_from_user)
-| (parse_that_string limit: 100)
-| (hash_to_int)
-| $int_hash (log "Your result is \$int_hash")
+(read_string_from_user 123
+ | parse_that_string limit: 100
+ | hash_to_int
+ | log "Your result is \$$"
+)
+
+["hello" | do_things_to_str | write_that_str_to "some-file.txt"]
 ```
 
 ## Basic Types
@@ -323,6 +327,21 @@ $page_limit = 20
   ^$page_limit            => (log "we hit our page limit exactly!")
   $n if: $n > $page_limit => (log "we went over our limit")
   $n                      => (log "we have \$n pages which is okay")
+)
+```
+
+`match` supports being piped into as well:
+
+```aero
+; This is equivalent, though in this particular case it doesn't read as well.
+$page_limit = 20
+(get_page_size
+ | match
+    0                       => "we got nothing"
+    ^$page_limit            => "we hit our page limit exactly!"
+    $n if: $n > $page_limit => "we went over our limit"
+    $n                      => "we have \$n pages which is okay"
+ | log
 )
 ```
 
