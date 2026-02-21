@@ -76,7 +76,7 @@ Names are alphanumeric, but must start with a letter and can also include unders
 alphanumeric characters. Names are conventionally always lowercase, including acronyms. camelCase,
 snake_case, ALL_CAPS, etc. are not conventionally used.
 
-Functions, contants, types, modules, effects, structs, etc. use bare names. They don't have any
+Functions, constants, types, modules, effects, structs, etc. use bare names. They don't have any
 leading prefix character to define them.
 
 Variables are expressions bound to a name and start with a `$` prefix.
@@ -157,7 +157,7 @@ a `do:` label.
 The vertical pipe `|` is syntactic sugar that supports piping the expression to the left as an
 argument to the right. By default it's the first argument unless the value is placed with `$$`.
 Use `(some_func $arg1 $arg2 | another_function $arg1 | ...)` when the first thing is also a
-function call. Use `[$var | some_func $arg1 $arg2 | ...]` if there's no initial function call.
+function call. Use `($ $var | some_func $arg1 $arg2 | ...)` if there's no initial function call.
 
 ```aero
 (read_string_from_user 123
@@ -166,7 +166,7 @@ function call. Use `[$var | some_func $arg1 $arg2 | ...]` if there's no initial 
  | log "Your result is \$$"
 )
 
-["hello" | do_things_to_str | write_that_str_to "some-file.txt"]
+($ "hello" | do_things_to_str | write_that_str_to "some-file.txt")
 ```
 
 ## Basic Types
@@ -210,7 +210,7 @@ Dicts are key-value dictionaries:
 - `#(dict "hello" => 5 "world!" => 6)` - dictionary with key `str` and value `int`
 - `#(dict[str int] "hello" => 5 "world!" => 6)` - dictionary with key `str` and value `int` with an
                                                   explicit type
-- `#(dict[str][int])` - empty dictionary
+- `#(dict)` - empty dictionary
 
 Dicts have a special syntax when the key is a symbol:
 
@@ -591,9 +591,9 @@ positional or labeled. Labeled arguments must follow all positional arguments, a
 
 Parameter types follow the parameter. The return type is after a `->`.
 
-Labels shouldn't be used all the time, they sense to use when an argument can't be inferred easily
-by context alone at the callsite. Often, labels will be words like with, on, by, etc. A default
-parameter value is indicated with a `=` followed by the value.
+Labels shouldn't be used all the time, they make sense to use when an argument can't be inferred
+easily by context alone at the callsite. Often, labels will be words like with, on, by, etc. A
+default parameter value is indicated with a `=` followed by the value.
 
 The body of the function follows the `do:`.
 

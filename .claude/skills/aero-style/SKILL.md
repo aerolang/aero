@@ -23,3 +23,15 @@ remove the else branch.
 ; DO
 (if $a <= $b => (log "..."))
 ```
+
+## S0002
+
+When piping things to another function, don't use `$` when the first term is a call.
+
+```
+; DON'T
+($ (some_function $arg1) | another_function)
+
+; DO
+(some_function $arg1 | another_function)
+```
