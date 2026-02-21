@@ -499,6 +499,54 @@ $c = 10
 (log $c)  ; 10, it was NEVER mutated!
 ```
 
+## Variants
+
+Variants are functional programming sum types in Aero. Variants are structurally typed. The syntax
+for variant expressions appears as a function call on a symbol.
+
+The `type` macro can define a type as an alias. This is convenient for variants. Each variant value
+is separated by a `|` to form a type union. When using the `type` macro, a leading `|` is optional
+but useful for defining it on multiple lines.
+
+```aero
+(type color = 
+  | .red
+  | .blue
+  | .hex 
+)
+
+(type mood = .happy | .sad)
+```
+
+In the above, we can express colors like `(.red)` or `(.hex "#050505")`.
+
+When using variant types anonymously inline, it uses the form `(.case_one | .case_two 'type)`.
+
+Two prefix macros exist for convenience: `?` and `!`. `?` is a macro for the "option" type. `?'t`
+is shorthand for `(.some 't | .none)`. If `'t` is defined with square brackets, it flattens out.
+Similarly, `!'t` is shorthard for `(.ok 't | .err err)`. `err` is a protocol for errors. More on
+that in the protocol section. `!` does allow a specific error type to be used with the square
+bracket syntax as well using `!['t or: 'err]` which will give `(.ok 't | .err 'err)`.
+
+`str` is the simplest implementor of `err`.
+
+Examples of `?` and `!`:
+
+```aero
+?int         ; (.some int | .none)        : (.some 1) (.none)
+?[int str]   ; (.some int str | .none)    : (.some 1 "hello")
+?{int str}   ; (.some {int str} | .none)  : (.some {1 "hello})
+?(list int)  ; (.some (list int) | .none) : (.some #(list 1))
+
+!int         ; (.ok int | .err err)        : (.some 1) (.err "hello")
+![int str]   ; (.ok int str | .err err)    : (.some 1 "hello")
+!{int str}   ; (.ok {int str} | .err err)  : (.some {1 "hello})
+!(list int)  ; (.ok (list int) | .err err) : (.some #(list 1))
+
+![int or: str]      ; (.ok int | .err str)     : (.some 1) (.err "it failed")
+![int str or: int]  ; (.ok int str | .err int) : (.some 1 "hello") (.err 404)
+```
+
 ## Main
 
 Aero programs don't support expressions at the top level of a source file. To have code run when
@@ -536,3 +584,9 @@ The body of the function follows the `do:`.
   ; ...
 )
 ```
+
+## Structs
+
+## Protocols
+
+Protocols are like interfaces or traits in other languages.
