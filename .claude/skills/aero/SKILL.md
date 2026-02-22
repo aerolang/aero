@@ -81,7 +81,7 @@ leading prefix character to define them.
 
 Variables are expressions bound to a name and start with a `$` prefix.
 
-`_` is a magic identifier which acts as a wildcard discard,. A name with a leading `_` is a named
+`_` is a magic identifier which acts as a wildcard discard. A name with a leading `_` is a named
 discard. 
 
 Type variables begin with a `'`, they don't have a closing single quote.
@@ -194,7 +194,7 @@ Arrays are contiguous in memory and consist of elements of the same type:
 
 - `array[int]` - type for an array of integers
 - `(#array 1 2 3)` - array of integers
-- `(#array[int] 1 2 3)` - array of inters with an explicit type
+- `(#array[int] 1 2 3)` - array of integers with an explicit type
 - `(#array)` - empty array
 
 Lists are linked-lists:
@@ -350,12 +350,8 @@ $page_limit = 20
 Loops in Aero are different than in usual imperative languages because Aero doesn't allow mutation.
 
 A loop is a reducer on an accumulator and returns the last value as its result.
-The accumulator starts with a default value. Use `for:` to iterate through values, and `while:`
+The accumulator starts with a default value. Use `for:` to iterate through values, and `while:` to
 stop when a condition evaluates to false. They can both be used at the same time.
-
-A loop in Aero keeps iterating on an accumulated value, and then returns that expression as its
-result. The accul starts with a default. Use `for:` to iterate through values, and `while:` to stop when a
-condition evaluates to false. They can both be used at the same time.
 
 Ranges in Aero look like `1..10`. That is 1 to 10 inclusive. An infinite range looks like `1..`.
 
@@ -400,7 +396,7 @@ Using both `for:` and `while:` will make iterating through elements stop if the 
 
 ```aero
 $biggest_square_under_1000 =
-  (loop $s <- 1 for: $i <- 1.. while: $i * $i < 100 do:
+  (loop $s = 1 for: $i <- 1.. while: $i * $i < 100 do:
     $i * $i
   )
 
@@ -555,13 +551,13 @@ Examples of `?` and `!`:
 ```aero
 int?         ; (.some int | .none)        : (.some 1) (.none)
 [int str]?   ; (.some int str | .none)    : (.some 1 "hello")
-{int str}?   ; (.some {int str} | .none)  : (.some {1 "hello})
+{int str}?   ; (.some {int str} | .none)  : (.some {1 "hello"})
 (list int)?  ; (.some (list int) | .none) : (.some (#list 1))
 
-int!         ; (.ok int | .err err)        : (.some 1) (.err "hello")
-[int str]!   ; (.ok int str | .err err)    : (.some 1 "hello")
-{int str}!   ; (.ok {int str} | .err err)  : (.some {1 "hello})
-(list int)!  ; (.ok (list int) | .err err) : (.some (#list 1))
+int!         ; (.ok int | .err err)        : (.ok 1) (.err "hello")
+[int str]!   ; (.ok int str | .err err)    : (.ok 1 "hello")
+{int str}!   ; (.ok {int str} | .err err)  : (.ok {1 "hello"})
+(list int)!  ; (.ok (list int) | .err err) : (.ok (#list 1))
 
 [int or: str]!      ; (.ok int | .err str)     : (.some 1) (.err "it failed")
 [int str or: str]!  ; (.ok int str | .err str) : (.some 1 "hello") (.err "404")
