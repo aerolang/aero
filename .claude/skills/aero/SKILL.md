@@ -193,29 +193,29 @@ Tuples have the representation in their type and expression form:
 Arrays are contiguous in memory and consist of elements of the same type:
 
 - `array[int]` - type for an array of integers
-- `#(array 1 2 3)` - array of integers
-- `#(array[int] 1 2 3)` - array of inters with an explicit type
-- `#(array)` - empty array
+- `(#array 1 2 3)` - array of integers
+- `(#array[int] 1 2 3)` - array of inters with an explicit type
+- `(#array)` - empty array
 
 Lists are linked-lists:
 
 - `list[int]` - type for a list of integers
-- `#(list 1 2 3)` - a list of integers
-- `#(list[int] 1 2 3)` - a list of integers with an explicit type
-- `#(list)` - empty list
+- `(#list 1 2 3)` - a list of integers
+- `(#list[int] 1 2 3)` - a list of integers with an explicit type
+- `(#list)` - empty list
 
 Dicts are key-value dictionaries:
 
 - `dict[str int]` - type for a dictionary with key `str` and value `int`
-- `#(dict "hello" => 5 "world!" => 6)` - dictionary with key `str` and value `int`
-- `#(dict[str int] "hello" => 5 "world!" => 6)` - dictionary with key `str` and value `int` with an
+- `(#dict "hello" => 5 "world!" => 6)` - dictionary with key `str` and value `int`
+- `(#dict[str int] "hello" => 5 "world!" => 6)` - dictionary with key `str` and value `int` with an
                                                   explicit type
-- `#(dict)` - empty dictionary
+- `(#dict)` - empty dictionary
 
 Dicts have a special syntax when the key is a symbol:
 
-- `#(dict one: "1" two: "2")` - dictionary of type `dict[sym str]`
-- `#(dict one: "1" $some_sym => "2")` - dictionary with a variable symbol key.
+- `(#dict one: "1" two: "2")` - dictionary of type `dict[sym str]`
+- `(#dict one: "1" $some_sym => "2")` - dictionary with a variable symbol key.
 
 ## String Escapes
 
@@ -300,13 +300,13 @@ $int = 3
 )
 ```
 
-Matches must be exhaustive. The wildcard `_` will handle any branch not covered.
+Matches must be exhaustive. The wildcard discard `_` will handle any branch not covered.
 
 You can include tuples in your match to check multiple things at once:
 
 ```aero
 (match {"test", 4}
-  {"hello", _} =>
+  {"hello", _n} =>
     (log "world")
   {"test", $n} if: $n % 2 == 0 =>
     (log "got test with an even n")
@@ -431,7 +431,7 @@ Accumulators support patterns, so it can be a tuple also.
 
 ```aero
 ; Take the max until a negative number happens.
-$values = #(array 1 2 3 -10 4)
+$values = (#array 1 2 3 -10 4)
 
 {_, $max} =
   (loop {$stop $max} = {false 0}
@@ -541,29 +541,30 @@ In the above, we can express colors like `(.red)` or `(.hex "#050505")`.
 
 When using variant types anonymously inline, it uses the form `(.case_one | .case_two 'type)`.
 
-Two prefix macros exist for convenience: `?` and `!`. `?` is a macro for the "option" type. `?'t`
+Two postfix macros exist for convenience: `?` and `!`. `?` is a macro for the "option" type. `?'t`
 is shorthand for `(.some 't | .none)`. If `'t` is defined with square brackets, it flattens out.
 Similarly, `!'t` is shorthard for `(.ok 't | .err err)`. `err` is a protocol for errors. More on
 that in the protocol section. `!` does allow a specific error type to be used with the square
-bracket syntax as well using `!['t or: 'err]` which will give `(.ok 't | .err 'err)`.
+bracket syntax as well using `!['t or: 'err]` which will give `(.ok 't | .err 'err)`. `'err` must
+implement `err`.
 
 `str` is the simplest implementor of `err`.
 
 Examples of `?` and `!`:
 
 ```aero
-?int         ; (.some int | .none)        : (.some 1) (.none)
-?[int str]   ; (.some int str | .none)    : (.some 1 "hello")
-?{int str}   ; (.some {int str} | .none)  : (.some {1 "hello})
-?(list int)  ; (.some (list int) | .none) : (.some #(list 1))
+int?         ; (.some int | .none)        : (.some 1) (.none)
+[int str]?   ; (.some int str | .none)    : (.some 1 "hello")
+{int str}?   ; (.some {int str} | .none)  : (.some {1 "hello})
+(list int)?  ; (.some (list int) | .none) : (.some (#list 1))
 
-!int         ; (.ok int | .err err)        : (.some 1) (.err "hello")
-![int str]   ; (.ok int str | .err err)    : (.some 1 "hello")
-!{int str}   ; (.ok {int str} | .err err)  : (.some {1 "hello})
-!(list int)  ; (.ok (list int) | .err err) : (.some #(list 1))
+int!         ; (.ok int | .err err)        : (.some 1) (.err "hello")
+[int str]!   ; (.ok int str | .err err)    : (.some 1 "hello")
+{int str}!   ; (.ok {int str} | .err err)  : (.some {1 "hello})
+(list int)!  ; (.ok (list int) | .err err) : (.some (#list 1))
 
-![int or: str]      ; (.ok int | .err str)     : (.some 1) (.err "it failed")
-![int str or: int]  ; (.ok int str | .err int) : (.some 1 "hello") (.err 404)
+[int or: str]!      ; (.ok int | .err str)     : (.some 1) (.err "it failed")
+[int str or: str]!  ; (.ok int str | .err str) : (.some 1 "hello") (.err "404")
 ```
 
 ## Main
@@ -605,6 +606,194 @@ The body of the function follows the `do:`.
 ```
 
 ## Structs
+
+Structs in Aero are nominatively typed and are used to define custom types.
+
+```aero
+: A basic coordinate struct.
+(struct coord
+  ( x: int
+    y: int
+    z: int
+  )
+)
+```
+
+To create a data with a struct, you use the 'construct' syntax `(#struct_name [...])`. For `coord`,
+you create it like `(#coord x: 1 y: 2 z: 3)`.
+
+Structs can have positional and named fields. Though usually, you'd stick to one or the other.
+With mixed syntax, the named fields must come after any positional.
+
+Field access from a struct uses `.`. For named fields you use just the field name. For positional
+fields, use the 0-based index.
+
+```aero
+: A basic coordinate struct but with positional syntax.
+(struct coord_pos
+  ( int
+    int
+    int
+  )
+)
+
+: A coordinate that spans universes.
+(struct coord_multiverse
+  ( int
+    int
+    int
+    universe_number: int
+  )
+)
+
+(main do:
+  $c1 = (#coord_pos 4 5 6)
+  $c2 = (#coord_multiverse 4 5 6 universe_number: 42)
+
+  ; Field access uses `.`, positional ones use their 0-based index.
+  $next_universe = $c2.universe_number + 1
+  $manhattan_distance = $c1.0 + $c1.1 + $c1.2
+)
+```
+
+### Pattern Matching
+
+Structs support pattern matching to access fields. Matches can be open or closed. An open match
+requires `...` to indicate that not all fields are being matched. A closed match must cover all
+fields. Fields can be matched with wildcard and named discards.
+
+`...` must be used before fields if any positional ones are ignored with it. A trailing `...` can
+be combined with it only if there are more named fields as well.
+
+```aero
+(match $c
+  (#coord x: $x y: 0 z: 0) => (log "only x is non-zero")
+  (#coord y: $y ...)       => (log "here's y in case you were wondering: \$y")
+)
+```
+
+```aero
+(match $c
+  (#coord_pos 0 0 0)                 => (log "all zeros")
+  (#coord_pos 0 ...)                 => (log "at least starts with zero")
+  (#coord_pos ... 0)                 => (log "ends with zero")
+  (#coord_pos $x $y _z) if: $x == $y => (log "x and y are both \$x")
+  (#coord_pos _ _ z) if: $z > 0      => (log "z is positive")
+  (#coord_pos ...)                   => (log "something else")
+)
+```
+
+The struct name can be inferred with `#_` as well. This helps when the struct is obvious and
+the usage is verbose in context.
+
+```aero
+$c = (#coord_multiverse 1 2 3 universe_number: 100)
+
+(match $c
+  ; Note the leading `...` because we have position fields to skip!
+  (#_ ... universe_number: $n) if: $n == 42 =>
+    (log "we're in our universe!")
+
+  ; A leading `...` is only used to skip all preceding positional fields.
+  ; A trailing `...` when combined with a leading `...` can only mean to skip to skip remaining
+  ; named fields.
+  ;
+  ; The fact that this is a bit confusing is generally why we don't mix positional and named fields
+  ; in structs often.
+  (#_ ... 0 ...) =>
+    (log "our z is zero!")
+
+  (#_ $x $y $z ...) =>
+    (log "our location is (\$x, \$y, \$z)")
+)
+```
+
+Naturally, these patterns can nest as well. Below you can see how we can bind `$cars` inside the
+garage struct pattern inside the house struct pattern.
+
+```aero
+(struct house (address: str garage: garage?))
+(struct garage (car_capacity: uint))
+
+(main do:
+  $h =
+    (#house
+      address: "1 Main St"
+      garage: (.some (#garage car_capacity: 2))
+    )
+
+  (match $h
+    (#house garage: (.none) ...) =>
+      (log "this house has no garage")
+    (#house garage: (.some (#_ car_capacity: $cars)) ...) =>
+      (log "this house can fit \$cars!")
+  )
+)
+```
+
+### Open Structs
+
+Structs can be defined as 'open' or closed'. An open struct allows more fields to be added without
+it being considered a breaking change to consuming packages. Closed ones can't have fields added
+without it being breaking. The biggest consequence of this is in how you pattern match on structs.
+When consuming an open struct from another package, you always need to include a `...` at the end
+to indicate that there may be more named fields in the future.
+
+```aero
+; Defined in /some/library
+(pub struct person
+  ( name: str
+    age: uint
+    ...  ; They can add more named fields when they want to!
+  )
+)
+
+; Our program
+(main do:
+  $person = (#/some/library/person name: "johnny" age: 31)
+
+  (match $person
+    (#_ name: $name age: $age ...) if: $age >= 18 =>
+      (log "'\$name' is old enough to be here.")
+    (#_ name: $name ...)=>
+      (log "Whoa, '\$name' is too young!")
+  )
+
+  ; Excluding `...` in the matches above is a type error!
+  ; Because `person` in the other package could be changed at some point so we can't exhaustively
+  ; reference all fields.
+)
+```
+
+Now, say `/some/library` makes a backwards-compatible change to add a new field to `person`. To do
+so, they need to give it a default value.
+
+```aero
+; Defined in /some/library
+(pub struct person
+  ( name: str
+    age: uint
+    favorite_color: (.red | .blue | .green | ...) = (.blue)
+    ...
+  )
+)
+```
+
+Our program won't break because it was forced to use `...` and the default value is handled.
+
+They could also add more favorite colors options too!
+
+### Generics
+
+```aero
+: A less basic coordinate struct with generics.
+(struct generic_coord['t]
+  ( x: 't
+    y: 't
+    z: 't
+  )
+)
+```
 
 ## Protocols
 
