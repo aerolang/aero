@@ -118,6 +118,8 @@ A leading `/` goes into the root namespace. Referencing other packages requires 
 namespace, as Aero doesn't allow identifiers to be introduced other than syntax, local definitions,
 or from `use`.
 
+The standard library has the path `/std`.
+
 ### Expressions
 
 Expressions include literals, along with identifiers like functions, constants, variables, and
@@ -198,6 +200,9 @@ Tuples have the representation in their type and expression form:
 
 - `{int int str}` - type for a tuple of two ints and a string
 - `{3 4 "test"}` - a tuple of two ints and a string
+
+Tuples use spaces to separate elements — no commas. This applies in both expressions and patterns.
+Infix operators inside tuple elements must be wrapped in a group: `{[$a + 1] $b}` not `{$a + 1 $b}`.
 
 Arrays are contiguous in memory and consist of elements of the same type:
 
@@ -283,7 +288,8 @@ mix them in the same infix expression without grouping.
 )
 ```
 
-The `else:` branch is optional, in that case, the expression evaluates to `void`.
+The `else:` branch is optional, in that case, the expression evaluates to `void`. Omitting `else:`
+is only useful when the `if` is used purely for side effects.
 
 ```aero
 (if $a == 0 =>
@@ -361,6 +367,10 @@ Loops in Aero are different than in usual imperative languages because Aero does
 A loop is a reducer on an accumulator and returns the last value as its result.
 The accumulator starts with a default value. Use `for:` to iterate through values, and `while:` to
 stop when a condition evaluates to false. They can both be used at the same time.
+
+When using both `while:` and `for:`, placing `while:` before `for:` checks the condition before
+consuming the next element. This is more efficient for early-exit scenarios, as it avoids consuming
+a value only to then discard it.
 
 Ranges in Aero look like `1..10`. That is 1 to 10 inclusive. An infinite range looks like `1..`.
 
@@ -458,7 +468,9 @@ $values = (#array 1 2 3 -10 4)
 ; place it before also.
 ```
 
-You can also have multiple `for:` clauses. The inner ones run for each iteration of the outer.
+You can also have multiple `for:` clauses. The inner ones run for each iteration of the outer. All
+`while:` clauses are evaluated before every iteration regardless of their position. With multiple
+`for:` clauses, all `while:` conditions still run on each iteration of the innermost loop.
 
 ```aero
 : print 1 once, 2 twice, etc.
@@ -524,6 +536,9 @@ $c = 10
 
 (log $c)  ; 10, it was NEVER mutated!
 ```
+
+As a general rule of formatting with assignments, if it doesn't fit on one line, start the
+expression on the next line.
 
 ## Aliasing
 
@@ -1071,6 +1086,63 @@ $values = {1 2 3 hello: "world" a: 1}  ; the type is `{int int int hello: str a:
 ```
 
 Again, usually tuples will be all positional, or have all named fields, not usually both.
+
+## Type Alias Functions
+
+Also similar to structs, you can place functions inside a type alias. Type aliases don't have to be
+for variants since you can make an alias to a struct or other things, but usually functions are
+most convenient for variants.
+
+```aero
+(type regular_polygon =
+  | .triangle
+  | .square
+  | .pentagon
+  | .hexagon
+  | (.ngon uint)
+
+  (func from_sides $n uint -> regular_polygon? do:
+    (match $n
+      0 | 1 | 2 => (.none)
+      3         => (.some (.triangle))
+      4         => (.some (.square))
+      5         => (.some (.pentagon))
+      6         => (.some (.hexagon))
+      _         => (.some (.ngon $n))
+    )
+  )
+)
+```
+
+## Constants
+
+Constants are computed at compile time and are useful for expressions which won't ever change.
+
+They don't have a do block, so if you need one you'll have to use one manually. The type is always
+required as well.
+
+```aero
+: A useful number.
+const pi float = 3.14
+
+const nine_squared int = [9 * 9]
+
+: The 10th prime number (29).
+const tenth_prime int =
+  (do
+    {_ $prime} =
+      (loop {$count $last} = {0 2}
+            while: $count < 10
+            for: $n <- 2.. do:
+        $is_prime =
+          (loop $p = true while: $p for: $d <- 2.. while: $d * $d <= $n do:
+            $n % $d /= 0
+          )
+        (if $is_prime => {[$count + 1] $n} else: {$count $last})
+      )
+    $prime
+  )
+```
 
 ## Protocols
 
