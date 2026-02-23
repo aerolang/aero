@@ -107,7 +107,16 @@ infix, and limited postfix settings.
   $message = "Hello, \$name!"
   (log $message)
 )
-``` 
+```
+
+### Paths
+
+A path can reference definitions which are inside of others. This could be inside a module, a type,
+a protocol, or an effect. The forward slash `/` is used for this.
+
+A leading `/` goes into the root namespace. Referencing other packages requires the use of the root
+namespace, as Aero doesn't allow identifiers to be introduced other than syntax, local definitions,
+or from `use`.
 
 ### Expressions
 
@@ -515,6 +524,38 @@ $c = 10
 
 (log $c)  ; 10, it was NEVER mutated!
 ```
+
+## Aliasing
+
+`use` is a way to alias a definition from elsewhere.
+
+```
+(use /std/something)
+
+(main do:
+  ; We can reference something without it's full path now.
+  (something 1 2 3)
+)
+```
+
+We can also use multiple things at the same time. We can also change names.
+
+```aero
+; A normal use.
+(use /std/something)
+
+; Change the name of an alias.
+(use /std/something_else as: different_name)
+
+; Alias `one` from `/std/something/one` and alias `/std/something/two` as `not_two`.
+(use /std/something/[one two as: not_two])
+```
+
+Aliases can't nest. You also can't alias a parent and child at the same time for each level. You'll
+have to do it twice. Aliases must also always start from the root namespace.
+
+An alias will only work after the `use` in its scope. You can `use` at the top level, and also
+inside expression blocks.
 
 ## Variants
 
