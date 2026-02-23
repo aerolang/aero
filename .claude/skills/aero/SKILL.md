@@ -12,7 +12,7 @@ Aero is very early in its development. There are no outside resources to consult
 not implemented, there's no libraries, etc. Much of this skill is talking about what the language
 will be when finished.
 
-If the user is asking you to write or read Aero code, don't tell them about the language syntax of
+If the user is asking you to write or read Aero code, don't tell them about the language syntax or
 features unless requested.
 
 ## Overview
@@ -30,14 +30,14 @@ Terms can be used in 4 distinct contexts:
 - Definitions: where things like functions, types, modules, etc. are defined.
 - Expressions: things that have values at runtime.
 - Types: things that describe the type of expressions.
-- Patterns: things that can be bind variables to expressions.
+- Patterns: things that can bind variables to expressions.
 
 ### Comments
 
-Comments in Aero start with `;`. There are no block comments.
+Aero has two kinds of comments. There are no block comments.
 
-A single `;` begins a regular, non-documentation comment. A bare `:` at the start of a line begins
-a documentation comment. Doc comments support Markdown and should precede whatever they document.
+A `;` begins a regular, non-documentation comment. A `:` at the start of a line begins a
+documentation comment. Doc comments support Markdown and should precede whatever they document.
 
 Example:
 
@@ -82,7 +82,8 @@ leading prefix character to define them.
 Variables are expressions bound to a name and start with a `$` prefix.
 
 `_` is a magic identifier which acts as a wildcard discard. A name with a leading `_` is a named
-discard. 
+discard (e.g. `_n`). Discards don't use the `$` prefix, they are only valid in patterns, not as
+expressions.
 
 Type variables begin with a `'`, they don't have a closing single quote.
 
@@ -145,7 +146,7 @@ Groups are a way to introduce a top-level expression scope. They're made using s
 (do_something_with_numbers
   100      
   200
-  [4 + 10]  ; to do arthmetic here we need the group [ ]
+  [4 + 10]  ; to do arithmetic here we need the group [ ]
 )
 ```
 
@@ -196,7 +197,7 @@ function call. Use `($ $var | some_func $arg1 $arg2 | ...)` if there's no initia
 
 ## Collections
 
-Tuples have the representation in their type and expression form:
+Tuples have the same representation in their type and expression form:
 
 - `{int int str}` - type for a tuple of two ints and a string
 - `{3 4 "test"}` - a tuple of two ints and a string
@@ -366,7 +367,9 @@ Loops in Aero are different than in usual imperative languages because Aero does
 
 A loop is a reducer on an accumulator and returns the last value as its result.
 The accumulator starts with a default value. Use `for:` to iterate through values, and `while:` to
-stop when a condition evaluates to false. They can both be used at the same time.
+stop when a condition evaluates to false. They can both be used at the same time. When using
+`for:` without a `$var <-` binding, it simply iterates through the range without binding each
+element to a variable.
 
 When using both `while:` and `for:`, placing `while:` before `for:` checks the condition before
 consuming the next element. This is more efficient for early-exit scenarios, as it avoids consuming
@@ -415,11 +418,11 @@ Using both `for:` and `while:` will make iterating through elements stop if the 
 
 ```aero
 $biggest_square_under_1000 =
-  (loop $s = 1 for: $i <- 1.. while: $i * $i < 100 do:
+  (loop $s = 1 for: $i <- 1.. while: $i * $i < 1000 do:
     $i * $i
   )
 
-(log $biggest_square_under_1000)  ; 81
+(log $biggest_square_under_1000)  ; 961
 ```
 
 An infinite loop just uses `loop`, it'll never return a value!
@@ -436,7 +439,7 @@ Anything after the loop is dead code.
 ```aero
 (loop $i = 0 do:
   $i = [$i + 1] % 100
-  (log $i)  ; 0, 1, 2, ..., 99, 0, 1, 2, ...
+  (log $i)  ; 1, 2, 3, ..., 99, 0, 1, 2, ...
 
   $i  ; Remember we need $i at the end to set the next accumulator value.
 )
@@ -448,16 +451,16 @@ Accumulators support patterns, so it can be a tuple also.
 ; Take the max until a negative number happens.
 $values = (#array 1 2 3 -10 4)
 
-{_, $max} =
+{_ $max} =
   (loop {$stop $max} = {false 0}
         for: $v <- $values
         while: (not $stop) do:
     (if $v < 0 =>
-          {true, $max}
+          {true $max}
         $v > $max =>
-          {false, $v}
+          {false $v}
         else:
-          {false, $max}
+          {false $max}
     )
   )
 
@@ -544,11 +547,11 @@ expression on the next line.
 
 `use` is a way to alias a definition from elsewhere.
 
-```
+```aero
 (use /std/something)
 
 (main do:
-  ; We can reference something without it's full path now.
+  ; We can reference something without its full path now.
   (something 1 2 3)
 )
 ```
@@ -585,7 +588,7 @@ but useful for defining it on multiple lines.
 (type color = 
   | .red
   | .blue
-  | .hex 
+  | .hex str
 )
 
 (type mood = .happy | .sad)
@@ -595,11 +598,11 @@ In the above, we can express colors like `(.red)` or `(.hex "#050505")`.
 
 When using variant types anonymously inline, it uses the form `(.case_one | .case_two 'type)`.
 
-Two postfix macros exist for convenience: `?` and `!`. `?` is the "optional" macro. `?'t` is
+Two postfix macros exist for convenience: `?` and `!`. `?` is the "optional" macro. `'t?` is
 shorthand for `(.some 't | .none)`. If `'t` is defined with square brackets, it flattens out.
-Similarly, `!'t`, the "fallible" macro, is shorthard for `(.ok 't | .err err)`. `err` is a protocol
+Similarly, `'t!`, the "fallible" macro, is shorthand for `(.ok 't | .err err)`. `err` is a protocol
 for errors. More on that in the protocol section. `!` does allow a specific error type to be used
-with the square bracket syntax as well using `!['t or: 'err]` which will give
+with the square bracket syntax as well using `['t or: 'err]!` which will give
 `(.ok 't | .err 'err)`. `'err` must implement `err`.
 
 `str` is the simplest implementor of `err`.
@@ -617,8 +620,8 @@ int!         ; (.ok int | .err err)        : (.ok 1) (.err "hello")
 {int str}!   ; (.ok {int str} | .err err)  : (.ok {1 "hello"})
 (list int)!  ; (.ok (list int) | .err err) : (.ok (#list 1))
 
-[int or: str]!      ; (.ok int | .err str)     : (.some 1) (.err "it failed")
-[int str or: str]!  ; (.ok int str | .err str) : (.some 1 "hello") (.err "404")
+[int or: str]!      ; (.ok int | .err str)     : (.ok 1) (.err "it failed")
+[int str or: str]!  ; (.ok int str | .err str) : (.ok 1 "hello") (.err "404")
 ```
 
 ## Main
@@ -783,7 +786,7 @@ be combined with it only if there are more named fields as well.
   (#coord_pos 0 ...)                 => (log "at least starts with zero")
   (#coord_pos ... 0)                 => (log "ends with zero")
   (#coord_pos $x $y _z) if: $x == $y => (log "x and y are both \$x")
-  (#coord_pos _ _ z) if: $z > 0      => (log "z is positive")
+  (#coord_pos _ _ $z) if: $z > 0     => (log "z is positive")
   (#coord_pos ...)                   => (log "something else")
 )
 ```
@@ -838,7 +841,7 @@ garage struct pattern inside the house struct pattern.
 
 ### Open Structs
 
-Structs can be defined as 'open' or closed'. An open struct allows more fields to be added without
+Structs can be defined as 'open' or 'closed'. An open struct allows more fields to be added without
 it being considered a breaking change to consuming packages. Closed ones can't have fields added
 without it being breaking. The biggest consequence of this is in how you pattern match on structs.
 When consuming an open struct from another package, you always need to include a `...` at the end
@@ -916,7 +919,7 @@ $c = (#_ ...$c z: 100)
 ### Struct Functions
 
 Functions can be contained within structs. These are not methods like in object-oriented
-programming, but are for convenience for functions with operate on the struct.
+programming, but are for convenience for functions which operate on the struct.
 
 ```aero
 (struct company
@@ -925,7 +928,7 @@ programming, but are for convenience for functions with operate on the struct.
   )
 
   (pub func new $name str -> company do:
-    (#company name: $name)
+    (#company name: $name owner: (.none))
   )
 
   (pub func set_owner $c company $o company -> company do:
@@ -952,7 +955,7 @@ In the last example, owner was an optional struct. We can use the conditional fi
 operators `?.` and `!.` to access a property from an optional or fallible struct value.
 
 These can chain and result in flattening any `(.none)` or `(.err [...])` values they encounter. If
-the last property access itself is optional of fallible, it will not flatten that value too! This
+the last property access itself is optional or fallible, it will not flatten that value too! This
 must be opted in with a trailing `?` or `!`.
 
 ```aero
@@ -1006,7 +1009,7 @@ marker protocol.
   )
 
   (func add_value $c counter $i int -> counter do:
-    (#_ ...$c value: $c.value + $i)
+    (#_ ...$c value: [$c.value + $i])
   )
 )
 
@@ -1099,7 +1102,7 @@ most convenient for variants.
   | .square
   | .pentagon
   | .hexagon
-  | (.ngon uint)
+  | .ngon uint
 
   (func from_sides $n uint -> regular_polygon? do:
     (match $n
@@ -1123,12 +1126,12 @@ required as well.
 
 ```aero
 : A useful number.
-const pi float = 3.14
+(const pi float = 3.14)
 
-const nine_squared int = [9 * 9]
+(const nine_squared int = [9 * 9])
 
 : The 10th prime number (29).
-const tenth_prime int =
+(const tenth_prime int =
   (do
     {_ $prime} =
       (loop {$count $last} = {0 2}
@@ -1142,6 +1145,7 @@ const tenth_prime int =
       )
     $prime
   )
+)
 ```
 
 ## Protocols
