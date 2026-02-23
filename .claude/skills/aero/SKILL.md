@@ -36,8 +36,8 @@ Terms can be used in 4 distinct contexts:
 
 Comments in Aero start with `;`. There are no block comments.
 
-Single `;` comments are for regular non-documentation text. `:` comments are for documentation.
-Docs are written as markdown.
+A single `;` begins a regular, non-documentation comment. A bare `:` at the start of a line begins
+a documentation comment. Doc comments support Markdown and should precede whatever they document.
 
 Example:
 
@@ -244,7 +244,7 @@ Dicts have a special syntax when the key is a symbol:
 "The plural of \$noun is \[$noun]s"
 
 ; You can use \(...) to call a function.
-"The square root of 16 is \(find-sqrt 16)!"
+"The square root of 16 is \(find_sqrt 16)!"
 ```
 
 ## Control Flow
@@ -305,12 +305,12 @@ Matches must be exhaustive. The wildcard discard `_` will handle any branch not 
 You can include tuples in your match to check multiple things at once:
 
 ```aero
-(match {"test", 4}
-  {"hello", _n} =>
+(match {"test" 4}
+  {"hello" _n} =>
     (log "world")
-  {"test", $n} if: $n % 2 == 0 =>
+  {"test" $n} if: $n % 2 == 0 =>
     (log "got test with an even n")
-  {"test", $n} =>
+  {"test" $n} =>
     (log "got test with an odd n")
   _ =>
     (log "nothing matched")
@@ -445,6 +445,8 @@ $values = (#array 1 2 3 -10 4)
 (log $max)  ; 3
 
 ; NOTE: we could have simplified this to just include the stop condition directly in the while.
+; Because the while is after the for it is evaluated after consuming the next value. We can
+; place it before also.
 ```
 
 You can also have multiple `for:` clauses. The inner ones run for each iteration of the outer.
@@ -537,12 +539,12 @@ In the above, we can express colors like `(.red)` or `(.hex "#050505")`.
 
 When using variant types anonymously inline, it uses the form `(.case_one | .case_two 'type)`.
 
-Two postfix macros exist for convenience: `?` and `!`. `?` is a macro for the "option" type. `?'t`
-is shorthand for `(.some 't | .none)`. If `'t` is defined with square brackets, it flattens out.
-Similarly, `!'t` is shorthard for `(.ok 't | .err err)`. `err` is a protocol for errors. More on
-that in the protocol section. `!` does allow a specific error type to be used with the square
-bracket syntax as well using `!['t or: 'err]` which will give `(.ok 't | .err 'err)`. `'err` must
-implement `err`.
+Two postfix macros exist for convenience: `?` and `!`. `?` is the "optional" macro. `?'t` is
+shorthand for `(.some 't | .none)`. If `'t` is defined with square brackets, it flattens out.
+Similarly, `!'t`, the "fallible" macro, is shorthard for `(.ok 't | .err err)`. `err` is a protocol
+for errors. More on that in the protocol section. `!` does allow a specific error type to be used
+with the square bracket syntax as well using `!['t or: 'err]` which will give
+`(.ok 't | .err 'err)`. `'err` must implement `err`.
 
 `str` is the simplest implementor of `err`.
 
@@ -601,6 +603,54 @@ The body of the function follows the `do:`.
 )
 ```
 
+### Lambda Functions
+
+Lambdas functions in Aero start with a backslash. Below is one with explicit types:
+
+```aero
+$add = \($a int $b int -> int do: $a + $b)
+```
+
+More often, you'll see lambdas passed directly to another function and their types are inferred.
+
+The lambda syntax is also used when typing functions, though notably there are no parameter names.
+Labels are allowed (if they help), and appear as a required part of the signature.
+
+```aero
+: A contrived function that requires a lambda.
+(func say_hello $name str $greeter \(str to: str -> void) -> void do:
+  $message = "Hello"
+  ($greeter $message to: $name)
+)
+
+(main do:
+  (say_hello
+    "Bradley"
+    \($msg to: $name -> do: (log "\$msg, \$name"))
+  )
+)
+```
+
+A function which takes no arguments would look like:
+
+```aero
+\(-> do: (log "test"))
+```
+
+Note that the arrow is always required, even if there's no type listed.
+
+Lambda functions are implied in pipelines if there's a `->`.
+
+```aero
+(take_something
+ | do_something_else 1 2 3
+ | $result -> do:
+    (log "we're doing something with that result")
+    10
+ | do_something_with_an_int
+)
+```
+
 ## Structs
 
 Structs in Aero are nominatively typed and are used to define custom types.
@@ -623,6 +673,9 @@ With mixed syntax, the named fields must come after any positional.
 
 Field access from a struct uses `.`. For named fields you use just the field name. For positional
 fields, use the 0-based index.
+
+Fields don't have any kind of visibility markers. They're accessible to anyone with the struct
+value.
 
 ```aero
 : A basic coordinate struct but with positional syntax.
@@ -751,7 +804,7 @@ to indicate that there may be more named fields in the future.
   (match $person
     (#_ name: $name age: $age ...) if: $age >= 18 =>
       (log "'\$name' is old enough to be here.")
-    (#_ name: $name ...)=>
+    (#_ name: $name ...) =>
       (log "Whoa, '\$name' is too young!")
   )
 
@@ -779,18 +832,218 @@ Our program won't break because it was forced to use `...` and the default value
 
 They could also add more favorite colors options too!
 
-### Generics
+### Updating Fields
+
+Fields in structs can be updated using a special form of the construct syntax. Use `...`
+immediately followed by the struct value and any new fields. Notably, this just returns a new copy
+of the struct with updated fields, always remember that the original wasn't mutated!
 
 ```aero
-: A less basic coordinate struct with generics.
-(struct generic_coord['t]
-  ( x: 't
-    y: 't
-    z: 't
+$c = (#coord x: 1 y: 1 z: 1)
+$c = (#coord ...$c z: 10)
+
+; We redefined $c with z as 10.
+
+$c = (#coord_pos 1 1 1)
+$d = (#coord_pos ...$c 2: 10)
+
+; The last int, $d.2 is now updated. $c remains the same.
+```
+
+Like in patterns, we can use `#_` because the struct can always be inferred on update.
+
+```aero
+$c = (#coord x: 1 y: 1 z: 1)
+$c = (#_ ...$c z: 100)
+```
+
+### Struct Functions
+
+Functions can be contained within structs. These are not methods like in object-oriented
+programming, but are for convenience for functions with operate on the struct.
+
+```aero
+(struct company
+  ( name: str
+    owner: company?
+  )
+
+  (pub func new $name str -> company do:
+    (#company name: $name)
+  )
+
+  (pub func set_owner $c company $o company -> company do:
+    (log "Welcoming \[$c.name] to \[$o.name]!")
+
+    (#_ ...$c owner: (.some $o))
   )
 )
+
+(main do:
+  $linkedin =
+    (company/new "LinkedIn"
+     | company/set_owner (company/new "Microsoft"))
+
+  (log "LinkedIn is owned by \[$linkedin.owner?.name ?? "no one"].")
+)
 ```
+
+We use the visibility modifier macro `pub` to allow the function to be seen from outside.
+
+### Conditional Field Access
+
+In the last example, owner was an optional struct. We can use the conditional field access
+operators `?.` and `!.` to access a property from an optional or fallible struct value.
+
+These can chain and result in flattening any `(.none)` or `(.err [...])` values they encounter. If
+the last property access itself is optional of fallible, it will not flatten that value too! This
+must be opted in with a trailing `?` or `!`.
+
+```aero
+$third_owner_name = $company.owner?.owner?.owner?.name  ; str?
+$third_owner = $company.owner?.owner?.owner?            ; company?
+
+; If `$third_owner` was `$company.owner?.owner?.owner` it's type would be `company??`.
+```
+
+Commonly used with this are the optional and fallible default operators `??` and `!!`. These are
+short-circuiting operators that can give a value to an optional or fallible value. They can also
+be chained.
+
+```aero
+$code = $response!.status_code !! (get_status_code_another_way) !! 500
+$name = $person_with_optional_name.name ?? "anonymous"
+```
+
+You can access the `.err` value when using `!!` with `$!`.
+
+```aero
+$message = $response!.text !! "(request error: \$!)"
+```
+
+### Opaque Structs
+
+By default, fields in structs are public. There's no way to hide an individual field in a struct
+from other code. Instead, it's all-or-nothing. Opaque structs allow hiding all fields and locking
+down access to only functions contained in the struct. Structs are made opaque with the `opaque`
+marker protocol.
+
+```aero
+(struct counter is: opaque
+  ( value: int
+  )
+
+  (pub func new -> counter do:
+    (#counter value: 0)
+  )
+
+  (pub func value $c counter -> int do:
+    $c.value
+  )
+
+  (pub func incr $c counter -> counter do:
+    (add_value $c 1)
+  )
+
+  (pub func decr $c counter -> counter do:
+    (add_value $c -1)
+  )
+
+  (func add_value $c counter $i int -> counter do:
+    (#_ ...$c value: $c.value + $i)
+  )
+)
+
+(main do:
+  ; We can't use `(#counter value: 0)` directly because it's opaque.
+  ; We also can't access the value field. We're forced to use its public API.
+  $c = (counter/new)
+  $c = ($ $c | counter/incr | counter/incr | counter/incr | counter/decr)
+
+  (log "The counter value is now \(counter/value $c)")  ; the value is 2.
+)
+```
+
+Many times, you may want some fields exposed in a struct and some others not. In this case, it's
+common to pack private information into an opaque struct and place that in a regular struct.
+
+### Generic Structs
+
+Structs support type variables to allow for generalizing it for different things. Aero type
+variables look like `'t` or `'something`. They are not forward declared as they are in many
+languages, since they already occupy a unique prefixed namespace. Also importantly, type variable
+names can't be referenced at a function callsite or when referencing the type.
+
+When a type variable is only the type of an output of a function, and is not present in the typing
+of the parameters, it cannot be inferred from usage. This always requires the caller to specify the
+type. This must be done with a label in the definition and at the callsite.
+
+The type variable names when defining a struct are only consistent between where the type is
+declared and the types of the fields. It does not extend to the functions. They introduce their own
+type variables. Conventionally though, you'd want the type variable names to be the same. You would
+introduce other ones when you would have different instances of the same struct to have different
+types.
+
+Here's an example of these concepts:
+
+```aero
+(struct cache['t] is: opaque
+  ( value: 't?
+  )
+
+  (pub func new of: 't -> cache['t] do:
+    (#cache (.none))
+  )
+
+  (pub func get $c cache['t] -> 't? do:
+    $c.value
+  )
+
+  (pub func set $c cache['t] to: $value 't -> cache['t] do:
+    (#_ ...$c value: (.some $value))
+  )
+
+  (pub func reset $c cache['t] -> cache['t] do:
+    (#_ ...$c value: (.none))
+  )
+)
+
+(main do:
+  $cache = (cache/new of: str | cache/set to: "init")
+
+  (log "Cache value is currently '\(cache/get $cache)'")
+)
+```
+
+## Named Tuples
+
+Similarly to how pattern matching and positional and named fields work with structs, we can do the
+same with tuples.
+
+```aero
+$values = {1 2 3 hello: "world" a: 1}  ; the type is `{int int int hello: str a: int}`
+
+(match $values
+  {0 0 0 a: 0 ...}    => (log "all zero")
+  {... hello: $s ...} => (log $s)
+)
+```
+
+Again, usually tuples will be all positional, or have all named fields, not usually both.
 
 ## Protocols
 
 Protocols are like interfaces or traits in other languages.
+
+TODO
+
+## Marker Protocols
+
+Some protocols are 'markers', meaning they don't have anything to implement, but mark a struct in
+some way.
+
+TODO
+
+## Derived Protocols
+
+TODO
