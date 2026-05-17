@@ -1,0 +1,22 @@
+load("@hedron_compile_commands//:refresh_compile_commands.bzl", "refresh_compile_commands")
+load("@rules_multirun//:defs.bzl", "multirun")
+load(":symlink.bzl", "setup_dev_symlinks")
+
+refresh_compile_commands(
+    name = "refresh_compile_commands",
+    targets = {"//...": ""},
+)
+
+setup_dev_symlinks(
+    name = "symlinks",
+    paths = ["compiler/airc-codegen/src/air_ast_generated.rs"],
+)
+
+multirun(
+    name = "dev",
+    commands = [
+        ":refresh_compile_commands",
+        ":symlinks",
+    ],
+    visibility = ["//:__pkg__"],
+)
