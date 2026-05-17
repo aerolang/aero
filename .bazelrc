@@ -1,0 +1,17 @@
+# Use C++20 everywhere by default.
+build --cxxopt=-std=c++20 --host_cxxopt=-std=c++20
+
+# Use only clang to have fewer surprises on different systems.
+build --action_env=CC=clang
+build --action_env=CXX=clang++
+
+# Disable warnings from external code.
+build --per_file_copt=external/.*@-w
+build --host_per_file_copt=external/.*@-w
+
+# Enable the 'layering_check', i.e., make sure C++ includes only use registered
+# dependencies.
+build --features=layering_check
+
+# Enable the disk cache to speed up builds.
+build --disk_cache=~/.cache/bazel-disk-cache

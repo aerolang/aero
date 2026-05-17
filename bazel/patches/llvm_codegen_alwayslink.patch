@@ -1,0 +1,16 @@
+# Without alwayslink, Bazel's dead-strip optimization drops the target
+# registration functions in CodeGen (e.g. LLVMInitialize*Target), since
+# nothing directly references them by symbol. alwayslink forces the whole
+# archive into the final binary so the targets are available at runtime.
+
+--- a/utils/bazel/llvm-project-overlay/llvm/BUILD.bazel
++++ b/utils/bazel/llvm-project-overlay/llvm/BUILD.bazel
+@@ -2100,6 +2100,7 @@ cc_library(
+     copts = llvm_copts,
+     textual_hdrs = glob([
+         "include/llvm/CodeGen/**/*.def",
+     ]),
++    alwayslink = True,
+     deps = [
+         ":AggressiveInstCombine",
+         ":Analysis",
