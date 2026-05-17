@@ -1,0 +1,137 @@
+load("@llvm-project//mlir:tblgen.bzl", "gentbl_cc_library", "td_library")
+load("@rules_cc//cc:cc_library.bzl", "cc_library")
+
+package(
+    default_visibility = ["//compiler/airc-codegen:__subpackages__"],
+)
+
+# Bundle all TableGen files with their dependencies
+td_library(
+    name = "td_files",
+    srcs = [
+        "//compiler/airc-codegen/include/Dialect/AIR:AIRDialect.td",
+        "//compiler/airc-codegen/include/Dialect/AIR:AIROps.td",
+        "//compiler/airc-codegen/include/Dialect/AIR:AIRTypes.td",
+    ],
+    deps = [
+        "@llvm-project//mlir:BuiltinDialectTdFiles",
+        "@llvm-project//mlir:CallInterfacesTdFiles",
+        "@llvm-project//mlir:FunctionInterfacesTdFiles",
+        "@llvm-project//mlir:OpBaseTdFiles",
+        "@llvm-project//mlir:SideEffectInterfacesTdFiles",
+    ],
+)
+
+# Generate dialect declaration and definition
+gentbl_cc_library(
+    name = "dialect_inc_gen",
+    tbl_outs = [
+        (
+            ["-gen-dialect-decls"],
+            "AIRDialect.h.inc",
+        ),
+        (
+            ["-gen-dialect-defs"],
+            "AIRDialect.cpp.inc",
+        ),
+    ],
+    tblgen = "@llvm-project//mlir:mlir-tblgen",
+    td_file = "//compiler/airc-codegen/include/Dialect/AIR:AIRDialect.td",
+    deps = [
+        ":td_files",
+    ],
+)
+
+# Generate type declarations and definitions
+gentbl_cc_library(
+    name = "types_inc_gen",
+    tbl_outs = [
+        (
+            ["-gen-typedef-decls"],
+            "AIRTypes.h.inc",
+        ),
+        (
+            ["-gen-typedef-defs"],
+            "AIRTypes.cpp.inc",
+        ),
+    ],
+    tblgen = "@llvm-project//mlir:mlir-tblgen",
+    td_file = "//compiler/airc-codegen/include/Dialect/AIR:AIRTypes.td",
+    deps = [
+        ":dialect_inc_gen",
+        ":td_files",
+    ],
+)
+
+# Generate enum declarations and definitions
+gentbl_cc_library(
+    name = "enums_inc_gen",
+    tbl_outs = [
+        (
+            ["-gen-enum-decls"],
+            "AIREnums.h.inc",
+        ),
+        (
+            ["-gen-enum-defs"],
+            "AIREnums.cpp.inc",
+        ),
+    ],
+    tblgen = "@llvm-project//mlir:mlir-tblgen",
+    td_file = "//compiler/airc-codegen/include/Dialect/AIR:AIROps.td",
+    deps = [
+        ":dialect_inc_gen",
+        ":td_files",
+        ":types_inc_gen",
+    ],
+)
+
+# Generate operation declarations and definitions
+gentbl_cc_library(
+    name = "ops_inc_gen",
+    tbl_outs = [
+        (
+            ["-gen-op-decls"],
+            "AIROps.h.inc",
+        ),
+        (
+            ["-gen-op-defs"],
+            "AIROps.cpp.inc",
+        ),
+    ],
+    tblgen = "@llvm-project//mlir:mlir-tblgen",
+    td_file = "//compiler/airc-codegen/include/Dialect/AIR:AIROps.td",
+    deps = [
+        ":dialect_inc_gen",
+        ":enums_inc_gen",
+        ":td_files",
+        ":types_inc_gen",
+    ],
+)
+
+# Final AIR dialect library
+cc_library(
+    name = "AIR",
+    srcs = [
+        "AIRDialect.cpp",
+        "AIROps.cpp",
+    ],
+    hdrs = [
+        "//compiler/airc-codegen/include/Dialect/AIR:AIRDialect.h",
+        "//compiler/airc-codegen/include/Dialect/AIR:AIROps.h",
+        "//compiler/airc-codegen/include/Dialect/AIR:AIRTypes.h",
+    ],
+    includes = ["../../../include"],
+    deps = [
+        ":dialect_inc_gen",
+        ":enums_inc_gen",
+        ":ops_inc_gen",
+        ":types_inc_gen",
+        "@llvm-project//llvm:Support",
+        "@llvm-project//mlir:CallOpInterfaces",
+        "@llvm-project//mlir:Dialect",
+        "@llvm-project//mlir:FunctionInterfaces",
+        "@llvm-project//mlir:IR",
+        "@llvm-project//mlir:SideEffectInterfaces",
+        "@llvm-project//mlir:Support",
+    ],
+)

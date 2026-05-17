@@ -1,0 +1,98 @@
+// AST schema to facilitate Rust <-> C++ interop in codegen.
+
+namespace air_ast;
+
+struct Loc { line:uint32; col:uint32; }
+
+table VoidTy {}
+table IntTy {}
+table StrTy {}
+table BoolTy {}
+table StructTy { value:string; }
+
+union Ty {
+  VoidTy,
+  IntTy,
+  StrTy,
+  BoolTy,
+  StructTy,
+}
+
+table VoidLit {}
+table BoolLit { value:bool; }
+table IntLit { value:int64; }
+table StrLit { value:string; }
+table VarName { value:string; }
+table DefName { value:string; }
+table FieldAccess { var_name:string; index:uint32; }
+
+table Builtin { value:string; }
+union Callee { Builtin, VarName, DefName }
+
+table CallData { callee:Callee; args:[SimpleExpr]; }
+table IfData { cond:SimpleExpr; then_block:Block; else_block:Block; }
+table ConstructData { struct_name:string; fields:[SimpleExpr]; }
+
+union ExprData {
+  VoidLit,
+  BoolLit,
+  IntLit,
+  StrLit,
+  VarName,
+  DefName,
+  FieldAccess,
+  CallData,
+  IfData,
+  ConstructData,
+}
+
+union SimpleExprData {
+  VoidLit,
+  BoolLit,
+  IntLit,
+  StrLit,
+  VarName,
+  DefName,
+  FieldAccess,
+}
+
+table Expr { loc:Loc; data:ExprData; }
+table SimpleExpr { loc:Loc; data:SimpleExprData; }
+
+table Block { assigns:[Assign]; result:ExprData; }
+table Assign { loc:Loc; var_name:string; expr:ExprData; }
+
+table MainDef {
+  is_pub:bool;
+  body:Block;
+}
+
+table FuncDef {
+  name:string;
+  is_pub:bool;
+  params:[FuncParam];
+  return_type:Ty;
+  body:Block;
+}
+
+table FuncParam { name:string; ty:Ty; }
+
+table StructDef {
+  name:string;
+  is_pub:bool;
+  fields:[StructField];
+}
+
+table StructField { ty:Ty; }
+
+union DefData {
+  MainDef,
+  FuncDef,
+  StructDef,
+}
+
+table Def { loc:Loc; data:DefData; }
+
+table Source { filename:string; defs:[Def]; }
+
+root_type Source;

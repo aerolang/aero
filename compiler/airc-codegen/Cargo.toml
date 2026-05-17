@@ -1,0 +1,9 @@
+[package]
+name = "airc-codegen"
+version = "0.0.0"
+edition = "2024"
+
+[dependencies]
+airc-syntax = { path = "../airc-syntax" }
+cxx = "1.0.194"
+flatbuffers = "25.12.19"

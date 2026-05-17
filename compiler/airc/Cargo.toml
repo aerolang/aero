@@ -1,0 +1,13 @@
+[package]
+name = "airc"
+version = "0.0.0"
+edition = "2024"
+
+[dependencies]
+airc-codegen = { path = "../airc-codegen" }
+airc-syntax = { path = "../airc-syntax" }
+clap = { version = "4", features = ["derive"] }
+codespan-reporting = "0.13"
+
+[dev-dependencies]
+tempfile = "3"

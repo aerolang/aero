@@ -15,3 +15,9 @@ build --features=layering_check
 
 # Enable the disk cache to speed up builds.
 build --disk_cache=~/.cache/bazel-disk-cache
+
+# rules_zig intermediate output persistence.
+common --enable_platform_specific_config
+build:linux --sandbox_add_mount_pair=/tmp
+build:macos --sandbox_add_mount_pair=/var/tmp
+build:windows --sandbox_add_mount_pair=C:\Temp

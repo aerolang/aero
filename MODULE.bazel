@@ -1,5 +1,11 @@
 module(name = "aero")
 
+bazel_dep(name = "cxx.rs", version = "1.0.194")
+bazel_dep(name = "flatbuffers", version = "25.12.19")
+bazel_dep(name = "rules_cc", version = "0.2.18")
+bazel_dep(name = "rules_rust", version = "0.70.0")
+bazel_dep(name = "rules_zig", version = "0.14.0")
+
 # LLVM doesn't support bzlmod yet, so it's fetched as an HTTP archive.
 LLVM_COMMIT = "35990504507d79e0b9deb809c8ee5e1b34ceef20"
 
@@ -56,4 +62,35 @@ llvm_configure(
         "AArch64",
         "NVPTX",
     ],
+)
+
+rust = use_extension("@rules_rust//rust:extensions.bzl", "rust")
+rust.toolchain(
+    edition = "2024",
+    versions = ["1.95.0"],
+)
+use_repo(rust, "rust_toolchains")
+
+register_toolchains("@rust_toolchains//:all")
+
+crate = use_extension("@rules_rust//crate_universe:extensions.bzl", "crate")
+crate.from_cargo(
+    name = "crates",
+    cargo_lockfile = "//:Cargo.lock",
+    manifests = ["//:Cargo.toml"],
+    supported_platform_triples = [
+        "aarch64-apple-darwin",
+        "aarch64-pc-windows-msvc",
+        "aarch64-unknown-linux-gnu",
+        "x86_64-apple-darwin",
+        "x86_64-pc-windows-msvc",
+        "x86_64-unknown-linux-gnu",
+    ],
+)
+use_repo(crate, "crates")
+
+zig = use_extension("@rules_zig//zig:extensions.bzl", "zig")
+zig.toolchain(
+    default = True,
+    zig_version = "0.16.0",
 )

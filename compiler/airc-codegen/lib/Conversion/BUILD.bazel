@@ -1,0 +1,98 @@
+load("@llvm-project//mlir:tblgen.bzl", "gentbl_cc_library")
+load("@rules_cc//cc:cc_library.bzl", "cc_library")
+
+package(
+    default_visibility = ["//compiler/airc-codegen:__subpackages__"],
+)
+
+# Generate pass declarations for both AIR conversion passes
+gentbl_cc_library(
+    name = "pass_inc_gen",
+    tbl_outs = [
+        (
+            [
+                "-gen-pass-decls",
+                "-name=AIRToLLVM",
+            ],
+            "AIRToLLVM.h.inc",
+        ),
+    ],
+    tblgen = "@llvm-project//mlir:mlir-tblgen",
+    td_file = "//compiler/airc-codegen/include/Dialect/AIR:AIRToLLVM.td",
+    deps = [
+        "@llvm-project//mlir:OpBaseTdFiles",
+        "@llvm-project//mlir:PassBaseTdFiles",
+    ],
+)
+
+cc_library(
+    name = "AIRToArith",
+    srcs = ["AIRToArith.cpp"],
+    hdrs = ["//compiler/airc-codegen/include/Dialect/AIR:AIRToLLVM.h"],
+    includes = ["../../include"],
+    deps = [
+        ":pass_inc_gen",
+        "//compiler/airc-codegen/lib/Dialect/AIR",
+        "//compiler/airc-codegen/lib/Utils",
+        "@llvm-project//mlir:ArithDialect",
+        "@llvm-project//mlir:IR",
+        "@llvm-project//mlir:Pass",
+        "@llvm-project//mlir:Support",
+        "@llvm-project//mlir:TransformUtils",
+    ],
+)
+
+cc_library(
+    name = "AIRToFunc",
+    srcs = ["AIRToFunc.cpp"],
+    hdrs = ["//compiler/airc-codegen/include/Dialect/AIR:AIRToLLVM.h"],
+    includes = ["../../include"],
+    deps = [
+        ":pass_inc_gen",
+        "//compiler/airc-codegen/lib/Dialect/AIR",
+        "//compiler/airc-codegen/lib/Utils",
+        "@llvm-project//mlir:ArithDialect",
+        "@llvm-project//mlir:FuncDialect",
+        "@llvm-project//mlir:IR",
+        "@llvm-project//mlir:Pass",
+        "@llvm-project//mlir:Support",
+        "@llvm-project//mlir:TransformUtils",
+    ],
+)
+
+cc_library(
+    name = "AIRToLLVM",
+    srcs = ["AIRToLLVM.cpp"],
+    hdrs = ["//compiler/airc-codegen/include/Dialect/AIR:AIRToLLVM.h"],
+    includes = ["../../include"],
+    deps = [
+        ":pass_inc_gen",
+        "//compiler/airc-codegen/lib/Dialect/AIR",
+        "//compiler/airc-codegen/lib/Utils",
+        "@llvm-project//llvm:Support",
+        "@llvm-project//mlir:ArithDialect",
+        "@llvm-project//mlir:FuncDialect",
+        "@llvm-project//mlir:IR",
+        "@llvm-project//mlir:LLVMCommonConversion",
+        "@llvm-project//mlir:LLVMDialect",
+        "@llvm-project//mlir:Pass",
+        "@llvm-project//mlir:Support",
+        "@llvm-project//mlir:TransformUtils",
+    ],
+)
+
+cc_library(
+    name = "AIRToSCF",
+    srcs = ["AIRToSCF.cpp"],
+    includes = ["../../include"],
+    deps = [
+        ":pass_inc_gen",
+        "//compiler/airc-codegen/lib/Dialect/AIR",
+        "//compiler/airc-codegen/lib/Utils",
+        "@llvm-project//mlir:IR",
+        "@llvm-project//mlir:Pass",
+        "@llvm-project//mlir:SCFDialect",
+        "@llvm-project//mlir:Support",
+        "@llvm-project//mlir:TransformUtils",
+    ],
+)

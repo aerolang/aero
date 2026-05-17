@@ -1,0 +1,135 @@
+load("@crates//:defs.bzl", "aliases", "all_crate_deps")
+load("@cxx.rs//tools/bazel:rust_cxx_bridge.bzl", "rust_cxx_bridge")
+load("@rules_cc//cc:cc_binary.bzl", "cc_binary")
+load("@rules_cc//cc:cc_library.bzl", "cc_library")
+load("@rules_rust//rust:defs.bzl", "rust_library")
+
+genrule(
+    name = "air_ast.fbs-cc",
+    srcs = ["schema/air_ast.fbs"],
+    outs = ["schema/air_ast_generated.h"],
+    cmd = """
+        $(location @flatbuffers//:flatc) --cpp \
+            -o $(RULEDIR)/schema \
+            --scoped-enums \
+            $(location schema/air_ast.fbs)
+    """,
+    tools = ["@flatbuffers//:flatc"],
+)
+
+genrule(
+    name = "air_ast.fbs-rust",
+    srcs = ["schema/air_ast.fbs"],
+    outs = ["src/air_ast_generated.rs"],
+    cmd = """
+        $(location @flatbuffers//:flatc) --rust \
+            -o $(RULEDIR)/src \
+            $(location schema/air_ast.fbs)
+    """,
+    tools = ["@flatbuffers//:flatc"],
+)
+
+cc_library(
+    name = "air-ast",
+    hdrs = [":air_ast.fbs-cc"],
+    deps = ["@flatbuffers"],
+)
+
+rust_cxx_bridge(
+    name = "codegen-bridge",
+    src = "src/lib.rs",
+    deps = [":codegen-include"],
+)
+
+rust_library(
+    name = "airc-codegen",
+    srcs = glob(["src/**/*.rs"]) + [":air_ast.fbs-rust"],
+    aliases = aliases(),
+    proc_macro_deps = all_crate_deps(proc_macro = True),
+    visibility = ["//compiler:__subpackages__"],
+    deps = all_crate_deps(normal = True) + [
+        ":codegen",
+        ":codegen-bridge",
+        "//compiler/airc-syntax",
+    ],
+)
+
+cc_library(
+    name = "codegen-include",
+    hdrs = ["include/codegen.h"],
+    includes = ["include"],
+    deps = ["@cxx.rs//:cxx"],
+)
+
+cc_library(
+    name = "mlirgen",
+    srcs = ["lib/MLIRGen.cpp"],
+    hdrs = ["include/MLIRGen.h"],
+    includes = ["include"],
+    deps = [
+        ":air-ast",
+        "//compiler/airc-codegen/lib/Dialect/AIR",
+        "@flatbuffers",
+        "@llvm-project//mlir:FuncDialect",
+        "@llvm-project//mlir:IR",
+        "@llvm-project//mlir:LLVMDialect",
+        "@llvm-project//mlir:Support",
+    ],
+)
+
+cc_library(
+    name = "codegen",
+    srcs = ["lib/codegen.cpp"],
+    deps = [
+        ":air-ast",
+        ":codegen-bridge/include",
+        ":codegen-include",
+        ":mlirgen",
+        "//compiler/airc-codegen/lib/Conversion:AIRToArith",
+        "//compiler/airc-codegen/lib/Conversion:AIRToFunc",
+        "//compiler/airc-codegen/lib/Conversion:AIRToLLVM",
+        "//compiler/airc-codegen/lib/Conversion:AIRToSCF",
+        "//compiler/airc-codegen/lib/Dialect/AIR",
+        "@cxx.rs//:cxx",
+        "@flatbuffers",
+        "@llvm-project//lld:Common",
+        "@llvm-project//lld:ELF",
+        "@llvm-project//lld:MachO",
+        "@llvm-project//llvm:AllTargetsCodeGens",
+        "@llvm-project//llvm:CodeGen",
+        "@llvm-project//llvm:Core",
+        "@llvm-project//llvm:MC",
+        "@llvm-project//llvm:Support",
+        "@llvm-project//llvm:Target",
+        "@llvm-project//llvm:TargetParser",
+        "@llvm-project//mlir:AllPassesAndDialects",
+        "@llvm-project//mlir:ArithDialect",
+        "@llvm-project//mlir:ArithToLLVM",
+        "@llvm-project//mlir:ControlFlowToLLVM",
+        "@llvm-project//mlir:FuncDialect",
+        "@llvm-project//mlir:FuncToLLVM",
+        "@llvm-project//mlir:IR",
+        "@llvm-project//mlir:LLVMDialect",
+        "@llvm-project//mlir:Pass",
+        "@llvm-project//mlir:ReconcileUnrealizedCasts",
+        "@llvm-project//mlir:SCFToControlFlow",
+        "@llvm-project//mlir:ToLLVMIRTranslation",
+        "@llvm-project//mlir:ToLLVMIRTranslationRegistration",
+    ],
+)
+
+cc_binary(
+    name = "air-opt",
+    srcs = ["tools/air-opt.cpp"],
+    deps = [
+        "//compiler/airc-codegen/lib/Conversion:AIRToArith",
+        "//compiler/airc-codegen/lib/Conversion:AIRToFunc",
+        "//compiler/airc-codegen/lib/Conversion:AIRToLLVM",
+        "//compiler/airc-codegen/lib/Conversion:AIRToSCF",
+        "//compiler/airc-codegen/lib/Dialect/AIR",
+        "@llvm-project//mlir:AllPassesAndDialects",
+        "@llvm-project//mlir:MlirOptLib",
+        "@llvm-project//mlir:RegisterAllDialects",
+        "@llvm-project//mlir:RegisterAllPasses",
+    ],
+)

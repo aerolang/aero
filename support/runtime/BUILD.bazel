@@ -1,0 +1,8 @@
+load("@rules_zig//zig:defs.bzl", "zig_static_library")
+
+zig_static_library(
+    name = "runtime",
+    srcs = glob(["src/**/*.zig"]),
+    main = "src/runtime.zig",
+    visibility = ["//visibility:public"],
+)

@@ -1,0 +1,84 @@
+Source = { SOI ~ Defs ~ EOI }
+
+Defs = _{ Ws? ~ Def ~ (Ws ~ Def)* ~ Ws? }
+Def = _{
+  "(" ~ Ws? ~ "def" ~ Ws ~ Vis ~ Ws ~ DefInner ~ Ws? ~ ")"
+}
+DefInner = _{ MainDef | FuncDef | StructDef }
+
+Vis = _{ Pub | Priv }
+Pub = @{ "pub" }
+Priv = @{ "priv" }
+
+MainDef = {
+  "main" ~ Ws ~ "do:" ~ Ws
+  ~ (Assign ~ Ws)* ~ Expr ~ Ws?
+}
+
+FuncDef = {
+  "func" ~ Ws ~ DefName ~ Ws ~ ParamList ~ Ws ~ "->" ~ Ws ~ Type ~ Ws ~ "do:" ~ Ws
+  ~ (Assign ~ Ws)* ~ Expr ~ Ws?
+}
+
+StructDef = {
+  "struct" ~ Ws ~ HashName ~ (Ws ~ Type)*
+}
+
+ParamList = { "(" ~ Ws? ~ (Param ~ (Ws ~ Param)*)? ~ Ws? ~ ")" }
+Param = { VarName ~ Ws ~ Type }
+
+Assign = { (Discard | VarName) ~ Ws ~ "=" ~ Ws ~ Expr }
+
+Expr = _{ IfExpr | Construct | SimpleExpr | Call }
+
+IfBlock = { (Assign ~ Ws)* ~ Expr }
+
+IfExpr = {
+  "(" ~ Ws? ~ "if" ~ Ws ~ SimpleExpr ~ Ws ~ "do:" ~ Ws ~ IfBlock ~ Ws ~ "else:" ~ Ws ~ IfBlock ~ Ws? ~ ")"
+}
+
+// (#point 1 2) for named, (# 1 2) for anonymous
+Construct = {
+  "(" ~ Ws? ~ "#" ~ Name? ~ (Ws ~ SimpleExpr)* ~ Ws? ~ ")"
+}
+
+SimpleExpr = _{ Void | Bool | Int | Str | FieldAccess | VarName | DefName }
+
+Bool = { "true" | "false" }
+
+FieldAccess = { "$" ~ Name ~ "." ~ ASCII_DIGIT+ }
+
+Int = { "-"? ~ ASCII_DIGIT+ }
+
+Void = { "(" ~ Ws? ~ ")" }
+
+Str = { "\"" ~ StrContent ~ "\"" }
+StrContent = @{ (!"\"" ~ ANY)* }
+
+Call = { "(" ~ Ws? ~ Callee ~ (Ws ~ SimpleExpr)* ~ Ws? ~ ")" }
+Callee = _{ Builtin | DefName | VarName }
+Builtin = { ":" ~ Name ~ ("/" ~ Name)* }
+
+Type = _{ IntType | StrType | BoolType | VoidType | StructType }
+
+IntType  = @{ ":int" }
+StrType  = @{ ":str" }
+BoolType = @{ ":bool" }
+VoidType = @{ ":void" }
+StructType = { "#" ~ Name }
+
+Label = { Name ~ ":" }
+GlobalPath = { ("/" ~ Name)+ }
+LocalPath = { Name ~ ("/" ~ Name)+ }
+HashName = { "#" ~ Name }
+DefName = { "%" ~ Name }
+VarName = { "$" ~ Name }
+Discard = { "_" }
+
+Name = { (ASCII_ALPHA | "_") ~ (ASCII_ALPHANUMERIC | "-")* }
+
+Ws = _{ Space | Newline }
+Space = _{ (" " | "\t")+ }
+Newline = _{
+  Space? ~ ((";" ~ (!("\n" | "\r") ~ ANY)*)? ~ ("\n" | "\r\n" | "\r") ~ Space?)+
+}

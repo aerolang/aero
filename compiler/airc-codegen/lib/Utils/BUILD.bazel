@@ -1,0 +1,17 @@
+load("@rules_cc//cc:cc_library.bzl", "cc_library")
+
+package(
+    default_visibility = ["//compiler/airc-codegen:__subpackages__"],
+)
+
+cc_library(
+    name = "Utils",
+    hdrs = ["AIRTypeConverter.h"],
+    includes = ["../../.."],
+    deps = [
+        "//compiler/airc-codegen/lib/Dialect/AIR",
+        "@llvm-project//mlir:IR",
+        "@llvm-project//mlir:LLVMDialect",
+        "@llvm-project//mlir:TransformUtils",
+    ],
+)
