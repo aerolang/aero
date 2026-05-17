@@ -1,0 +1,14 @@
+load("@aspect_rules_lint//format:defs.bzl", "format_multirun")
+load(":zig_fmt.bzl", "zig_fmt")
+
+zig_fmt(name = "zig-fmt")
+
+format_multirun(
+    name = "format",
+    cc = "@llvm-project//clang:clang-format",
+    rust = "@rules_rust//tools/upstream_wrapper:rustfmt",
+    starlark = "@buildifier_prebuilt//:buildifier",
+    visibility = ["//:__pkg__"],
+    yaml = "@aspect_rules_lint//format:yamlfmt",
+    zig = ":zig-fmt",
+)

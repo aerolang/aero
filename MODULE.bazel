@@ -94,3 +94,14 @@ zig.toolchain(
     default = True,
     zig_version = "0.16.0",
 )
+
+bazel_dep(name = "aspect_rules_lint", version = "2.5.2", dev_dependency = True)
+single_version_override(
+    module_name = "aspect_rules_lint",
+    patch_strip = 1,
+    patches = [
+        "//bazel/patches:aspect_rules_lint_zig_fmt.patch",
+    ],
+)
+
+bazel_dep(name = "buildifier_prebuilt", version = "8.5.1.2", dev_dependency = True)

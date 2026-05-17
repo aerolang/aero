@@ -1,0 +1,37 @@
+--- a/format/private/formatter_binary.bzl
++++ b/format/private/formatter_binary.bzl
+@@ -33,6 +33,7 @@
+     "Rust": "rustfmt",
+     "XML": "prettier",
+     "Gherkin": "prettier",
++    "Zig": "zig",
+     "F#": "fantomas",
+     "C#": "csharpier",
+     "Pkl": "pkl",
+@@ -70,6 +71,7 @@
+     "clang-format": "--style=file --fallback-style=none --dry-run -Werror",
+     "yamlfmt": "-lint",
+     "rustfmt": "--check",
++    "zig": "fmt --check",
+     "fantomas": "--check",
+     "csharpier": "check",
+     "pkl": "format --silent",
+@@ -103,6 +105,7 @@
+     "clang-format": "-style=file --fallback-style=none -i",
+     "yamlfmt": "",
+     "rustfmt": "",
++    "zig": "fmt",
+     "fantomas": "",
+     "csharpier": "format",
+     "pkl": "format --write",
+
+--- a/format/private/format.sh
++++ b/format/private/format.sh
+@@ -141,6 +141,7 @@
+       # GitHub Linguist also groups .qbs with QML, but qmlformat only supports .qml files.
+       'QML') patterns=('*.qml') ;;
+       'Rust') patterns=('*.rs' '*.rs.in') ;;
++      'Zig') patterns=('*.zig' '*.zon') ;;
+       'SQL') patterns=('*.sql' '*.cql' '*.ddl' '*.inc' '*.mysql' '*.prc' '*.tab' '*.udf' '*.viw') ;;
+       'SCSS') patterns=('*.scss') ;;
+       'Scala') patterns=('*.scala' '*.kojo' '*.sbt' '*.sc') ;;
